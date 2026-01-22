@@ -191,16 +191,10 @@
 
             <ConfigRecepcionGranos
               v-else-if="activeConfigTab === 'Recepción de Granos'"
-              v-bind="{
-                catalogoOrigenes,
-                setCatalogoOrigenes: (val) => (catalogoOrigenes = val),
-                catalogoCompradores,
-                setCatalogoCompradores: (val) => (catalogoCompradores = val),
-                catalogoGranos,
-                setCatalogoGranos: (val) => (catalogoGranos = val),
-                camposBascula,
-                setCamposBascula: (val) => (camposBascula = val),
-              }"
+              v-model:catalogoOrigenes="catalogoOrigenes"
+              v-model:catalogoCompradores="catalogoCompradores"
+              v-model:catalogoGranos="catalogoProductos"
+              v-model:camposBascula="camposBascula"
             />
 
             <ConfiguracionRecepcionFacturas
@@ -392,7 +386,7 @@
 </template>
 
 <script setup lang="ts">
-import { api } from '/src/boot/axios';
+import axios from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Notify } from 'quasar';
 
@@ -400,28 +394,28 @@ import { Notify } from 'quasar';
  * Assets
  * En React venían de figma:asset. En Vue debes colocar los PNG en /src/assets/ y ajustar el import.
  */
-import alazanLogo from './assets/alazanLogo.png'; // ajusta esta ruta real
+import alazanLogo from '@/assets/alazanLogo.png'; // ajusta esta ruta real
 
 /**
  * Componentes (deben existir como .vue).
  * Si todavía no los convertiste, crea placeholders para compilar.
  */
-import BoletaFlow from './app/components/BoletaFlow.vue';
-import RenegociarPrecio from './app/components/RenegociarPrecio.vue';
-import VolcadoFlow from './app/components/VolcadoFlow.vue';
-import PreliquidacionFlow from './app/components/PreliquidacionFlow.vue';
-import BasculaScreen from './app/components/BasculaScreen.vue';
-import RecepcionFacturasFlow from './app/components/RecepcionFacturasFlow.vue';
-import PagosProductoresFlow from './app/components/PagosFlow.vue';
-import PagosSedeFlow from './app/components/PagosSedeFlow.vue';
-import ConfigRecepcionGranos from './app/components/ConfigRecepcionGranos.vue';
-import GestionBD from './app/components/GestionBD.vue';
-import ParametrosGenerales from './app/components/ParametrosGenerales.vue';
-import PrecioScreen from './app/components/PrecioScreen.vue';
-import AnalisisScreen from './app/components/AnalisisScreen.vue';
-import ReglasPrecio from './app/components/ReglasPrecio.vue';
-import ConfiguracionRecepcionFacturas from './app/components/ConfiguracionRecepcionFacturas.vue';
-import ConfiguracionPagos from './app/components/ConfiguracionPagos.vue';
+import { BoletaFlow } from './app/components/BoletaFlow';
+import { RenegociarPrecio } from './app/components/RenegociarPrecio';
+import { VolcadoFlow } from './app/components/VolcadoFlow';
+import { PreliquidacionFlow } from './app/components/PreliquidacionFlow';
+import { BasculaScreen } from './app/components/BasculaScreen';
+import { RecepcionFacturasFlow } from './app/components/RecepcionFacturasFlow';
+import { PagosProductoresFlow } from './app/components/PagosFlow';
+import { PagosSedeFlow } from './app/components/PagosSedeFlow';
+import { ConfigRecepcionGranos } from './app/components/ConfigRecepcionGranos';
+import { GestionBD } from './app/components/GestionBD';
+import { ParametrosGenerales } from './app/components/ParametrosGenerales';
+import { PrecioScreen } from './app/components/PrecioScreen';
+import { AnalisisScreen } from './app/components/AnalisisScreen';
+import { ReglasPrecio } from './app/components/ReglasPrecio';
+import { ConfiguracionRecepcionFacturas } from './app/components/ConfiguracionRecepcionFacturas';
+import { ConfiguracionPagos } from './app/components/ConfiguracionPagos';
 
 type TabPrecio = 'autorizar' | 'renegociar';
 type BoletaStep = 'preliminar' | 'confirmacion' | 'final' | null;
