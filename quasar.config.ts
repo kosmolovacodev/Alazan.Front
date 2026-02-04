@@ -11,7 +11,7 @@ export default defineConfig((/* ctx */) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: [],
+    boot: ['pinia'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -32,6 +32,7 @@ export default defineConfig((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
     build: {
+      sourcemap: true,
       target: {
         browser: ['es2022', 'firefox115', 'chrome115', 'safari14'],
         node: 'node20',
@@ -79,18 +80,31 @@ export default defineConfig((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
-      // https: true,
-      open: true, // opens browser window automatically
+      port: 9200,
+      open: true,
+      // 1. Ponemos el host exacto en un array (como pidió el error de TS)
+      allowedHosts: ['semiabsorbent-biserially-bobbye.ngrok-free.dev', '.ngrok-free.dev'],
+      // 2. Esta línea es clave para que Vite no se ponga estricto con el túnel
+      historyApiFallback: true,
+
+      proxy: {
+        '/api': {
+          target: 'http://192.168.100.12:5183',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
-      plugins: ['Notify'],
+      plugins: ['Notify', 'Loading', 'Dialog'],
       config: {
         notify: {
           position: 'top-right',
           timeout: 2500,
         },
+        loading: { spinnerColor: 'orange-8' },
       },
     },
     animations: [],
@@ -107,7 +121,27 @@ export default defineConfig((/* ctx */) => {
 
     // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
     pwa: {
-      workboxMode: 'GenerateSW', // 'GenerateSW' or 'InjectManifest'
+      workboxMode: 'InjectManifest', // Cambia de 'GenerateSW' a 'InjectManifest' para tener control total
+      injectPwaMetaTags: true,
+      swHashtag: true,
+      extendRouteAlias: true,
+      manifest: {
+        name: 'Sistema Alazán - Producción',
+        short_name: 'Alazán PWA',
+        description: 'Módulo de producción standalone',
+        display: 'standalone', // Esto quita la barra de navegación del navegador para que parezca app nativa
+        orientation: 'portrait',
+        background_color: '#ffffff',
+        theme_color: '#027be3',
+        icons: [
+          {
+            src: 'icons/icon-128x128.png',
+            sizes: '128x128',
+            type: 'image/png',
+          },
+          // ... asegúrate de tener los iconos en public/icons
+        ],
+      },
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova

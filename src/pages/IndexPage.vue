@@ -1,55 +1,40 @@
 <template>
-  <q-page class="row items-center justify-evenly">
-    <example-component
-      title="Example component"
-      active
-      :todos="todos"
-      :meta="meta"
-    ></example-component>
+  <q-page class="flex flex-center bg-grey-1">
+    <div class="text-center transition-fade">
+      <q-img
+        src="~assets/alazanLogo.png"
+        spinner-color="orange"
+        style="max-width: 400px; width: 80vw"
+        class="q-mb-xl shadow-transition"
+      />
+
+      <div class="text-h4 text-weight-light text-grey-8">ERP 1.0</div>
+      <div class="text-subtitle1 text-grey-6 q-mt-sm">Panel de Control de Recepción de Granos</div>
+    </div>
   </q-page>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import type { Todo, Meta } from 'components/models';
-import ExampleComponent from 'components/ExampleComponent.vue';
+import { defineComponent } from 'vue';
 
 export default defineComponent({
   name: 'IndexPage',
-
-  components: {
-    ExampleComponent,
-  },
-
-  setup() {
-    const todos = ref<Todo[]>([
-      {
-        id: 1,
-        content: 'ct1',
-      },
-      {
-        id: 2,
-        content: 'ct2',
-      },
-      {
-        id: 3,
-        content: 'ct3',
-      },
-      {
-        id: 4,
-        content: 'ct4',
-      },
-      {
-        id: 5,
-        content: 'ct5',
-      },
-    ]);
-
-    const meta = ref<Meta>({
-      totalCount: 1200,
-    });
-
-    return { todos, meta };
-  },
 });
 </script>
+
+<style scoped>
+.transition-fade {
+  animation: fadeIn 1.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
