@@ -1,4 +1,3 @@
-// src/router/index.ts
 import { route } from 'quasar/wrappers';
 import {
   createMemoryHistory,
@@ -7,7 +6,6 @@ import {
   createWebHistory,
 } from 'vue-router';
 import { getActivePinia } from 'pinia';
-import { useAuthStore } from 'src/stores/auth';
 import routes from './routes';
 
 export default route(function (/* { store } */) {
@@ -24,29 +22,26 @@ export default route(function (/* { store } */) {
   });
 
   Router.beforeEach((to, from, next) => {
-    // IMPORTANTE: No usar el parámetro store directamente
-    // En su lugar, usar getActivePinia() que buscará la instancia activa
     const pinia = getActivePinia();
 
     if (!pinia) {
-      // Si Pinia no está inicializado aún, permitir la navegación
-      // La protección se hará en el componente o en un hook posterior
-      console.warn('Pinia no está inicializado aún');
       next();
       return;
     }
 
-    const authStore = useAuthStore(pinia);
-
-    const publicPages = ['/login', '/register', '/forgot-password']; // Ajusta según tus rutas públicas
+    const publicPages = ['/login'];
     const authRequired = !publicPages.includes(to.path);
+    const hasToken = !!localStorage.getItem('jwt');
 
-    if (authRequired && !authStore.isLoggedIn) {
+    if (authRequired && !hasToken) {
+      // Si el módulo (como preliquidación) requiere auth y no hay token, al login
+      console.warn(`Acceso denegado a ${to.path}. Redirigiendo al login...`);
       next('/login');
-    } else if (to.path === '/login' && authStore.isLoggedIn) {
-      // Redirigir al home si ya está autenticado
-      next('/');
+    } else if (to.path === '/login' && hasToken) {
+      // Si ya está logueado y quiere ir al login, lo mandamos al inicio
+      next('/inicio');
     } else {
+      // En cualquier otro caso (página pública o usuario logueado), adelante
       next();
     }
   });
@@ -54,7 +49,6 @@ export default route(function (/* { store } */) {
   return Router;
 });
 
-// Necesitas estas variables de entorno tipadas
 declare global {
   const processEnv: {
     SERVER?: boolean;

@@ -114,6 +114,46 @@
         </q-card-section>
       </q-card>
 
+      <q-card bordered class="shadow-1 q-mb-lg">
+        <q-card-section class="bg-orange-1 text-orange-9">
+          <div class="text-subtitle1 text-weight-bold row items-center">
+            <q-icon name="price_change" class="q-mr-sm" /> Configuración del Módulo de Precios
+          </div>
+        </q-card-section>
+        <q-card-section class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model.number="form.tiempo_autorizacion_auto"
+              label="Tiempo de Autorización Automática (minutos)"
+              outlined
+              dense
+              type="number"
+              min="1"
+              max="1440"
+              hint="Tiempo en minutos para que el precio se autorice automáticamente si el productor no responde"
+            >
+              <template v-slot:prepend>
+                <q-icon name="timer" />
+              </template>
+              <template v-slot:append>
+                <span class="text-caption text-grey">min</span>
+              </template>
+            </q-input>
+          </div>
+          <div class="col-12 col-md-6">
+            <q-banner rounded class="bg-grey-2 text-grey-8">
+              <template v-slot:avatar>
+                <q-icon name="info" color="blue" />
+              </template>
+              <div class="text-caption">
+                Si el productor no acepta o rechaza el precio sugerido dentro de este tiempo,
+                el sistema autorizará automáticamente el precio sugerido.
+              </div>
+            </q-banner>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <div class="row justify-end q-mt-md">
         <q-btn
           label="Guardar Configuración General"
@@ -129,10 +169,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
+import { useAuthStore } from 'src/stores/auth';
 
+const authStore = useAuthStore();
 const loading = ref(false);
 
 const form = ref({
@@ -159,7 +201,10 @@ const form = ref({
   formatoFecha: 'DD/MM/YYYY',
   formatoHora: 'HH:mm',
   idioma: 'Español (México)',
-  moneda: 'MXN ($)'
+  moneda: 'MXN ($)',
+
+  // Configuración del Módulo de Precios
+  tiempo_autorizacion_auto: 30 // Minutos para autorización automática
 });
 
 const cargarConfiguracion = async () => {
@@ -188,6 +233,11 @@ const guardarConfiguracion = async () => {
     loading.value = false;
   }
 };
+
+// Watcher para recargar cuando cambie de sede
+watch(() => authStore.sedeActivaId, () => {
+  void cargarConfiguracion();
+});
 
 onMounted(() => {
   void cargarConfiguracion();

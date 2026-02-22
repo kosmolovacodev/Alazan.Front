@@ -1,95 +1,81 @@
 <template>
-  
-    <q-card flat bordered class="q-mb-lg">
-      <q-card-section class="row items-center">
-        <div>
-          <div class="text-h5 text-weight-bold">
-            <q-icon name="shield" color="primary" class="q-mr-sm" />
-            Gestión de Roles
-          </div>
-          <div class="text-caption text-grey-7">Define los roles y permisos del sistema</div>
+  <q-card flat bordered class="q-mb-lg">
+    <q-card-section class="row items-center">
+      <div>
+        <div class="text-h5 text-weight-bold">
+          <q-icon name="shield" color="primary" class="q-mr-sm" />
+          Gestión de Roles
         </div>
-        <q-space />
-        <q-btn color="primary" icon="add" label="Nuevo Rol" @click="abrirModalRol()" />
-      </q-card-section>
+        <div class="text-caption text-grey-7">Define los roles y permisos del sistema</div>
+      </div>
+      <q-space />
+      <q-btn color="primary" icon="add" label="Nuevo Rol" @click="abrirModalRol()" />
+    </q-card-section>
 
-      <q-separator />
+    <q-separator />
 
+    <q-card-section>
+      <q-table
+        :rows="roles"
+        :columns="columnasRoles"
+        row-key="id"
+        flat
+        bordered
+        :pagination="{ rowsPerPage: 0 }"
+      >
+        <template v-slot:body-cell-acciones="props">
+          <q-td :props="props" class="q-gutter-xs">
+            <q-btn flat round dense color="primary" icon="edit" @click="abrirModalRol(props.row)">
+              <q-tooltip>Editar Rol</q-tooltip>
+            </q-btn>
+            <q-btn
+              v-if="props.row.nombre_rol !== 'ADMIN'"
+              flat
+              round
+              dense
+              color="negative"
+              icon="delete"
+              @click="eliminarRol(props.row.id)"
+            />
+          </q-td>
+        </template>
+      </q-table>
+    </q-card-section>
+  </q-card>
+
+  <q-dialog v-model="modalRol">
+    <q-card style="width: 400px">
       <q-card-section>
-        <q-table
-          :rows="roles"
-          :columns="columnasRoles"
-          row-key="id"
-          flat
-          bordered
-          :pagination="{ rowsPerPage: 10 }"
-        >
-          <template v-slot:body-cell-acciones="props">
-            <q-td :props="props" class="q-gutter-xs">
-              <q-btn flat round dense color="primary" icon="edit" @click="abrirModalRol(props.row)">
-                <q-tooltip>Editar Rol</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="props.row.nombre_rol !== 'ADMIN'"
-                flat
-                round
-                dense
-                color="negative"
-                icon="delete"
-                @click="eliminarRol(props.row.id)"
-              />
-            </q-td>
-          </template>
-        </q-table>
+        <div class="text-h6">{{ editandoRol ? 'Editar Rol' : 'Nuevo Rol' }}</div>
       </q-card-section>
+      <q-card-section class="q-gutter-md">
+        <q-input
+          v-model="formRol.nombre_rol"
+          label="Nombre del Rol *"
+          outlined
+          dense
+          :disable="editandoRol && formRol.nombre_rol === 'ADMIN'"
+        />
+        <q-input v-model="formRol.descripcion" label="Descripción" type="textarea" outlined dense />
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancelar" v-close-popup />
+        <q-btn color="primary" :label="editandoRol ? 'Actualizar' : 'Crear'" @click="guardarRol" />
+      </q-card-actions>
     </q-card>
-
-
-
-    <q-dialog v-model="modalRol">
-      <q-card style="width: 400px">
-        <q-card-section>
-          <div class="text-h6">{{ editandoRol ? 'Editar Rol' : 'Nuevo Rol' }}</div>
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input
-            v-model="formRol.nombre_rol"
-            label="Nombre del Rol *"
-            outlined
-            dense
-            :disable="editandoRol && formRol.nombre_rol === 'ADMIN'"
-          />
-          <q-input
-            v-model="formRol.descripcion"
-            label="Descripción"
-            type="textarea"
-            outlined
-            dense
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" v-close-popup />
-          <q-btn
-            color="primary"
-            :label="editandoRol ? 'Actualizar' : 'Crear'"
-            @click="guardarRol"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    
-  
+  </q-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { api } from 'boot/axios';
 import { useQuasar } from 'quasar';
 // Importamos el tipo QTableColumn por separado si el linter marca error
 import type { QTableColumn } from 'quasar';
+import { useAuthStore } from 'src/stores/auth';
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 
 // --- INTERFACES TYPESCRIPT ---
 // Definimos la estructura de los objetos para evitar errores de "never"
@@ -113,7 +99,6 @@ interface DBPantalla {
   descripcion: string;
 }
 
-
 // --- ESTADOS CON TIPADO ---
 const roles = ref<Rol[]>([]); // Array de Rol
 const listaPantallas = ref<Pantalla[]>([]); // Array de Pantalla
@@ -134,7 +119,6 @@ const columnasRoles: QTableColumn[] = [
   { name: 'descripcion', label: 'DESCRIPCIÓN', align: 'left', field: 'descripcion' },
   { name: 'acciones', label: 'ACCIONES', align: 'center', field: 'id' },
 ];
-
 
 // --- CARGA DE DATOS ---
 onMounted(async () => {
@@ -165,7 +149,6 @@ async function obtenerCatalogoPantallas() {
   }
 }
 
-
 // --- GESTIÓN DE ROLES (CRUD) ---
 function abrirModalRol(rol: Rol | null = null) {
   if (rol) {
@@ -182,9 +165,9 @@ function abrirModalRol(rol: Rol | null = null) {
 async function guardarRol() {
   try {
     if (editandoRol.value) {
-      await api.put(`/api/roles/${formRol.value.id}`, formRol.value);
+      await api.put(`roles/${formRol.value.id}`, formRol.value);
     } else {
-      await api.post('/api/roles', formRol.value);
+      await api.post('roles', formRol.value);
     }
     modalRol.value = false;
     await cargarRoles();
@@ -204,7 +187,7 @@ function eliminarRol(id: number) {
     // Para solucionar el error de ESLint, envolvemos la llamada en un bloque void
     void (async () => {
       try {
-        await api.delete(`/api/roles/${id}`);
+        await api.delete(`/roles/${id}`);
         await cargarRoles(); //
         $q.notify({ type: 'positive', message: 'Rol eliminado' });
       } catch (error) {
@@ -215,5 +198,12 @@ function eliminarRol(id: number) {
   });
 }
 
-
+// Watcher para recargar cuando cambie de sede
+watch(
+  () => authStore.sedeActivaId,
+  () => {
+    void cargarRoles();
+    void obtenerCatalogoPantallas();
+  },
+);
 </script>

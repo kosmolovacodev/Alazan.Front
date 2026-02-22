@@ -27,8 +27,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { api } from 'src/boot/axios';
+import { useAuthStore } from 'src/stores/auth';
+
+const authStore = useAuthStore();
 
 // Interfaces para tipado estricto
 interface Rol {
@@ -61,6 +64,16 @@ const cargarPermisos = async (val: number) => {
 async function guardarPermiso(p: Permiso) {
   await api.post('/api/permisos/actualizar', { rolId: rolId.value, ...p });
 }
+
+// Watcher para recargar roles cuando cambie la sede
+watch(
+  () => authStore.sedeActivaId,
+  () => {
+    rolId.value = null;
+    permisos.value = [];
+    void cargarRoles();
+  },
+);
 
 onMounted(() => {
   void cargarRoles();

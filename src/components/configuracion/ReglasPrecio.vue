@@ -3,9 +3,33 @@
     <div class="row items-center justify-between q-mb-md">
       <div>
         <div class="text-h6 text-grey-9">Reglas de Precio</div>
-        <div class="text-caption text-grey-7">Configura Parámetros base, calibres y niveles de exportación</div>
+        <div class="text-caption text-grey-7">
+          Configura Parámetros base, calibres y niveles de exportación
+        </div>
       </div>
-      <q-btn color="green-7" unelevated icon="save" label="Guardar" :loading="loading" @click="guardarConfigBase" />
+      <div class="row items-center q-gutter-sm">
+        <q-select
+          v-model="granoSeleccionado"
+          :options="listaGranos"
+          option-value="id"
+          option-label="nombre"
+          emit-value
+          map-options
+          dense
+          outlined
+          label="Tipo de Grano"
+          style="min-width: 200px"
+          @update:model-value="cargarDatos"
+        />
+        <q-btn
+          color="green-7"
+          unelevated
+          icon="save"
+          label="Guardar"
+          :loading="loading"
+          @click="guardarConfigBase"
+        />
+      </div>
     </div>
 
     <div class="row q-col-gutter-md">
@@ -14,8 +38,22 @@
           <q-card-section>
             <div class="text-subtitle2 q-mb-md">💰 Parámetros Base</div>
             <div class="q-gutter-sm">
-              <q-input v-model.number="formBase.precioBaseUsd" label="Precio Base USD" dense outlined type="number" prefix="$" />
-              <q-input v-model.number="formBase.tipoCambio" label="Tipo de Cambio" dense outlined type="number" prefix="$">
+              <q-input
+                v-model.number="formBase.precioBaseUsd"
+                label="Precio Base USD"
+                dense
+                outlined
+                type="number"
+                prefix="$"
+              />
+              <q-input
+                v-model.number="formBase.tipoCambio"
+                label="Tipo de Cambio"
+                dense
+                outlined
+                type="number"
+                prefix="$"
+              >
                 <template #append>
                   <q-btn flat round icon="refresh" size="sm" @click="consultarAPI" />
                 </template>
@@ -47,18 +85,34 @@
           <q-card-section>
             <div class="text-subtitle2 q-mb-md">📏 Calibres (DC)</div>
             <div class="row q-gutter-xs q-mb-sm">
-              <q-input v-model="nuevoCalibre.calibre" label="Rango" dense outlined class="col" placeholder="44-46" />
-              <q-input v-model.number="nuevoCalibre.descuento_kg_ton" label="Desc" dense outlined class="col" type="number" />
+              <q-input
+                v-model="nuevoCalibre.calibre"
+                label="Rango"
+                dense
+                outlined
+                class="col"
+                placeholder="44-46"
+              />
+              <q-input
+                v-model.number="nuevoCalibre.descuento_kg_ton"
+                label="Desc"
+                dense
+                outlined
+                class="col"
+                type="number"
+              />
               <q-btn color="orange" icon="add" unelevated @click="agregarCalibre" />
             </div>
             <q-table
-              flat bordered dense
+              flat
+              bordered
+              dense
               :rows="listaCalibres"
               :columns="[
                 { name: 'codigo', label: 'Código', field: 'codigo', align: 'left' },
                 { name: 'calibre', label: 'Calibre', field: 'calibre', align: 'left' },
                 { name: 'descuento', label: 'Desc', field: 'descuento_kg_ton', align: 'right' },
-                { name: 'acciones', label: '', field: 'id' }
+                { name: 'acciones', label: '', field: 'id' },
               ]"
               row-key="id"
               hide-pagination
@@ -69,20 +123,34 @@
                   <div v-if="editandoCalibre === p.row.id">
                     <q-input
                       v-model.number="p.row.descuento_kg_ton"
-                      dense outlined autofocus
+                      dense
+                      outlined
+                      autofocus
                       type="number"
                       @blur="guardarEdicionCalibre(p.row)"
                       @keyup.enter="guardarEdicionCalibre(p.row)"
                     />
                   </div>
-                  <div v-else @click="editandoCalibre = p.row.id" class="cursor-pointer text-blue text-weight-bold">
+                  <div
+                    v-else
+                    @click="editandoCalibre = p.row.id"
+                    class="cursor-pointer text-blue text-weight-bold"
+                  >
                     $ {{ (p.row.descuento_kg_ton || 0).toLocaleString() }}
                     <q-tooltip>Clic para editar</q-tooltip>
                   </div>
                 </q-td>
               </template>
               <template #body-cell-acciones="p">
-                <q-td :props="p"><q-btn flat round color="red" icon="delete" size="xs" @click="eliminarCalibre(p.row.id)" /></q-td>
+                <q-td :props="p"
+                  ><q-btn
+                    flat
+                    round
+                    color="red"
+                    icon="delete"
+                    size="xs"
+                    @click="eliminarCalibre(p.row.id)"
+                /></q-td>
               </template>
             </q-table>
           </q-card-section>
@@ -94,16 +162,25 @@
           <q-card-section>
             <div class="text-subtitle2 q-mb-md">💵 Descuentos Precio (DP)</div>
             <div class="row q-gutter-xs q-mb-sm">
-              <q-input v-model.number="nuevoDescuentoPrecio" label="Monto MXN" dense outlined class="col" type="number" />
+              <q-input
+                v-model.number="nuevoDescuentoPrecio"
+                label="Monto MXN"
+                dense
+                outlined
+                class="col"
+                type="number"
+              />
               <q-btn color="purple" icon="add" unelevated @click="agregarDescuentoPrecio" />
             </div>
             <q-table
-              flat bordered dense
+              flat
+              bordered
+              dense
               :rows="listaDescuentosPrecio"
               :columns="[
                 { name: 'codigo', label: 'Código', field: 'codigo', align: 'left' },
                 { name: 'monto', label: 'Monto', field: 'descuento_mxn', align: 'center' },
-                { name: 'acciones', label: '', field: 'id' }
+                { name: 'acciones', label: '', field: 'id' },
               ]"
               row-key="id"
               hide-pagination
@@ -111,15 +188,36 @@
               <template #body-cell-monto="p">
                 <q-td :props="p">
                   <div v-if="editandoPrecio === p.row.id">
-                    <q-input v-model.number="p.row.descuento_mxn" dense outlined autofocus type="number" prefix="$" @blur="guardarEdicionPrecio(p.row)" @keyup.enter="guardarEdicionPrecio(p.row)" />
+                    <q-input
+                      v-model.number="p.row.descuento_mxn"
+                      dense
+                      outlined
+                      autofocus
+                      type="number"
+                      prefix="$"
+                      @blur="guardarEdicionPrecio(p.row)"
+                      @keyup.enter="guardarEdicionPrecio(p.row)"
+                    />
                   </div>
-                  <div v-else @click="editandoPrecio = p.row.id" class="cursor-pointer text-purple text-weight-bold">
+                  <div
+                    v-else
+                    @click="editandoPrecio = p.row.id"
+                    class="cursor-pointer text-purple text-weight-bold"
+                  >
                     $ {{ (p.row.descuento_mxn || 0).toLocaleString() }}
                   </div>
                 </q-td>
               </template>
               <template #body-cell-acciones="p">
-                <q-td :props="p"><q-btn flat round color="red" icon="delete" size="xs" @click="eliminarDescuentoPrecio(p.row.id)" /></q-td>
+                <q-td :props="p"
+                  ><q-btn
+                    flat
+                    round
+                    color="red"
+                    icon="delete"
+                    size="xs"
+                    @click="eliminarDescuentoPrecio(p.row.id)"
+                /></q-td>
               </template>
             </q-table>
           </q-card-section>
@@ -143,13 +241,15 @@
                   dense
                   outlined
                   bg-color="white"
-                  style="min-width: 180px;"
+                  style="min-width: 180px"
                   clearable
                 >
                   <template v-slot:selected-item="scope">
                     <div v-if="scope.opt" class="text-weight-bold text-primary">
                       {{ scope.opt.calibre }}
-                      <span class="text-caption text-grey-8 q-ml-xs">(-${{ scope.opt.descuento_kg_ton }})</span>
+                      <span class="text-caption text-grey-8 q-ml-xs"
+                        >(-${{ scope.opt.descuento_kg_ton }})</span
+                      >
                     </div>
                   </template>
 
@@ -168,14 +268,31 @@
             </div>
 
             <q-table
-              flat bordered dense
+              flat
+              bordered
+              dense
               :rows="nivelesProcesados"
               :columns="[
                 { name: 'codigo', label: 'Nivel', field: 'codigo', align: 'left' },
-                { name: 'porcentaje', label: '% Export', field: 'porcentaje_export_label', align: 'left' },
-                { name: 'precio', label: 'Precio (MXN/TON)', field: 'precioCalculado', align: 'center' },
+                {
+                  name: 'porcentaje',
+                  label: '% Export',
+                  field: 'porcentaje_export_label',
+                  align: 'left',
+                },
+                {
+                  name: 'precio',
+                  label: 'Precio (MXN/TON)',
+                  field: 'precioCalculado',
+                  align: 'center',
+                },
                 { name: 'formula', label: 'Fórmula', field: 'codigoDescuento', align: 'left' },
-                { name: 'descuento', label: 'Descuento (MXN)', field: 'descuento_precio_id', align: 'left' }
+                {
+                  name: 'descuento',
+                  label: 'Descuento (MXN)',
+                  field: 'descuento_precio_id',
+                  align: 'left',
+                },
               ]"
               row-key="id"
               :rows-per-page-options="[0]"
@@ -183,18 +300,23 @@
               <!-- Sección Precio (MXN/TON) -->
               <template #body-cell-precio="p">
                 <q-td :props="p" class="text-center">
-                  <div class="text-weight-bold text-green-9">${{ p.row.precioCalculado.toLocaleString() }}</div>
+                  <div class="text-weight-bold text-green-9">
+                    ${{ p.row.precioCalculado.toLocaleString() }}
+                  </div>
                 </q-td>
               </template>
 
               <!-- Sección Fórmula -->
               <template #body-cell-formula="p">
                 <q-td :props="p" class="text-caption text-grey-8">
-
                   <span v-if="p.rowIndex === 0">
                     ${{ precioBaseMXN.toLocaleString() }}
                     <span class="text-orange-9 text-weight-bold">
-                      - {{ listaCalibres.find(c => c.id === calibreSimulacion)?.descuento_kg_ton || '$ 0' }}
+                      -
+                      {{
+                        listaCalibres.find((c) => c.id === calibreSimulacion)?.descuento_kg_ton ||
+                        '$ 0'
+                      }}
                     </span>
                     <span class="text-purple-9 text-weight-bold">
                       - {{ p.row.codigoDescuento || 'DP' }}
@@ -208,7 +330,6 @@
                       <span class="text-caption text-grey-6">({{ p.row.codigoDescuento }})</span>
                     </span>
                   </span>
-
                 </q-td>
               </template>
 
@@ -220,21 +341,25 @@
                     :options="listaDescuentosPrecio"
                     option-value="id"
                     option-label="codigo"
-                    emit-value map-options dense outlined style="width: 150px;"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    style="width: 150px"
                     @update:model-value="actualizarNivel(p.row, p.rowIndex)"
                   >
                     <template #option="scope">
                       <q-item v-bind="scope.itemProps">
                         <q-item-section>
-                          <q-item-label>{{ scope.opt.codigo }} (- ${{ scope.opt.descuento_mxn }})</q-item-label>
+                          <q-item-label
+                            >{{ scope.opt.codigo }} (- ${{ scope.opt.descuento_mxn }})</q-item-label
+                          >
                         </q-item-section>
                       </q-item>
                     </template>
                   </q-select>
                 </q-td>
               </template>
-
-
             </q-table>
           </q-card-section>
         </q-card>
@@ -252,8 +377,22 @@ import { Notify } from 'quasar';
 const authStore = useAuthStore();
 
 // --- Interfaces (Corregidas según JSON del API) ---
-interface DescuentoCalibre { id: number; codigo: string; calibre: string; descuento_kg_ton: number; }
-interface DescuentoPrecio { id: number; codigo: string; descuento_mxn: number; }
+interface Grano {
+  id: number;
+  nombre: string;
+  activo: boolean;
+}
+interface DescuentoCalibre {
+  id: number;
+  codigo: string;
+  calibre: string;
+  descuento_kg_ton: number;
+}
+interface DescuentoPrecio {
+  id: number;
+  codigo: string;
+  descuento_mxn: number;
+}
 interface NivelExport {
   id: number;
   codigo: string;
@@ -268,6 +407,8 @@ const editandoCalibre = ref<number | null>(null);
 const editandoPrecio = ref<number | null>(null);
 const calibreSimulacion = ref<number | null>(null);
 const nombreUsuarioReal = ref('Cargando...');
+const listaGranos = ref<Grano[]>([]);
+const granoSeleccionado = ref<number | null>(null);
 
 const formBase = ref({
   precioBaseUsd: 0,
@@ -276,7 +417,7 @@ const formBase = ref({
   urlApi: 'https://api.exchangerate-api.com/v4/latest/USD',
   usuarioRegistro: '',
   fechaRegistro: null as string | null,
-  sede_id: null as number | null
+  sede_id: null as number | null,
 });
 
 const listaCalibres = ref<DescuentoCalibre[]>([]);
@@ -287,8 +428,6 @@ const nuevoDescuentoPrecio = ref(0);
 
 // --- Computados ---
 const precioBaseMXN = computed(() => formBase.value.precioBaseUsd * formBase.value.tipoCambio);
-
-
 
 const eliminarCalibre = async (id: number) => {
   try {
@@ -304,11 +443,15 @@ const agregarDescuentoPrecio = async () => {
   if (nuevoDescuentoPrecio.value < 0) return;
   const codigo = `DP${listaDescuentosPrecio.value.length + 1}`;
   try {
-    await api.post('/api/reglas-precio/descuentos-precio', {
-      codigo,
-      descuento_mxn: nuevoDescuentoPrecio.value,
-      sede_id: authStore.sedeActivaId
-    });
+    await api.post(
+      '/api/reglas-precio/descuentos-precio',
+      {
+        codigo,
+        descuento_mxn: nuevoDescuentoPrecio.value,
+        sede_id: authStore.sedeActivaId,
+      },
+      { params: { sedeId: authStore.sedeActivaId, granoId: granoSeleccionado.value } },
+    );
     nuevoDescuentoPrecio.value = 0;
     await cargarDatos();
     Notify.create({ type: 'positive', message: 'Descuento agregado' });
@@ -328,7 +471,7 @@ const eliminarDescuentoPrecio = async (id: number) => {
 };
 
 const descuentoCalibreSeleccionado = computed(() => {
-  const encontrado = listaCalibres.value.find(c => c.id === calibreSimulacion.value);
+  const encontrado = listaCalibres.value.find((c) => c.id === calibreSimulacion.value);
   return encontrado ? encontrado.descuento_kg_ton : 0;
 });
 
@@ -337,12 +480,13 @@ const nivelesProcesados = computed(() => {
   let precioArrastre = 0;
 
   return tablaExportacion.value.map((nivel, index) => {
-    const descOpt = listaDescuentosPrecio.value.find(d => d.id === nivel.descuento_precio_id);
+    const descOpt = listaDescuentosPrecio.value.find((d) => d.id === nivel.descuento_precio_id);
     const montoDescuentoNivel = descOpt ? descOpt.descuento_mxn : 0;
 
-    const  precioCalculado = index === 0
-      ? precioBaseMXN.value - montoCalibre - montoDescuentoNivel
-      : precioArrastre - montoDescuentoNivel;
+    const precioCalculado =
+      index === 0
+        ? precioBaseMXN.value - montoCalibre - montoDescuentoNivel
+        : precioArrastre - montoDescuentoNivel;
 
     precioArrastre = precioCalculado;
 
@@ -350,7 +494,7 @@ const nivelesProcesados = computed(() => {
       ...nivel,
       precioCalculado,
       codigoDescuento: descOpt ? descOpt.codigo : 'DP',
-      montoDescuento: montoDescuentoNivel
+      montoDescuento: montoDescuentoNivel,
     };
   });
 });
@@ -367,7 +511,9 @@ const cargarDatos = async () => {
 
     const [configRes, catsRes] = await Promise.all([
       api.get('/api/reglas-precio/config-actual', { params: { sedeId: miSede } }),
-      api.get('/api/reglas-precio/catalogos', { params: { sedeId: miSede } })
+      api.get('/api/reglas-precio/catalogos', {
+        params: { sedeId: miSede, granoId: granoSeleccionado.value },
+      }),
     ]);
 
     if (configRes.data) {
@@ -379,7 +525,6 @@ const cargarDatos = async () => {
     listaCalibres.value = catsRes.data.calibres || [];
     listaDescuentosPrecio.value = catsRes.data.precios || [];
     tablaExportacion.value = catsRes.data.export || [];
-
   } catch {
     Notify.create({ type: 'negative', message: 'Error al cargar datos' });
   } finally {
@@ -404,7 +549,7 @@ const guardarConfigBase = async () => {
       ...formBase.value,
       precioBaseMxn: precioBaseMXN.value,
       UsuarioRegistro: nombreUsuarioReal.value,
-      SedeId: authStore.sedeActivaId // <--- Asegúrate que se llame exactamente así
+      SedeId: authStore.sedeActivaId, // <--- Asegúrate que se llame exactamente así
     });
     Notify.create({ type: 'positive', message: 'Configuración guardada' });
   } catch {
@@ -419,7 +564,7 @@ const ejecutarActualizacionMasiva = async () => {
     loading.value = true;
     await api.post('/api/reglas-precio/actualizar-precios-masivo', {
       precioBaseMxn: precioBaseMXN.value,
-      SedeId: authStore.sedeActivaId
+      SedeId: authStore.sedeActivaId,
     });
     await cargarDatos();
     Notify.create({ type: 'positive', message: 'Precios actualizados masivamente' });
@@ -444,10 +589,11 @@ const actualizarNivel = async (nivel: NivelExport, index: number) => {
       id: nivel.id,
       descuentoPrecioId: nivel.descuento_precio_id,
       vigente: nivel.vigente,
-      precioFinalMxn: nivelCalculado.precioCalculado // Ahora TS sabe que no es undefined
+      precioFinalMxn: nivelCalculado.precioCalculado,
+      grano_id: granoSeleccionado.value,
     });
 
-    await cargarDatos()
+    await cargarDatos();
     Notify.create({ type: 'positive', message: `Nivel ${nivel.codigo} actualizado`, timeout: 500 });
   } catch {
     Notify.create({ type: 'negative', message: 'Error al actualizar nivel' });
@@ -458,31 +604,47 @@ const actualizarNivel = async (nivel: NivelExport, index: number) => {
 const agregarCalibre = async () => {
   const codigo = `DC${listaCalibres.value.length + 1}`;
   try {
-    await api.post('/api/reglas-precio/calibres', {
-      codigo,
-      calibre: nuevoCalibre.value.calibre,
-      descuento_kg_ton: nuevoCalibre.value.descuento_kg_ton,
-      sede_id: authStore.sedeActivaId
-    });
+    await api.post(
+      '/api/reglas-precio/calibres',
+      {
+        codigo,
+        calibre: nuevoCalibre.value.calibre,
+        descuento_kg_ton: nuevoCalibre.value.descuento_kg_ton,
+        sede_id: authStore.sedeActivaId,
+      },
+      { params: { sedeId: authStore.sedeActivaId, granoId: granoSeleccionado.value } },
+    );
     nuevoCalibre.value = { calibre: '', descuento_kg_ton: 0 };
     await cargarDatos();
-  } catch { Notify.create({ type: 'negative', message: 'Error al agregar' }); }
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al agregar' });
+  }
 };
 
 const guardarEdicionCalibre = async (row: DescuentoCalibre) => {
   try {
-    await api.put(`/api/reglas-precio/calibres/${row.id}`, row);
+    await api.put(`/api/reglas-precio/calibres/${row.id}`, {
+      ...row,
+      grano_id: granoSeleccionado.value,
+    });
     editandoCalibre.value = null;
     Notify.create({ type: 'positive', message: 'Actualizado' });
-  } catch { await cargarDatos(); }
+  } catch {
+    await cargarDatos();
+  }
 };
 
 const guardarEdicionPrecio = async (row: DescuentoPrecio) => {
   try {
-    await api.put(`/api/reglas-precio/descuentos-precio/${row.id}`, row);
+    await api.put(`/api/reglas-precio/descuentos-precio/${row.id}`, {
+      ...row,
+      grano_id: granoSeleccionado.value,
+    });
     editandoPrecio.value = null;
     Notify.create({ type: 'positive', message: 'Actualizado' });
-  } catch { await cargarDatos(); }
+  } catch {
+    await cargarDatos();
+  }
 };
 
 const consultarAPI = async () => {
@@ -490,14 +652,42 @@ const consultarAPI = async () => {
     loading.value = true;
     const { data } = await api.get(formBase.value.urlApi);
     if (data.rates?.MXN) formBase.value.tipoCambio = data.rates.MXN;
-  } catch { Notify.create({ type: 'negative', message: 'Error API Cambio' }); }
-  finally { loading.value = false; }
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error API Cambio' });
+  } finally {
+    loading.value = false;
+  }
+};
+
+// --- Cargar granos del catálogo ---
+const cargarGranos = async () => {
+  try {
+    const { data } = await api.get('/api/catalogos/granos');
+
+    listaGranos.value = data.filter((g: Grano) => g.activo);
+
+    // Seleccionar el primer grano por defecto si no hay ninguno seleccionado en Reglas de Precio
+    const primerGrano = listaGranos.value[1];
+
+    if (!granoSeleccionado.value && primerGrano) {
+      granoSeleccionado.value = primerGrano.id;
+    }
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al cargar granos' });
+  }
 };
 
 // --- Watcher vital para multisede ---
-watch(() => authStore.sedeActivaId, async () => {
+watch(
+  () => authStore.sedeActivaId,
+  async () => {
+    await cargarGranos();
+    await cargarDatos();
+  },
+);
+
+onMounted(async () => {
+  await cargarGranos();
   await cargarDatos();
 });
-
-onMounted(cargarDatos);
 </script>

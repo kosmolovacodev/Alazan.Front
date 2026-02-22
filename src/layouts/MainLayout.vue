@@ -24,7 +24,7 @@
             dark
             dense
             borderless
-            label="Sede de trabajo"
+            label="Bodega"
             style="min-width: 180px"
             @update:model-value="alCambiarSede"
           >
@@ -93,45 +93,110 @@
           <q-item-section>Inicio</q-item-section>
         </q-item>
 
-        <q-expansion-item v-if="authStore.tienePermiso('Recepción de Granos')" icon="scale" label="Recepción de Granos" header-class="text-menu-inactive" expand-icon-class="text-white" default-opened >
+        <q-expansion-item
+          v-if="authStore.tienePermiso('Recepción de Granos')"
+          icon="scale"
+          label="Recepción de Granos"
+          header-class="text-menu-inactive"
+          expand-icon-class="text-white"
+          default-opened
+        >
           <q-list class="q-pl-sm">
-            <q-item clickable to="/bascula" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/bascula"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Báscula</q-item-section>
             </q-item>
-            <q-item clickable to="/analisis" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/analisis"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Análisis</q-item-section>
             </q-item>
-            <q-item clickable to="/precio" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/precio"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Precio</q-item-section>
             </q-item>
-            <q-item clickable to="/boleta" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/boleta"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Boleta</q-item-section>
             </q-item>
-            <q-item clickable to="/volcado" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/volcado"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Volcado</q-item-section>
             </q-item>
-            <q-item clickable to="/pre-liquidacion" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/preliquidacion"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Pre-liquidación</q-item-section>
             </q-item>
           </q-list>
         </q-expansion-item>
-        <q-item v-if="authStore.tienePermiso('Facturación')" clickable to="/facturas" active-class="menu-item-active" class="text-menu-inactive" >
+        <q-item
+          v-if="authStore.tienePermiso('Facturación')"
+          clickable
+          to="/facturas"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
           <q-item-section avatar><q-icon name="receipt_long" /></q-item-section>
           <q-item-section>Recepción de Facturas</q-item-section>
         </q-item>
 
-        <q-expansion-item v-if="authStore.tienePermiso('Pagos')" icon="payments" label="Pagos" header-class="text-menu-inactive" expand-icon-class="text-white" >
+        <q-expansion-item
+          v-if="authStore.tienePermiso('Pagos')"
+          icon="payments"
+          label="Pagos"
+          header-class="text-menu-inactive"
+          expand-icon-class="text-white"
+        >
           <q-list class="q-pl-sm">
-            <q-item clickable to="/productores" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/productores"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Productores</q-item-section>
             </q-item>
-            <q-item clickable to="/sede" active-class="menu-item-active" class="text-menu-inactive sub-menu-item" >
+            <q-item
+              clickable
+              to="/sede"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
               <q-item-section>Sede</q-item-section>
             </q-item>
           </q-list>
         </q-expansion-item>
 
-        <q-item v-if="authStore.tienePermiso('Producción')" clickable to="/produccion" active-class="menu-item-active" class="text-menu-inactive" >
+        <q-item
+          v-if="authStore.tienePermiso('Producción')"
+          clickable
+          to="/produccion"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
           <q-item-section avatar><q-icon name="precision_manufacturing" /></q-item-section>
           <q-item-section>Producción</q-item-section>
         </q-item>
@@ -172,7 +237,7 @@ function alCambiarSede(nuevaSedeId: number) {
     message: `Cambiando a: ${authStore.nombreSedeActiva}`,
     color: 'orange-8',
     icon: 'place',
-    timeout: 1000
+    timeout: 1000,
   });
   // Opcional: router.go(0) si quieres forzar recarga total de datos
 }
@@ -182,7 +247,7 @@ const updateStatus = async () => {
   isOnline.value = window.navigator.onLine;
 
   if (isOnline.value && offlineStore.colaUsuarios.length > 0) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     if (!window.navigator.onLine) return;
 
     Notify.create({
@@ -190,7 +255,7 @@ const updateStatus = async () => {
       message: 'Detectada conexión. Sincronizando...',
       color: 'purple',
       icon: 'sync',
-      timeout: 0
+      timeout: 0,
     });
 
     const pendientes = [...offlineStore.colaUsuarios];
@@ -217,7 +282,7 @@ const updateStatus = async () => {
       type: 'positive',
       message: 'Sincronización completa',
       icon: 'done_all',
-      timeout: 2500
+      timeout: 2500,
     });
   }
 };

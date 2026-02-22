@@ -1,114 +1,125 @@
 <template>
-<q-card bordered>
-      <q-card-section>
-        <div class="row items-center q-mb-md">
-          <div class="text-h6">Permisos de Acceso a Pantallas</div>
-          <q-btn
-            flat
-            round
-            color="grey-7"
-            icon="settings"
-            class="q-ml-sm"
-            @click="modalCatalogo = true"
-          >
-            <q-tooltip>Gestionar Catálogo de Pantallas</q-tooltip>
-          </q-btn>
-        </div>
-        <q-dialog v-model="modalCatalogo">
-      <q-card style="width: 450px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Catálogo de Pantallas</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <div class="bg-blue-1 q-pa-sm rounded-borders q-mb-md text-caption">
-            Añade aquí las secciones de tu sistema para que aparezcan en la matriz de permisos.
-          </div>
-          <q-input
-            v-model="nuevaPantalla.nombre_pantalla"
-            label="Nombre de Pantalla *"
-            outlined
-            dense
-            class="q-mb-sm"
-          />
-          <q-input
-            v-model="nuevaPantalla.descripcion"
-            label="Descripción"
-            outlined
-            dense
-            class="q-mb-md"
-          />
-          <q-btn
-            color="secondary"
-            label="Añadir al Catálogo"
-            class="full-width"
-            @click="guardarNuevaPantalla"
-          />
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-        <q-select
-          v-model="rolSeleccionado"
-          :options="roles"
-          option-label="nombre_rol"
-          option-value="id"
-          label="Seleccione un Rol para editar permisos"
-          outlined
-          emit-value
-          map-options
-          class="q-mb-md"
-          @update:model-value="cargarPermisosDelRol"
-        />
-
-        <div v-if="rolSeleccionado">
-          <div class="row q-gutter-sm q-mb-md justify-end">
-            <q-btn label="Activar Todos" color="positive" outline dense @click="marcarTodo(true)" />
-            <q-btn
-              label="Desactivar Todos"
-              color="negative"
-              outline
+  <q-card bordered>
+    <q-card-section>
+      <div class="row items-center q-mb-md">
+        <div class="text-h6">Permisos de Acceso a Pantallas</div>
+        <q-btn
+          flat
+          round
+          color="grey-7"
+          icon="settings"
+          class="q-ml-sm"
+          @click="modalCatalogo = true"
+        >
+          <q-tooltip>Gestionar Catálogo de Pantallas</q-tooltip>
+        </q-btn>
+      </div>
+      <q-dialog v-model="modalCatalogo">
+        <q-card style="width: 450px">
+          <q-card-section class="row items-center">
+            <div class="text-h6">Catálogo de Pantallas</div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup />
+          </q-card-section>
+          <q-card-section>
+            <div class="bg-blue-1 q-pa-sm rounded-borders q-mb-md text-caption">
+              Añade aquí las secciones de tu sistema para que aparezcan en la matriz de permisos.
+            </div>
+            <q-input
+              v-model="nuevaPantalla.nombre_pantalla"
+              label="Nombre de Pantalla *"
+              outlined
               dense
-              @click="marcarTodo(false)"
+              class="q-mb-sm"
             />
-          </div>
-
-          <q-markup-table flat bordered>
-            <thead>
-              <tr class="bg-grey-1">
-                <th class="text-left">Módulo / Pantalla</th>
-                <th class="text-left">Descripción</th>
-                <th class="text-center">Acceso</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="pantalla in listaPantallas" :key="pantalla.id">
-                <td>{{ pantalla.nombre_pantalla }}</td>
-                <td class="text-grey-7 text-caption">{{ pantalla.descripcion }}</td>
-                <td class="text-center">
-                  <q-checkbox v-model="pantalla.tiene_acceso" :disable="esAdmin" color="primary" />
-                </td>
-              </tr>
-            </tbody>
-          </q-markup-table>
-
-          <div class="row justify-end q-mt-md">
+            <q-input
+              v-model="nuevaPantalla.descripcion"
+              label="Descripción"
+              outlined
+              dense
+              class="q-mb-md"
+            />
             <q-btn
-              label="Guardar Permisos"
-              color="primary"
-              icon="save"
-              @click="guardarPermisosFinales"
+              color="secondary"
+              label="Añadir al Catálogo"
+              class="full-width"
+              @click="guardarNuevaPantalla"
             />
-          </div>
+          </q-card-section>
+        </q-card>
+      </q-dialog>
+
+      <q-select
+        v-model="rolSeleccionado"
+        :options="roles"
+        option-label="nombre_rol"
+        option-value="id"
+        label="Seleccione un Rol para editar permisos"
+        outlined
+        emit-value
+        map-options
+        class="q-mb-md"
+        @update:model-value="cargarPermisosDelRol"
+      />
+
+      <div v-if="rolSeleccionado">
+        <div class="row q-gutter-sm q-mb-md justify-end">
+          <q-btn label="Activar Todos" color="positive" outline dense @click="marcarTodo(true)" />
+          <q-btn
+            label="Desactivar Todos"
+            color="negative"
+            outline
+            dense
+            @click="marcarTodo(false)"
+          />
         </div>
-      </q-card-section>
-    </q-card>
+
+        <q-markup-table flat bordered>
+          <thead>
+            <tr class="bg-grey-1">
+              <th class="text-left">Módulo / Pantalla</th>
+              <th class="text-left">Descripción</th>
+              <th class="text-center">Acceso</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="pantalla in listaPantallas" :key="pantalla.id">
+              <td>{{ pantalla.nombre_pantalla }}</td>
+              <td class="text-grey-7 text-caption">{{ pantalla.descripcion }}</td>
+              <td class="text-center">
+                <q-checkbox v-model="pantalla.tiene_acceso" :disable="esAdmin" color="primary" />
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+
+        <div class="row justify-end q-mt-md">
+          <q-btn
+            label="Guardar Permisos"
+            color="primary"
+            icon="save"
+            @click="guardarPermisosFinales"
+          />
+        </div>
+      </div>
+    </q-card-section>
+  </q-card>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { api } from 'boot/axios';
 import { useQuasar } from 'quasar';
+import { useAuthStore } from 'src/stores/auth';
+
+const authStore = useAuthStore();
+watch(
+  () => authStore.sedeActivaId,
+  () => {
+    console.log(authStore.sedeActivaId);
+    void cargarRoles();
+    void obtenerCatalogoPantallas();
+  },
+);
 
 // --- INTERFACES TYPESCRIPT ---
 // Definimos la estructura de los objetos para evitar errores de "never"
@@ -141,12 +152,6 @@ const listaPantallas = ref<Pantalla[]>([]); // Array de Pantalla
 
 const modalCatalogo = ref(false);
 const nuevaPantalla = ref({ nombre_pantalla: '', descripcion: '' });
-
-
-
-
-
-
 
 const esAdmin = computed(() => {
   const rol = roles.value.find((r) => r.id === rolSeleccionado.value);
@@ -227,9 +232,6 @@ async function guardarPermisosFinales() {
 
 // --- GESTIÓN DE ROLES (CRUD) ---
 
-
-
-
 // --- GESTIÓN DE PANTALLAS ---
 async function guardarNuevaPantalla() {
   if (!nuevaPantalla.value.nombre_pantalla) return;
@@ -246,4 +248,3 @@ async function guardarNuevaPantalla() {
   }
 }
 </script>
-

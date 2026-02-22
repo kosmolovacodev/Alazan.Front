@@ -10,6 +10,25 @@ const routes: RouteRecordRaw[] = [
       { path: 'inicio', component: () => import('pages/IndexPage.vue') },
       { path: 'bascula', component: () => import('pages/recepcion/BasculaPage.vue') },
       { path: 'analisis', component: () => import('pages/analisis/AnalisisPage.vue') },
+      { path: 'precio', component: () => import('pages/precio/PrecioPage.vue') },
+      { path: 'boleta', component: () => import('pages/boleta/BoletaPage.vue') },
+      { path: 'volcado', component: () => import('pages/volcado/VolcadoPage.vue') },
+      {
+        path: 'preliquidacion',
+        component: () => import('pages/preliquidacion/PreliquidacionPage.vue'),
+      },
+      {
+        path: 'facturas',
+        component: () => import('pages/facturacion/FacturacionPage.vue'),
+      },
+      {
+        path: 'productores',
+        component: () => import('pages/pagos/PagosProductores.vue'),
+      },
+      {
+        path: 'sede',
+        component: () => import('pages/pagos/PagosSede.vue'),
+      },
       {
         path: 'configuracion',
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),

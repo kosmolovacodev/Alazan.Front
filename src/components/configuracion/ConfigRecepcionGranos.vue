@@ -437,6 +437,7 @@ import { ref, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { Dialog, Notify } from 'quasar'
 import type { QTableColumn } from 'quasar'
+import { useAuthStore } from 'src/stores/auth'
 
 // --- INTERFACES PARA TYPESCRIPT ---
 interface ReglasRecepcion {
@@ -707,15 +708,34 @@ const guardarConfiguracionCompleta = async () => {
 
     // 2. CONECTAMOS LOS CAMPOS:
     // Juntamos los 4 arrays en una sola lista para mandarlos al UPDATE masivo
+    // Usamos map para crear un array limpio y evitar problemas de serialización
     const listaCompletaCampos = [
       ...camposBascula.value,
       ...camposBoletaGrid.value,
       ...camposAnalisis.value,
       ...camposPreliquidacion.value
-    ];
+    ].map(campo => ({
+      id: campo.id,
+      pantalla: campo.pantalla,
+      claveCampo: campo.claveCampo,
+      nombreMostrar: campo.nombreMostrar,
+      orden: campo.orden,
+      visible: campo.visible,
+      obligatorio: campo.obligatorio,
+      esSistema: campo.esSistema
+    }));
 
-    // 3. Mandamos esta lista al nuevo endpoint PUT que hicimos en el controlador
-    await api.put('/api/configuracion-recepcion/actualizar-lista-campos', listaCompletaCampos);
+    // 3. Solo actualizamos campos si hay campos para actualizar
+    if (listaCompletaCampos.length > 0) {
+      // IMPORTANTE: El backend espera sedeId como query parameter, no en el body
+      // Por eso lo pasamos explícitamente en el tercer parámetro (config)
+      const authStore = useAuthStore();
+      const sedeId = authStore.sedeActivaId ?? 0;
+
+      await api.put('/api/configuracion-recepcion/actualizar-lista-campos', listaCompletaCampos, {
+        params: { sedeId }
+      });
+    }
 
     Notify.create({
       type: 'positive',

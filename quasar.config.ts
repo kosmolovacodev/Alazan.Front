@@ -89,7 +89,7 @@ export default defineConfig((/* ctx */) => {
 
       proxy: {
         '/api': {
-          target: 'http://192.168.100.12:5183',
+          target: 'http://localhost:5183',
           changeOrigin: true,
           secure: false,
         },
@@ -121,7 +121,7 @@ export default defineConfig((/* ctx */) => {
 
     // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
     pwa: {
-      workboxMode: 'InjectManifest', // Cambia de 'GenerateSW' a 'InjectManifest' para tener control total
+      workboxMode: 'GenerateSW', // Modo automático - genera el Service Worker automáticamente
       injectPwaMetaTags: true,
       swHashtag: true,
       extendRouteAlias: true,

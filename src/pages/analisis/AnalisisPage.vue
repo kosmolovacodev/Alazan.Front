@@ -1,181 +1,350 @@
 <template>
-  <div v-if="!listaPendientes || listaPendientes.length === 0" class="column items-center justify-center" style="min-height: 70vh;">
-    <div class="text-center">
-      <div class="text-h2 q-mb-md">📊</div>
-      <div class="text-h5 text-weight-bold text-grey-8 q-mb-xs">No hay registros pendientes</div>
-      <div class="text-body2 text-grey-6">Esperando registros desde la pantalla de Báscula...</div>
-      <q-btn label="Actualizar" icon="refresh" flat color="primary" class="q-mt-md" @click="$emit('refresh')" />
-    </div>
-  </div>
-
-  <div v-else class="column bg-grey-2" style="min-height: 100%;">
-    <div class="q-pa-md text-white" style="background:#ff6900;">
+  <div class="column bg-grey-2" style="min-height: 100%">
+    <div class="q-pa-md text-white" style="background: #ff6900">
       <div class="text-h5 text-weight-bold text-center">ANÁLISIS DE CALIDAD</div>
-      <div class="text-caption text-center q-mt-xs">Esperando asignación de precio</div>
+      <div class="text-caption text-center q-mt-xs">Registro y consulta de análisis</div>
     </div>
 
-    <q-card flat bordered class="q-pa-sm">
-      <div class="row items-center justify-between">
-        <div class="text-body2 text-grey-8">
-          Registro {{ currentIndex + 1 }} de {{ listaPendientes?.length || 0 }}
+    <!-- Filtros -->
+    <q-card flat bordered class="q-mx-md q-mt-sm q-pa-sm">
+      <div class="row q-col-gutter-sm items-end">
+        <div class="col-12 col-md-3">
+          <q-select
+            v-model="filtroEstatus"
+            :options="opcionesEstatus"
+            label="Estatus"
+            outlined
+            dense
+            emit-value
+            map-options
+          />
         </div>
-
-        <div class="row items-center q-gutter-sm">
-          <q-btn
-            round
-            dense
-            flat
-            icon="chevron_left"
-            :disable="currentIndex === 0"
-            @click="prevRegistro"
-          />
-          <q-badge color="grey-3" text-color="grey-9" class="q-px-md q-py-sm">
-            {{ currentIndex + 1 }} / {{ listaPendientes?.length || 0 }}
-          </q-badge>
-          <q-btn
-            round
-            dense
-            flat
-            icon="chevron_right"
-            :disable="currentIndex === (listaPendientes?.length || 0) - 1"
-            @click="nextRegistro"
-          />
+        <div class="col-12 col-md-3">
+          <q-input v-model="filtroFechaInicio" type="date" label="Fecha Desde" outlined dense />
+        </div>
+        <div class="col-12 col-md-3">
+          <q-input v-model="filtroFechaFin" type="date" label="Fecha Hasta" outlined dense />
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="row q-gutter-sm">
+            <q-btn
+              outline
+              color="grey-8"
+              icon="filter_alt_off"
+              label="Limpiar"
+              @click="limpiarFiltros"
+            />
+            <q-btn
+              unelevated
+              color="primary"
+              icon="search"
+              label="Buscar"
+              @click="cargarPendientes"
+            />
+          </div>
         </div>
       </div>
     </q-card>
 
-    <div class="q-pa-md" style="flex: 1; overflow: auto;">
-      <div class="q-mx-auto" style="max-width: 980px; display: grid; gap: 16px;">
-
-        <q-card bordered>
-          <q-card-section>
-            <div class="row q-col-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-input :model-value="analisisData.ticket" label="TICKET" outlined dense readonly bg-color="grey-1" />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input :model-value="analisisData.fechaHora" label="FECHA Y HORA" outlined dense readonly bg-color="grey-1" />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input :model-value="analisisData.chofer" label="CHOFER" outlined dense readonly bg-color="grey-1" />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input :model-value="analisisData.placas" label="PLACAS" outlined dense readonly bg-color="grey-1" />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <q-card bordered>
-          <q-card-section>
-            <div class="text-subtitle1 text-weight-bold text-grey-8 q-mb-md">Resultados de Análisis</div>
-
-            <TablaAnalisisDesplegable
-              :impurezas="num(analisisData.impurezas)"
-              :r1="num(analisisData.r1)"
-              :r2="num(analisisData.r2)"
-              :cafesLisos="num(analisisData.cafesLisos)"
-              :manchados="num(analisisData.manchados)"
-              :quebMxc="num(analisisData.quebMxc)"
-              :helados="num(analisisData.helados)"
-              :alimonados="num(analisisData.alimonados)"
-              :revolcados="num(analisisData.revolcados)"
-              :sumaR2="analisisData.sumaR2"
-              :totalDanosNum="analisisData.totalDanosNum"
-              :exportacion="analisisData.exportacion"
-              @input-change="onTablaInputChange"
-            />
-
-            <div class="row q-col-gutter-md q-mt-md">
-              <div class="col-12 col-md-6">
-                <q-select
-                  v-model="analisisData.calibre"
-                  :options="listaCalibres"
-                  option-label="nombre"
-                  option-value="nombre"
-                  label="CALIBRE *"
-                  outlined
-                  dense
-                  emit-value
-                  map-options
-                  :loading="listaCalibres.length === 0"
-                >
-                  <template v-slot:no-option>
-                    <q-item>
-                      <q-item-section class="text-grey">
-                        No hay opciones disponibles
-                      </q-item-section>
-                    </q-item>
-                  </template>
-                </q-select>
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="analisisData.humedad"
-                  type="number"
-                  step="0.1"
-                  inputmode="decimal"
-                  label="HUMEDAD *"
-                  outlined
-                  dense
-                  suffix="%"
-                  placeholder="0.0"
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <q-card bordered>
-          <q-card-section>
-            <div class="row items-center justify-between q-mb-md">
-              <div class="text-subtitle1 text-weight-bold text-grey-8">
-                Evidencia Fotográfica <span class="text-negative">*</span>
-              </div>
-              <div class="row items-center q-gutter-sm">
-                <q-btn color="positive" unelevated icon="photo_camera" label="Cámara" @click="tomarFotoReal" />
-                <q-btn color="primary" unelevated icon="upload" label="Galería" @click="triggerFilePick" />
-                <input ref="fileInputRef" type="file" accept="image/*" multiple class="hidden" @change="onPhotoUpload" />
-              </div>
-            </div>
-
-            <div v-if="uploadedPhotos.length === 0" class="q-pa-md bg-grey-3 text-center text-grey-7 rounded-borders">
-               Se requiere al menos 1 foto para guardar.
-            </div>
-
-            <div v-else class="row q-col-gutter-md">
-              <div v-for="(photo, idx) in uploadedPhotos" :key="idx" class="col-6 col-sm-4 col-md-3">
-                <q-card bordered>
-                  <q-img
-                    :src="photo"
-                    spinner-color="white"
-                    style="height: 140px; max-width: 100%"
-                  >
-                    <div class="absolute-top-right q-pa-xs">
-                      <q-btn round dense color="negative" icon="close" size="sm" @click="removePhoto(idx)" />
-                    </div>
-                  </q-img>
-                </q-card>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <div class="row justify-end q-mb-xl">
-          <q-btn color="positive" unelevated class="q-px-xl q-py-md text-weight-bold" label="GUARDAR ANÁLISIS" @click="guardar" />
-        </div>
-
+    <!-- Sin resultados -->
+    <div
+      v-if="!listaPendientes || listaPendientes.length === 0"
+      class="column items-center justify-center q-pa-xl"
+      style="min-height: 40vh"
+    >
+      <div class="text-center">
+        <q-icon name="search_off" size="64px" color="grey-5" class="q-mb-md" />
+        <div class="text-h6 text-weight-bold text-grey-7 q-mb-xs">No se encontraron registros</div>
+        <div class="text-body2 text-grey-5">Intenta cambiar el filtro de estatus o las fechas.</div>
+        <q-btn
+          label="Actualizar"
+          icon="refresh"
+          flat
+          color="primary"
+          class="q-mt-md"
+          @click="cargarPendientes"
+        />
       </div>
     </div>
+
+    <!-- Contenido con registros -->
+    <template v-else>
+      <q-card flat bordered class="q-pa-sm q-mx-md q-mt-sm">
+        <div class="row items-center justify-between">
+          <div class="text-body2 text-grey-8">
+            Registro {{ currentIndex + 1 }} de {{ listaPendientes?.length || 0 }}
+          </div>
+
+          <div class="row items-center q-gutter-sm">
+            <q-btn
+              round
+              dense
+              flat
+              icon="chevron_left"
+              :disable="currentIndex === 0"
+              @click="prevRegistro"
+            />
+            <q-badge color="grey-3" text-color="grey-9" class="q-px-md q-py-sm">
+              {{ currentIndex + 1 }} / {{ listaPendientes?.length || 0 }}
+            </q-badge>
+            <q-btn
+              round
+              dense
+              flat
+              icon="chevron_right"
+              :disable="currentIndex === (listaPendientes?.length || 0) - 1"
+              @click="nextRegistro"
+            />
+          </div>
+        </div>
+      </q-card>
+
+      <div class="q-pa-md" style="flex: 1; overflow: auto">
+        <div class="q-mx-auto" style="max-width: 980px; display: grid; gap: 16px">
+          <q-card bordered>
+            <q-card-section>
+              <div class="row q-col-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="analisisData.ticket"
+                    label="TICKET"
+                    outlined
+                    dense
+                    readonly
+                    bg-color="grey-1"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="analisisData.fechaHora"
+                    label="FECHA Y HORA"
+                    outlined
+                    dense
+                    readonly
+                    bg-color="grey-1"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="analisisData.chofer"
+                    label="CHOFER"
+                    outlined
+                    dense
+                    readonly
+                    bg-color="grey-1"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="analisisData.placas"
+                    label="PLACAS"
+                    outlined
+                    dense
+                    readonly
+                    bg-color="grey-1"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="registroActual?.grano || ''"
+                    label="GRANO"
+                    outlined
+                    dense
+                    readonly
+                    bg-color="grey-1"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <q-card bordered>
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mb-md">
+                Resultados de Análisis
+              </div>
+
+              <TablaAnalisisDesplegable
+                :impurezas="num(analisisData.impurezas)"
+                :r1="num(analisisData.r1)"
+                :r2="num(analisisData.r2)"
+                :cafesLisos="num(analisisData.cafesLisos)"
+                :manchados="num(analisisData.manchados)"
+                :quebMxc="num(analisisData.quebMxc)"
+                :helados="num(analisisData.helados)"
+                :alimonados="num(analisisData.alimonados)"
+                :revolcados="num(analisisData.revolcados)"
+                :sumaR2="analisisData.sumaR2"
+                :totalDanosNum="analisisData.totalDanosNum"
+                :exportacion="analisisData.exportacion"
+                :readOnly="!esEditable"
+                :tipoGranoId="registroActual?.grano_id ?? 0"
+                :frijolDataInicial="frijolData"
+                @input-change="onTablaInputChange"
+                @frijol-data-change="onFrijolDataChange"
+              />
+
+              <div class="row q-col-gutter-md q-mt-md">
+                <div class="col-12 col-md-6">
+                  <q-select
+                    v-model="analisisData.calibre"
+                    :options="listaCalibres"
+                    option-label="nombre"
+                    option-value="nombre"
+                    label="CALIBRE *"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                    :loading="listaCalibres.length === 0"
+                    :disable="!esEditable"
+                  >
+                    <template v-slot:no-option>
+                      <q-item>
+                        <q-item-section class="text-grey">
+                          No hay opciones disponibles
+                        </q-item-section>
+                      </q-item>
+                    </template>
+                  </q-select>
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="analisisData.humedad"
+                    type="number"
+                    step="0.1"
+                    inputmode="decimal"
+                    label="HUMEDAD *"
+                    outlined
+                    dense
+                    suffix="%"
+                    placeholder="0.0"
+                    :readonly="!esEditable"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <q-card bordered>
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-md">
+                <div class="text-subtitle1 text-weight-bold text-grey-8">
+                  Evidencia Fotográfica <span class="text-negative">*</span>
+                </div>
+                <div class="row items-center q-gutter-sm">
+                  <q-btn
+                    color="positive"
+                    unelevated
+                    icon="photo_camera"
+                    label="Tomar Foto"
+                    @click="abrirCamara"
+                    :disable="!esEditable"
+                  />
+                  <q-btn
+                    color="primary"
+                    unelevated
+                    icon="upload_file"
+                    label="Subir Foto"
+                    @click="fileInputRef?.click()"
+                    :disable="!esEditable"
+                  />
+                  <input
+                    ref="fileInputRef"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style="display: none"
+                    @change="onFileSelected"
+                  />
+                </div>
+              </div>
+
+              <div
+                v-if="uploadedPhotos.length === 0"
+                class="q-pa-md bg-grey-3 text-center text-grey-7 rounded-borders"
+              >
+                Se requiere al menos 1 foto para guardar.
+              </div>
+
+              <div v-else class="row q-col-gutter-md">
+                <div
+                  v-for="(photo, idx) in uploadedPhotos"
+                  :key="idx"
+                  class="col-6 col-sm-4 col-md-3"
+                >
+                  <q-card bordered>
+                    <q-img
+                      :src="photo"
+                      spinner-color="white"
+                      style="height: 140px; max-width: 100%"
+                    >
+                      <div class="absolute-top-right q-pa-xs">
+                        <q-btn
+                          round
+                          dense
+                          color="negative"
+                          icon="close"
+                          size="sm"
+                          @click="removePhoto(idx)"
+                          :disable="!esEditable"
+                        />
+                      </div>
+                    </q-img>
+                  </q-card>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <div class="row justify-end q-mb-xl">
+            <q-btn
+              color="positive"
+              unelevated
+              class="q-px-xl q-py-md text-weight-bold"
+              label="GUARDAR ANÁLISIS"
+              @click="guardar"
+              :disable="!esEditable"
+            />
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
+
+  <!-- Diálogo de Cámara -->
+  <q-dialog v-model="cameraDialog" persistent>
+    <q-card style="width: 400px; max-width: 95vw">
+      <q-card-section class="row items-center q-pb-none">
+        <div class="text-h6">Tomar Fotografía</div>
+        <q-space />
+        <q-btn icon="close" flat round dense v-close-popup @click="stopCamera" />
+      </q-card-section>
+
+      <q-card-section>
+        <video
+          ref="videoRef"
+          autoplay
+          playsinline
+          style="width: 100%; border-radius: 8px; background: #000"
+        ></video>
+        <canvas ref="canvasRef" v-show="false"></canvas>
+      </q-card-section>
+
+      <q-card-actions align="center" class="q-pb-md">
+        <q-btn color="primary" icon="photo_camera" label="Capturar" @click="captureImage" />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, watchEffect, onMounted } from 'vue'
-import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
-import TablaAnalisisDesplegable from './TablaAnalisisDesplegable.vue'
+import { computed, reactive, ref, watch, watchEffect, onMounted } from 'vue';
+import { useQuasar } from 'quasar';
+import { api } from 'src/boot/axios';
+import TablaAnalisisDesplegable from './TablaAnalisisDesplegable.vue';
 import type { AxiosError } from 'axios';
+import { useAuthStore } from 'src/stores/auth';
 
 interface RegistroBascula {
   id: number;
@@ -188,7 +357,9 @@ interface RegistroBascula {
   chofer: string;
   placas: string;
   peso_bruto_kg: number;
+  status: string;
   grano?: string;
+  grano_id?: number;
   // Campos del análisis (vienen del LEFT JOIN)
   calibre?: string;
   humedad?: number | string;
@@ -198,6 +369,17 @@ interface RegistroBascula {
   r2_manchado?: number | string;
   r2_quebrado?: number | string;
   datos_adicionales?: string;
+}
+
+interface FrijolRow {
+  nombre: string;
+  pesoGrs: number | string;
+  porcentaje: number | string;
+  color: string;
+  colorOpciones: boolean;
+  esTotal: boolean;
+  esPlaga: boolean;
+  plagaValor: string;
 }
 
 interface AnalisisData {
@@ -222,251 +404,367 @@ interface AnalisisData {
 }
 
 // --- Props & Emits ---
-const props = withDefaults(defineProps<{
-  calibresDisponibles?: string[]
-}>(), {
-  calibresDisponibles: () => ['44-46', '42-44', '40-42']
-})
+const props = withDefaults(
+  defineProps<{
+    calibresDisponibles?: string[];
+  }>(),
+  {
+    calibresDisponibles: () => ['44-46', '42-44', '40-42'],
+  },
+);
 
 const emit = defineEmits<{
-  (e: 'refresh'): void
-}>()
+  (e: 'refresh'): void;
+}>();
 
 // --- Estado ---
-const $q = useQuasar()
-const loading = ref(false)
-const currentIndex = ref(0)
-const listaPendientes = ref<RegistroBascula[]>([])
-const listaCalibres = ref<{ id: number; nombre: string }[]>([])
-const uploadedPhotos = ref<string[]>([])
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const $q = useQuasar();
+const loading = ref(false);
+const currentIndex = ref(0);
+const listaPendientes = ref<RegistroBascula[]>([]);
+const listaCalibres = ref<{ id: number; nombre: string }[]>([]);
+const uploadedPhotos = ref<string[]>([]);
+const frijolData = ref<FrijolRow[]>([]);
+
+// Cámara con getUserMedia
+const cameraDialog = ref(false);
+const videoRef = ref<HTMLVideoElement | null>(null);
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+const stream = ref<MediaStream | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+// Filtros
+const filtroEstatus = ref('TODOS');
+const filtroFechaInicio = ref('');
+const filtroFechaFin = ref('');
+
+const opcionesEstatus = [
+  { label: 'Pendientes', value: 'PENDIENTE' },
+  { label: 'Analizados', value: 'NO_PENDIENTE' },
+  { label: 'Todos', value: 'TODOS' },
+];
+
+function limpiarFiltros() {
+  filtroEstatus.value = 'TODOS';
+  filtroFechaInicio.value = '';
+  filtroFechaFin.value = '';
+  void cargarPendientes();
+}
 
 const analisisData = reactive<AnalisisData>({
-  ticket: '', fechaHora: '', chofer: '', placas: '',
+  ticket: '',
+  fechaHora: '',
+  chofer: '',
+  placas: '',
   calibre: props.calibresDisponibles?.[0] || '44-46',
-  humedad: '', impurezas: '', r1: '', r2: '',
-  cafesLisos: '', manchados: '', quebMxc: '',
-  helados: '', alimonados: '', revolcados: '',
-  sumaR2: 0, totalDanosNum: 0, exportacion: 0
-})
+  humedad: '',
+  impurezas: '',
+  r1: '',
+  r2: '',
+  cafesLisos: '',
+  manchados: '',
+  quebMxc: '',
+  helados: '',
+  alimonados: '',
+  revolcados: '',
+  sumaR2: 0,
+  totalDanosNum: 0,
+  exportacion: 0,
+});
 
-async function cargarCalibres() {
+async function cargarCalibres(granoId?: number) {
   try {
-    const response = await api.get('/api/catalogos/calibres')
-    // Asumimos que el API devuelve un array de objetos { id, nombre }
-    listaCalibres.value = response.data
+    const params: Record<string, unknown> = {};
+    if (granoId) params.granoId = granoId;
 
-    // Si hay calibres y el formulario está vacío, pre-seleccionamos el primero
-    if (listaCalibres.value.length > 0 && !analisisData.calibre) {
-      analisisData.calibre = listaCalibres.value[0]?.nombre || ''
+    const response = await api.get('/api/catalogos/calibres', { params });
+    listaCalibres.value = response.data;
+
+    // Si el calibre actual no existe en la nueva lista, resetear al primero disponible
+    const calibreActualExiste = listaCalibres.value.some(
+      (c: { nombre: string }) => c.nombre === analisisData.calibre,
+    );
+    if (listaCalibres.value.length > 0 && !calibreActualExiste) {
+      analisisData.calibre = listaCalibres.value[0]?.nombre || '';
     }
   } catch {
-    $q.notify({ type: 'negative', message: 'Error al cargar catálogo de calibres' })
+    $q.notify({ type: 'negative', message: 'Error al cargar catálogo de calibres' });
   }
 }
 
 // --- Lógica de Carga API ---
 async function cargarPendientes() {
-  loading.value = true
+  loading.value = true;
   try {
-    const response = await api.get('/api/analisis/pendientes-analisis')
-    listaPendientes.value = response.data
+    const params: Record<string, string> = {};
+    if (filtroEstatus.value) params.estatus = filtroEstatus.value;
+    if (filtroFechaInicio.value) params.fechaInicio = filtroFechaInicio.value;
+    if (filtroFechaFin.value) params.fechaFin = filtroFechaFin.value;
+
+    const response = await api.get('/api/analisis/pendientes-analisis', { params });
+    listaPendientes.value = response.data;
     // Resetear al primer registro si hay datos
     if (listaPendientes.value.length > 0) {
-      currentIndex.value = 0
+      currentIndex.value = 0;
     }
-  } catch  {
-    $q.notify({ type: 'negative', message: 'Error al cargar tickets pendientes' })
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al cargar tickets pendientes' });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 onMounted(async () => {
   await cargarPendientes();
-  void cargarCalibres(); // <--- Nueva llamada
+  // Los calibres se cargan automáticamente vía watch de registroActual.grano_id
+  const granoId = registroActual.value?.grano_id;
+  void cargarCalibres(granoId ?? undefined);
 });
+
+// Watcher para recargar datos cuando cambia la sede activa (multisede)
+const authStore = useAuthStore();
+watch(
+  () => authStore.sedeActivaId,
+  async (nuevaSedeId, sedeAnterior) => {
+    if (nuevaSedeId !== sedeAnterior && sedeAnterior !== undefined) {
+      await cargarPendientes();
+      $q.notify({
+        type: 'info',
+        message: `Análisis actualizados para: ${authStore.nombreSedeActiva}`,
+        position: 'top',
+      });
+    }
+  },
+);
 
 // --- Computados ---
 const registroActual = computed(() => {
-  if (!listaPendientes.value.length) return null
-  return listaPendientes.value[currentIndex.value]
-})
+  if (!listaPendientes.value.length) return null;
+  return listaPendientes.value[currentIndex.value];
+});
+
+const esEditable = computed(() => {
+  const r = registroActual.value;
+  if (!r) return false;
+  return r.status === 'PENDIENTE';
+});
+
+// Recargar calibres cuando cambia el registro actual (diferente grano_id)
+watch(
+  () => registroActual.value?.grano_id,
+  (nuevoGranoId) => {
+    void cargarCalibres(nuevoGranoId ?? undefined);
+  },
+);
 
 // --- Watches ---
-// --- Watches ---
-watch([currentIndex, listaPendientes], () => {
-  const r = registroActual.value // Eliminamos el "as any"
-  if (!r) return
+watch(
+  [currentIndex, listaPendientes],
+  () => {
+    const r = registroActual.value; // Eliminamos el "as any"
+    if (!r) return;
 
-  // 1. Datos básicos del encabezado
-  analisisData.ticket = r.ticket_numero || ''
-  analisisData.fechaHora = r.fecha ? new Date(r.fecha).toLocaleString() : new Date().toLocaleString()
-  analisisData.chofer = r.chofer || ''
-  analisisData.placas = r.placas || ''
+    // 1. Datos básicos del encabezado
+    analisisData.ticket = r.ticket_numero || '';
+    analisisData.fechaHora = r.fecha
+      ? new Date(r.fecha).toLocaleString()
+      : new Date().toLocaleString();
+    analisisData.chofer = r.chofer || '';
+    analisisData.placas = r.placas || '';
 
-  // 2. Cargar valores técnicos de la base de datos de forma segura
-  analisisData.calibre = r.calibre || '44-46'
-  analisisData.humedad = r.humedad?.toString() || ''
-  analisisData.impurezas = r.impurezas?.toString() || ''
-  analisisData.r1 = r.r1_danado_insecto?.toString() || ''
-  analisisData.r2 = r.r2_arrugado?.toString() || ''
-  analisisData.manchados = r.r2_manchado?.toString() || ''
-  analisisData.quebMxc = r.r2_quebrado?.toString() || ''
+    // 2. Cargar valores técnicos de la base de datos de forma segura
+    analisisData.calibre = r.calibre || '44-46';
+    analisisData.humedad = r.humedad?.toString() || '';
+    analisisData.impurezas = r.impurezas?.toString() || '';
+    analisisData.r1 = r.r1_danado_insecto?.toString() || '';
+    analisisData.r2 = r.r2_arrugado?.toString() || '';
+    analisisData.manchados = r.r2_manchado?.toString() || '';
+    analisisData.quebMxc = r.r2_quebrado?.toString() || '';
 
-  // 3. Procesar JSON de datos adicionales
-  if (r.datos_adicionales) {
-    try {
-      const extra = JSON.parse(r.datos_adicionales)
-      analisisData.cafesLisos = extra.cafes_lisos?.toString() || ''
-      analisisData.helados = extra.helados?.toString() || ''
-      analisisData.alimonados = extra.alimonados?.toString() || ''
-      analisisData.revolcados = extra.revolcados?.toString() || ''
+    // 3. Procesar JSON de datos adicionales
+    if (r.datos_adicionales) {
+      try {
+        const extra = JSON.parse(r.datos_adicionales);
+        analisisData.cafesLisos = extra.cafes_lisos?.toString() || '';
+        analisisData.helados = extra.helados?.toString() || '';
+        analisisData.alimonados = extra.alimonados?.toString() || '';
+        analisisData.revolcados = extra.revolcados?.toString() || '';
 
-      uploadedPhotos.value = Array.isArray(extra.fotos) ? [...extra.fotos] : []
-    } catch (e) {
-      console.error("Error al parsear datos adicionales:", e)
-      uploadedPhotos.value = []
+        uploadedPhotos.value = Array.isArray(extra.fotos) ? [...extra.fotos] : [];
+
+        // Cargar datos de frijol si existen
+        frijolData.value = Array.isArray(extra.frijol_datos) ? extra.frijol_datos : [];
+      } catch (e) {
+        console.error('Error al parsear datos adicionales:', e);
+        uploadedPhotos.value = [];
+        frijolData.value = [];
+      }
+    } else {
+      // Si no hay análisis previo, aseguramos que los campos calculados inicien limpios
+      analisisData.cafesLisos = '';
+      analisisData.helados = '';
+      analisisData.alimonados = '';
+      analisisData.revolcados = '';
+      uploadedPhotos.value = [];
+      frijolData.value = [];
     }
-  } else {
-    // Si no hay análisis previo, aseguramos que los campos calculados inicien limpios
-    analisisData.cafesLisos = ''
-    analisisData.helados = ''
-    analisisData.alimonados = ''
-    analisisData.revolcados = ''
-    uploadedPhotos.value = []
-  }
-}, { immediate: true })
-
-
-
-
+  },
+  { immediate: true },
+);
 
 // Cálculos automáticos
 watchEffect(() => {
-  const suma = num(analisisData.r2) + num(analisisData.cafesLisos) + num(analisisData.manchados) +
-               num(analisisData.quebMxc) + num(analisisData.helados) + num(analisisData.alimonados) +
-               num(analisisData.revolcados)
-  analisisData.sumaR2 = round2(suma)
-})
+  const suma =
+    num(analisisData.r2) +
+    num(analisisData.cafesLisos) +
+    num(analisisData.manchados) +
+    num(analisisData.quebMxc) +
+    num(analisisData.helados) +
+    num(analisisData.alimonados) +
+    num(analisisData.revolcados);
+  analisisData.sumaR2 = round2(suma);
+});
 
 watchEffect(() => {
-  analisisData.totalDanosNum = round2(num(analisisData.impurezas) + num(analisisData.r1) + analisisData.sumaR2)
-})
+  analisisData.totalDanosNum = round2(
+    num(analisisData.impurezas) + num(analisisData.r1) + analisisData.sumaR2,
+  );
+});
 
 watchEffect(() => {
-  analisisData.exportacion = round2(Math.max(0, 100 - analisisData.totalDanosNum))
-})
+  analisisData.exportacion = Math.round(Math.max(0, 100 - analisisData.totalDanosNum));
+});
 
 // --- Funciones Auxiliares ---
 function num(v: string | number) {
-  const n = typeof v === 'number' ? v : parseFloat(v)
-  return Number.isFinite(n) ? n : 0
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function round2(v: number) {
-  return parseFloat(v.toFixed(2))
+  return parseFloat(v.toFixed(2));
 }
 
 function limpiarFormulario() {
-  analisisData.humedad = ''
-  analisisData.impurezas = ''
-  analisisData.r1 = ''
-  analisisData.r2 = ''
-  analisisData.cafesLisos = ''
-  analisisData.manchados = ''
-  analisisData.quebMxc = ''
-  analisisData.helados = ''
-  analisisData.alimonados = ''
-  analisisData.revolcados = ''
+  analisisData.humedad = '';
+  analisisData.impurezas = '';
+  analisisData.r1 = '';
+  analisisData.r2 = '';
+  analisisData.cafesLisos = '';
+  analisisData.manchados = '';
+  analisisData.quebMxc = '';
+  analisisData.helados = '';
+  analisisData.alimonados = '';
+  analisisData.revolcados = '';
 
-  // Limpiar el array de fotos
-  uploadedPhotos.value = []
+  // Limpiar el array de fotos y datos de frijol
+  uploadedPhotos.value = [];
+  frijolData.value = [];
 }
 
 function onTablaInputChange(campo: string, valor: string) {
   if (campo in analisisData) {
-    (analisisData[campo as keyof AnalisisData] as unknown) = valor
+    (analisisData[campo as keyof AnalisisData] as unknown) = valor;
   }
+}
+
+function onFrijolDataChange(data: FrijolRow[]) {
+  frijolData.value = data;
 }
 
 // --- Navegación ---
 function prevRegistro() {
   if (currentIndex.value > 0) {
-    currentIndex.value--
-    limpiarFormulario()
+    currentIndex.value--;
+    limpiarFormulario();
   }
 }
 
 function nextRegistro() {
   if (currentIndex.value < listaPendientes.value.length - 1) {
-    currentIndex.value++
-    limpiarFormulario()
+    currentIndex.value++;
+    limpiarFormulario();
   }
 }
 
-// --- Fotos ---
-function triggerFilePick() { fileInputRef.value?.click() }
-
-function tomarFotoReal() {
-  if (fileInputRef.value) {
-    // Forzamos que abra la cámara trasera
-    fileInputRef.value.setAttribute('capture', 'environment');
-    fileInputRef.value.click();
-
-    // Quitamos el atributo inmediatamente después para que no afecte
-    // a la selección normal de archivos si se usa el otro botón
-    setTimeout(() => {
-      fileInputRef.value?.removeAttribute('capture');
-    }, 500);
-  }
-}
-
-function onPhotoUpload(e: Event) {
-  const input = e.target as HTMLInputElement
-  if (!input.files?.length) return
-
-  Array.from(input.files).forEach((file) => {
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const img = new Image()
-      img.src = event.target?.result as string
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const MAX_WIDTH = 800
-        const scale = MAX_WIDTH / img.width
-        canvas.width = MAX_WIDTH
-        canvas.height = img.height * scale
-        const ctx = canvas.getContext('2d')
-        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height)
-        uploadedPhotos.value.push(canvas.toDataURL('image/jpeg', 0.7))
-      }
+// --- Cámara con getUserMedia ---
+async function abrirCamara() {
+  try {
+    cameraDialog.value = true;
+    stream.value = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false,
+    });
+    if (videoRef.value) {
+      videoRef.value.srcObject = stream.value;
     }
-    reader.readAsDataURL(file)
-  })
-  input.value = ''
+  } catch (err) {
+    console.error('Error al acceder a la cámara:', err);
+    $q.notify({ type: 'negative', message: 'No se pudo acceder a la cámara.' });
+    cameraDialog.value = false;
+  }
+}
+
+function captureImage() {
+  if (videoRef.value && canvasRef.value) {
+    const video = videoRef.value;
+    const canvas = canvasRef.value;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const fotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+      uploadedPhotos.value.push(fotoBase64);
+      stopCamera();
+      cameraDialog.value = false;
+      $q.notify({ type: 'positive', message: 'Foto capturada.' });
+    }
+  }
+}
+
+function stopCamera() {
+  if (stream.value) {
+    stream.value.getTracks().forEach((track) => track.stop());
+    stream.value = null;
+  }
+}
+
+function onFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (!input.files?.length) return;
+  for (const file of Array.from(input.files)) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        uploadedPhotos.value.push(e.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  input.value = '';
 }
 
 function removePhoto(index: number) {
-  uploadedPhotos.value.splice(index, 1)
+  uploadedPhotos.value.splice(index, 1);
 }
 
 // --- Guardar ---
 async function guardar() {
   if (!analisisData.humedad || !analisisData.calibre) {
-    $q.notify({ type: 'warning', message: 'Humedad y Calibre son obligatorios.' })
-    return
+    $q.notify({ type: 'warning', message: 'Humedad y Calibre son obligatorios.' });
+    return;
   }
 
   if (uploadedPhotos.value.length === 0) {
-    $q.notify({ type: 'warning', message: 'Debe subir al menos una foto.' })
-    return
+    $q.notify({ type: 'warning', message: 'Debe subir al menos una foto.' });
+    return;
   }
 
-  const r = registroActual.value
-  if (!r) return
+  const r = registroActual.value;
+  if (!r) return;
 
-  $q.loading.show({ message: 'Procesando análisis...' })
+  $q.loading.show({ message: 'Procesando análisis...' });
 
   try {
     const payload = {
@@ -478,8 +776,8 @@ async function guardar() {
       r2_quebrado: num(analisisData.quebMxc),
       r2_manchado: num(analisisData.manchados),
       r2_arrugado: num(analisisData.r2),
-      // Nota: suma_r2 y total_danos se omiten si son calculadas por SQL
       analista_usuario_id: 1,
+      grano_id: r.grano_id || null,
       observaciones: `Análisis para ticket ${r.ticket_numero}`,
       datos_adicionales: JSON.stringify({
         exportacion: analisisData.exportacion,
@@ -487,9 +785,12 @@ async function guardar() {
         helados: num(analisisData.helados),
         alimonados: num(analisisData.alimonados),
         revolcados: num(analisisData.revolcados),
-        fotos: uploadedPhotos.value
-      })
-    }
+        fotos: uploadedPhotos.value,
+        ...(r.grano_id === 1 && frijolData.value.length > 0
+          ? { frijol_datos: frijolData.value }
+          : {}),
+      }),
+    };
 
     // DETERMINAR SI ES ACTUALIZACIÓN O INSERCIÓN
     // Si r.calibre o r.humedad ya tienen valor, significa que ya existe un análisis
@@ -497,31 +798,36 @@ async function guardar() {
 
     if (yaExisteAnalisis) {
       // Usamos PUT para actualizar el registro existente vinculado a bascula_id
-      await api.put(`/api/analisis/actualizar/${r.id}`, payload)
-      $q.notify({ type: 'positive', message: `Análisis del ticket ${r.ticket_numero} actualizado.` })
+      await api.put(`/api/analisis/actualizar/${r.id}`, payload);
+      $q.notify({
+        type: 'positive',
+        message: `Análisis del ticket ${r.ticket_numero} actualizado.`,
+      });
     } else {
       // Usamos POST para crear uno nuevo
-      await api.post('/api/analisis/guardar', payload)
-      $q.notify({ type: 'positive', message: `Ticket ${r.ticket_numero} guardado con éxito.` })
+      await api.post('/api/analisis/guardar', payload);
+      $q.notify({ type: 'positive', message: `Ticket ${r.ticket_numero} guardado con éxito.` });
     }
 
-    emit('refresh')
-    await cargarPendientes()
+    emit('refresh');
+    await cargarPendientes();
     // No limpiamos el formulario inmediatamente para que el usuario vea sus cambios reflejados
   } catch (error: unknown) {
-    const axiosError = error as AxiosError<{ message: string }>
+    const axiosError = error as AxiosError<{ message: string }>;
     $q.notify({
       type: 'negative',
-      message: axiosError.response?.data?.message || 'Error al procesar el análisis.'
-    })
+      message: axiosError.response?.data?.message || 'Error al procesar el análisis.',
+    });
   } finally {
-    $q.loading.hide()
+    $q.loading.hide();
   }
 }
 </script>
 
 <style scoped>
-.hidden { display: none; }
+.hidden {
+  display: none;
+}
 
 .q-img__image {
   object-fit: cover !important;
@@ -532,5 +838,4 @@ async function guardar() {
   min-height: 100px;
   background-color: #f0f0f0; /* Color de fondo mientras carga */
 }
-
 </style>

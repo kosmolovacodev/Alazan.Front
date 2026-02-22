@@ -13,7 +13,8 @@ export interface User {
 export interface Sede {
   id: number;
   nombre_sede: string;
-  nombre : string;
+  nombre: string;
+  activo?: number | boolean; // Agregado para soportar tu filtro
 }
 
 // Definimos el tipo del estado para que TS no adivine mal
@@ -22,11 +23,13 @@ interface AuthState {
   isLoggedIn: boolean;
   sedeActivaId: number | null;
   listaSedes: Sede[];
+  token: string | null;
 }
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: JSON.parse(localStorage.getItem('alazan_user') || 'null') as User | null,
+    token: localStorage.getItem('jwt') || null,
     isLoggedIn: !!localStorage.getItem('alazan_user'),
     // Aseguramos que se recupere como número o null
     sedeActivaId: localStorage.getItem('alazan_sede_activa')
@@ -39,22 +42,24 @@ export const useAuthStore = defineStore('auth', {
     // IMPORTANTE: Tipamos explícitamente el retorno para evitar errores en el template
     esAdminGlobal: (state): boolean => state.user?.sede_id === 0,
 
-    // En auth.ts -> getters
+    // Tu lógica original para el nombre de la sede
     nombreSedeActiva: (state): string => {
-    if (state.sedeActivaId === null || state.sedeActivaId === undefined) return 'Sede no seleccionada';
+      if (state.sedeActivaId === null || state.sedeActivaId === undefined)
+        return 'Sede no seleccionada';
 
-    // Buscamos en la lista. Usamos 'nombre' porque así viene del Controller
-    const sede = state.listaSedes.find(s => s.id == state.sedeActivaId);
+      // Buscamos en la lista. Usamos 'nombre' porque así viene del Controller
+      const sede = state.listaSedes.find((s) => s.id == state.sedeActivaId);
 
-    if (sede) {
-      // Si tu SQL dice 'as nombre', usa .nombre.
-      // Si no usaste el 'as', usa .nombre_sede
-      return sede.nombre || sede.nombre_sede || `Sede ${state.sedeActivaId}`;
-    }
+      if (sede) {
+        // Si tu SQL dice 'as nombre', usa .nombre.
+        // Si no usaste el 'as', usa .nombre_sede
+        return sede.nombre || sede.nombre_sede || `Sede ${state.sedeActivaId}`;
+      }
 
-    return `Sede ID: ${state.sedeActivaId}`;
-  },
+      return `Sede ID: ${state.sedeActivaId}`;
+    },
 
+    // Tu lógica original de permisos JSON
     tienePermiso: (state) => {
       return (nombrePantalla: string): boolean => {
         if (state.user?.nombre_rol === 'ADMIN') return true;
@@ -72,54 +77,63 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async login(email: string, pass: string): Promise<{ success: boolean; message?: string }> {
       try {
-        const { data } = await api.post('/api/auth/login', { email, password: pass });
+        // 1. Llamada al endpoint
+        const { data } = await api.post('/auth/login', { email, password: pass });
 
-        // Verificación de seguridad: si data no existe o no tiene id
-        if (!data || !data.id) {
-          throw new Error('Respuesta del servidor inválida');
+        // 2. Validación de respuesta
+        if (!data || !data.jwt || !data.user) {
+          throw new Error('Estructura de respuesta inválida del servidor');
         }
 
-        this.user = data;
+        // 3. Guardar el Token
+        this.token = data.jwt;
+        localStorage.setItem('jwt', data.jwt);
+
+        // 4. Guardar los datos del usuario
+        this.user = data.user;
         this.isLoggedIn = true;
 
-        // Si el sede_id viene como string en el JSON, conviértelo a número aquí
-        const sedeId = Number(data.sede_id);
+        // 5. Configurar la Sede Activa
+        const sedeId = Number(data.user.sede_id);
         this.sedeActivaId = sedeId;
 
-        localStorage.setItem('alazan_user', JSON.stringify(data));
+        // 6. Persistencia de datos
+        localStorage.setItem('alazan_user', JSON.stringify(data.user));
         localStorage.setItem('alazan_sede_activa', sedeId.toString());
 
-        // Cargamos sedes (esto llenará el selector de arriba a la derecha)
+        // 7. Cargar sedes/bodegas
         await this.cargarSedes();
 
         return { success: true };
       } catch (err: unknown) {
-        console.error('Error en Login:', err); // Revisa la consola del navegador para ver el error real
+        console.error('Error en Login:', err);
 
         let msg = 'Error de conexión con el servidor';
-        if (err && typeof err === 'object' && 'response' in err) {
-            const axiosError = err as { response?: { data?: { message?: string } } };
-            if (axiosError.response?.data?.message) {
-              msg = axiosError.response.data.message;
-            }
-          } else if (err instanceof Error) {
-            msg = err.message;
-          }
 
-          return { success: false, message: msg };
+        // Manejo de errores de Axios
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { data?: { message?: string } } };
+          if (axiosError.response?.data?.message) {
+            msg = axiosError.response.data.message;
+          }
+        } else if (err instanceof Error) {
+          msg = err.message;
+        }
+
+        return { success: false, message: msg };
       }
     },
 
     async cargarSedes() {
       try {
         const { data } = await api.get('/api/catalogos/sedes');
-        this.listaSedes = data;
+        // Tu filtro original de activos
+        this.listaSedes = (data as Sede[]).filter((s) => !!s.activo);
 
         if (this.esAdminGlobal && (!this.sedeActivaId || this.sedeActivaId === 0)) {
-          // Acceso seguro: Guardamos el primer elemento en una constante
           const primeraSede = this.listaSedes[0];
           if (primeraSede) {
-              this.setSedeActiva(primeraSede.id);
+            this.setSedeActiva(primeraSede.id);
           }
         }
       } catch (error) {
@@ -132,14 +146,20 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('alazan_sede_activa', id.toString());
     },
 
+    // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
+    // Esta función logout ahora limpia TODO para que el interceptor funcione bien
     logout() {
       this.user = null;
+      this.token = null;
       this.isLoggedIn = false;
       this.sedeActivaId = null;
       this.listaSedes = [];
+
       localStorage.removeItem('alazan_user');
       localStorage.removeItem('alazan_sede_activa');
-      // Usar router mejor que href si es posible, pero esto funciona:
+      localStorage.removeItem('jwt');
+
+      // Redirección forzada al login
       window.location.href = '#/login';
     },
   },
