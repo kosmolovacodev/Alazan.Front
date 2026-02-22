@@ -8,7 +8,7 @@
         class="q-mb-xl shadow-transition"
       />
 
-      <div class="text-h4 text-weight-light text-grey-8">ERP 1.0</div>
+      <div class="text-h4 text-weight-light text-grey-8">Sistema de Gestión V1.0</div>
       <div class="text-subtitle1 text-grey-6 q-mt-sm">Panel de Control de Recepción de Granos</div>
     </div>
   </q-page>
