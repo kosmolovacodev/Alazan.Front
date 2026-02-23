@@ -16,9 +16,9 @@
       <q-tab name="bancos" icon="account_balance" label="Bancos" />
       <q-tab name="silos-calibre" icon="storage" label="Silos Calibre" />
       <q-tab name="silos-pulmon" icon="warehouse" label="Silos Pulmón" />
-      <q-tab name="bodegas" icon="store" label="Bodegas" />
+      <q-tab name="bodegas" icon="store" label="Almacenes" />
       <!-- Solo visible para Admin General (sede_id = 0) -->
-      <q-tab v-if="esAdminGlobal" name="sedes" icon="domain" label="Sedes" />
+      <q-tab v-if="esAdminGlobal" name="sedes" icon="domain" label="Bodegas" />
     </q-tabs>
 
     <q-separator />
@@ -167,7 +167,7 @@
 
             <template v-else-if="tab === 'sedes'">
               <div class="col">
-                <q-input v-model="form.nombre" dense outlined label="Nombre de la Sede" />
+                <q-input v-model="form.nombre" dense outlined label="Nombre de la Bodega" />
               </div>
               <div class="col">
                 <q-input v-model="form.ciudad" dense outlined label="Ciudad" />
@@ -411,12 +411,18 @@ const columnas = computed<QTableColumn[]>(() => {
     case 'bodegas':
       return [
         { name: 'nombre', label: 'Nombre Almacén', field: 'nombre', align: 'left', sortable: true },
-        { name: 'granoNombre', label: 'Tipo de Grano', field: 'granoNombre', align: 'left', sortable: true },
+        {
+          name: 'granoNombre',
+          label: 'Tipo de Grano',
+          field: 'granoNombre',
+          align: 'left',
+          sortable: true,
+        },
         ...baseActions,
       ];
     case 'sedes':
       return [
-        { name: 'nombre', label: 'Sede', field: 'nombre', align: 'left' },
+        { name: 'nombre', label: 'Bodega', field: 'nombre', align: 'left' },
         { name: 'ciudad', label: 'Ciudad', field: 'ciudad', align: 'left' },
         { name: 'estado', label: 'Estado', field: 'estado', align: 'left' },
         { name: 'tope_diario', label: 'Tope Diario', field: 'tope_diario', align: 'right' },
