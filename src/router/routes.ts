@@ -8,29 +8,54 @@ const routes: RouteRecordRaw[] = [
       // Al estar aquí adentro, se renderizan en el <router-view /> del Layout
       { path: '', redirect: '/inicio' },
       { path: 'inicio', component: () => import('pages/IndexPage.vue') },
-      { path: 'bascula', component: () => import('pages/recepcion/BasculaPage.vue') },
-      { path: 'analisis', component: () => import('pages/analisis/AnalisisPage.vue') },
-      { path: 'precio', component: () => import('pages/precio/PrecioPage.vue') },
-      { path: 'boleta', component: () => import('pages/boleta/BoletaPage.vue') },
-      { path: 'volcado', component: () => import('pages/volcado/VolcadoPage.vue') },
+      {
+        path: 'bascula',
+        meta: { permiso: 'Recepción de Granos - Báscula' },
+        component: () => import('pages/recepcion/BasculaPage.vue'),
+      },
+      {
+        path: 'analisis',
+        meta: { permiso: 'Recepción de Granos - Análisis' },
+        component: () => import('pages/analisis/AnalisisPage.vue'),
+      },
+      {
+        path: 'precio',
+        meta: { permiso: 'Recepción de Granos - Precio' },
+        component: () => import('pages/precio/PrecioPage.vue'),
+      },
+      {
+        path: 'boleta',
+        meta: { permiso: 'Recepción de Granos - Boleta' },
+        component: () => import('pages/boleta/BoletaPage.vue'),
+      },
+      {
+        path: 'volcado',
+        meta: { permiso: 'Recepción de Granos - Volcado' },
+        component: () => import('pages/volcado/VolcadoPage.vue'),
+      },
       {
         path: 'preliquidacion',
+        meta: { permiso: 'Recepción de Granos - Pre-liquidación' },
         component: () => import('pages/preliquidacion/PreliquidacionPage.vue'),
       },
       {
         path: 'facturas',
+        meta: { permiso: 'Recepción de Facturas' },
         component: () => import('pages/facturacion/FacturacionPage.vue'),
       },
       {
         path: 'productores',
+        meta: { permiso: 'Pagos - Productores' },
         component: () => import('pages/pagos/PagosProductores.vue'),
       },
       {
         path: 'sede',
+        meta: { permiso: 'Pagos - Pagos' },
         component: () => import('pages/pagos/PagosSede.vue'),
       },
       {
         path: 'configuracion',
+        meta: { permiso: 'Configuración' },
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),
       },
     ],

@@ -34,16 +34,36 @@ export default route(function (/* { store } */) {
     const hasToken = !!localStorage.getItem('jwt');
 
     if (authRequired && !hasToken) {
-      // Si el módulo (como preliquidación) requiere auth y no hay token, al login
       console.warn(`Acceso denegado a ${to.path}. Redirigiendo al login...`);
       next('/login');
-    } else if (to.path === '/login' && hasToken) {
-      // Si ya está logueado y quiere ir al login, lo mandamos al inicio
-      next('/inicio');
-    } else {
-      // En cualquier otro caso (página pública o usuario logueado), adelante
-      next();
+      return;
     }
+
+    if (to.path === '/login' && hasToken) {
+      next('/inicio');
+      return;
+    }
+
+    // Verificar permiso de pantalla si la ruta lo requiere
+    const permiso = to.meta?.permiso as string | undefined;
+    if (permiso && hasToken) {
+      try {
+        const user = JSON.parse(localStorage.getItem('alazan_user') || 'null');
+        if (user && user.nombre_rol !== 'ADMIN') {
+          const lista: string[] = JSON.parse(user.permisos_json || '[]');
+          if (!lista.includes(permiso)) {
+            console.warn(`Sin permiso para ${to.path} (requiere: ${permiso})`);
+            next('/inicio');
+            return;
+          }
+        }
+      } catch {
+        next('/inicio');
+        return;
+      }
+    }
+
+    next();
   });
 
   return Router;

@@ -15,13 +15,15 @@
         </q-btn>
       </div>
       <q-dialog v-model="modalCatalogo">
-        <q-card style="width: 450px">
-          <q-card-section class="row items-center">
+        <q-card style="width: min(520px, 92vw); max-height: 85vh" class="column">
+          <q-card-section class="row items-center q-pb-none">
             <div class="text-h6">Catálogo de Pantallas</div>
             <q-space />
             <q-btn icon="close" flat round dense v-close-popup />
           </q-card-section>
-          <q-card-section>
+
+          <q-card-section class="col scroll" style="overflow-x: hidden">
+            <!-- Formulario para agregar -->
             <div class="bg-blue-1 q-pa-sm rounded-borders q-mb-md text-caption">
               Añade aquí las secciones de tu sistema para que aparezcan en la matriz de permisos.
             </div>
@@ -37,14 +39,39 @@
               label="Descripción"
               outlined
               dense
-              class="q-mb-md"
+              class="q-mb-sm"
             />
             <q-btn
               color="secondary"
               label="Añadir al Catálogo"
-              class="full-width"
+              icon="add"
+              class="full-width q-mb-lg"
               @click="guardarNuevaPantalla"
             />
+
+            <!-- Lista de pantallas existentes -->
+            <div class="text-subtitle2 q-mb-sm text-grey-8">Pantallas registradas</div>
+            <q-list bordered separator>
+              <q-item v-for="p in listaPantallas" :key="p.id ?? p.nombre_pantalla" dense class="q-px-sm">
+                <q-item-section style="min-width: 0">
+                  <q-item-label class="ellipsis">{{ p.nombre_pantalla }}</q-item-label>
+                  <q-item-label caption v-if="p.descripcion" class="ellipsis">{{ p.descripcion }}</q-item-label>
+                </q-item-section>
+                <q-item-section side style="padding-left: 8px">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="negative"
+                    size="sm"
+                    @click="confirmarEliminarPantalla(p)"
+                  >
+                    <q-tooltip>Eliminar</q-tooltip>
+                  </q-btn>
+                </q-item-section>
+              </q-item>
+            </q-list>
           </q-card-section>
         </q-card>
       </q-dialog>
@@ -236,15 +263,39 @@ async function guardarPermisosFinales() {
 async function guardarNuevaPantalla() {
   if (!nuevaPantalla.value.nombre_pantalla) return;
   try {
-    await api.post('/api/pantallas', nuevaPantalla.value);
+    await api.post('/api/pantallas', {
+      ...nuevaPantalla.value,
+      sede_id: authStore.sedeActivaId,
+    });
     nuevaPantalla.value = { nombre_pantalla: '', descripcion: '' };
     await obtenerCatalogoPantallas();
-    // Si hay un rol seleccionado, recargamos sus permisos para ver la nueva pantalla
     if (rolSeleccionado.value) cargarPermisosDelRol(rolSeleccionado.value);
-
     $q.notify({ type: 'positive', message: 'Pantalla agregada al catálogo' });
   } catch {
     $q.notify({ type: 'negative', message: 'Error al registrar pantalla' });
+  }
+}
+
+function confirmarEliminarPantalla(pantalla: Pantalla) {
+  $q.dialog({
+    title: 'Eliminar Pantalla',
+    message: `¿Eliminar "${pantalla.nombre_pantalla}" del catálogo? Los roles que la tengan asignada perderán ese permiso.`,
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Eliminar', color: 'negative' },
+    persistent: true,
+  }).onOk(() => {
+    void eliminarPantalla(pantalla);
+  });
+}
+
+async function eliminarPantalla(pantalla: Pantalla) {
+  try {
+    await api.delete(`/api/pantallas/${pantalla.id}`);
+    await obtenerCatalogoPantallas();
+    if (rolSeleccionado.value) cargarPermisosDelRol(rolSeleccionado.value);
+    $q.notify({ type: 'positive', message: `"${pantalla.nombre_pantalla}" eliminada` });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al eliminar la pantalla' });
   }
 }
 </script>

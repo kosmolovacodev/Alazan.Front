@@ -94,7 +94,7 @@
         </q-item>
 
         <q-expansion-item
-          v-if="authStore.tienePermiso('Recepción de Granos')"
+          v-if="verRecepcion"
           icon="scale"
           label="Recepción de Granos"
           header-class="text-menu-inactive"
@@ -103,6 +103,7 @@
         >
           <q-list class="q-pl-sm">
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Báscula')"
               clickable
               to="/bascula"
               active-class="menu-item-active"
@@ -111,6 +112,7 @@
               <q-item-section>Báscula</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Análisis')"
               clickable
               to="/analisis"
               active-class="menu-item-active"
@@ -119,6 +121,7 @@
               <q-item-section>Análisis</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Precio')"
               clickable
               to="/precio"
               active-class="menu-item-active"
@@ -127,6 +130,7 @@
               <q-item-section>Precio</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Boleta')"
               clickable
               to="/boleta"
               active-class="menu-item-active"
@@ -135,6 +139,7 @@
               <q-item-section>Boleta</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Volcado')"
               clickable
               to="/volcado"
               active-class="menu-item-active"
@@ -143,6 +148,7 @@
               <q-item-section>Volcado</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Recepción de Granos - Pre-liquidación')"
               clickable
               to="/preliquidacion"
               active-class="menu-item-active"
@@ -153,7 +159,7 @@
           </q-list>
         </q-expansion-item>
         <q-item
-          v-if="authStore.tienePermiso('Facturación')"
+          v-if="authStore.tienePermiso('Recepción de Facturas')"
           clickable
           to="/facturas"
           active-class="menu-item-active"
@@ -164,7 +170,7 @@
         </q-item>
 
         <q-expansion-item
-          v-if="authStore.tienePermiso('Pagos')"
+          v-if="verPagos"
           icon="payments"
           label="Pagos"
           header-class="text-menu-inactive"
@@ -172,6 +178,7 @@
         >
           <q-list class="q-pl-sm">
             <q-item
+              v-if="authStore.tienePermiso('Pagos - Productores')"
               clickable
               to="/productores"
               active-class="menu-item-active"
@@ -180,6 +187,7 @@
               <q-item-section>Productores</q-item-section>
             </q-item>
             <q-item
+              v-if="authStore.tienePermiso('Pagos - Pagos')"
               clickable
               to="/sede"
               active-class="menu-item-active"
@@ -217,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
@@ -229,6 +237,21 @@ const router = useRouter();
 const authStore = useAuthStore();
 const leftDrawerOpen = ref(false);
 const isOnline = ref(window.navigator.onLine);
+
+const verRecepcion = computed(() =>
+  [
+    'Recepción de Granos - Báscula',
+    'Recepción de Granos - Análisis',
+    'Recepción de Granos - Precio',
+    'Recepción de Granos - Boleta',
+    'Recepción de Granos - Volcado',
+    'Recepción de Granos - Pre-liquidación',
+  ].some((p) => authStore.tienePermiso(p)),
+);
+
+const verPagos = computed(
+  () => authStore.tienePermiso('Pagos - Productores') || authStore.tienePermiso('Pagos - Pagos'),
+);
 
 // --- LÓGICA DE SEDES ---
 function alCambiarSede(nuevaSedeId: number) {
