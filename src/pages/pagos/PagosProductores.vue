@@ -322,51 +322,70 @@
 
           <!-- ── SOLICITAR: captura datos bancarios ── -->
           <template v-if="pagoSeleccionado.status_pago === 'SOLICITAR'">
-            <div class="row q-col-gutter-sm">
-              <div class="col-12">
-                <q-input
-                  v-model="detallePagoForm.fechaSolicitud"
-                  label="Fecha de Solicitud" type="date" dense outlined
-                />
+            <!-- Datos ya capturados → solo lectura (bloqueado) -->
+            <template v-if="datosBancariosCompletos">
+              <div class="row q-col-gutter-sm">
+                <div class="col-12">
+                  <q-input :model-value="pagoSeleccionado.nombre_banco ?? '-'"
+                    label="Banco" dense outlined readonly bg-color="grey-1" />
+                </div>
+                <div class="col-12">
+                  <q-input :model-value="pagoSeleccionado.nombre_forma_pago ?? '-'"
+                    label="Método de Pago" dense outlined readonly bg-color="grey-1" />
+                </div>
+                <div class="col-12">
+                  <q-input :model-value="pagoSeleccionado.cuenta_clabe ?? '-'"
+                    label="CLABE" dense outlined readonly bg-color="grey-1" />
+                </div>
               </div>
-              <div class="col-12">
-                <q-select
-                  v-model="detallePagoForm.bancoId"
-                  :options="bancosOptions"
-                  option-value="id"
-                  option-label="nombre_banco"
-                  emit-value map-options
-                  label="Banco" dense outlined clearable
-                />
+              <q-banner dense class="bg-green-1 text-green-9 q-mt-sm rounded-borders">
+                <template v-slot:avatar><q-icon name="lock" /></template>
+                Datos bancarios capturados. Listo para enviar a Corporativo.
+              </q-banner>
+            </template>
+            <!-- Sin datos bancarios → formulario editable -->
+            <template v-else>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12">
+                  <q-input
+                    v-model="detallePagoForm.fechaSolicitud"
+                    label="Fecha de Solicitud" type="date" dense outlined
+                  />
+                </div>
+                <div class="col-12">
+                  <q-select
+                    v-model="detallePagoForm.bancoId"
+                    :options="bancosOptions"
+                    option-value="id"
+                    option-label="nombre_banco"
+                    emit-value map-options
+                    label="Banco" dense outlined clearable
+                  />
+                </div>
+                <div class="col-12">
+                  <q-select
+                    v-model="detallePagoForm.formaPagoId"
+                    :options="formasPagoOptions"
+                    option-value="id"
+                    option-label="nombre"
+                    emit-value map-options
+                    label="Método de Pago" dense outlined clearable
+                  />
+                </div>
+                <div v-if="requiereClabe" class="col-12">
+                  <q-input
+                    v-model="detallePagoForm.clabe"
+                    label="CLABE (18 dígitos)" dense outlined
+                    maxlength="18"
+                    :hint="pagoSeleccionado.cuenta_clabe_productor ? `CLABE registrada: ${pagoSeleccionado.cuenta_clabe_productor}` : ''"
+                  />
+                </div>
               </div>
-              <div class="col-12">
-                <q-select
-                  v-model="detallePagoForm.formaPagoId"
-                  :options="formasPagoOptions"
-                  option-value="id"
-                  option-label="nombre"
-                  emit-value map-options
-                  label="Método de Pago" dense outlined clearable
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="detallePagoForm.clabe"
-                  label="CLABE (18 dígitos)" dense outlined
-                  maxlength="18"
-                  :hint="pagoSeleccionado.cuenta_clabe_productor ? `CLABE registrada: ${pagoSeleccionado.cuenta_clabe_productor}` : ''"
-                />
-              </div>
-              <div class="col-12">
-                <q-input v-model="detallePagoForm.cuenta" label="Cuenta" dense outlined />
-              </div>
-            </div>
-            <q-banner dense class="bg-yellow-1 text-yellow-9 q-mt-sm rounded-borders">
-              <template v-slot:avatar>
-                <q-icon name="info" />
-              </template>
-              Captura los datos bancarios antes de enviar a Corporativo.
-            </q-banner>
+              <q-banner dense class="bg-yellow-1 text-yellow-9 q-mt-sm rounded-borders">
+                <template v-slot:avatar><q-icon name="info" /></template>
+                Captura los datos bancarios antes de enviar a Corporativo.
+              </q-banner>
+            </template>
           </template>
 
           <!-- ── PAGO SOLICITADO: solo lectura ── -->
@@ -385,7 +404,7 @@
                   label="Método de Pago" dense outlined readonly />
               </div>
               <div class="col-12">
-                <q-input :model-value="pagoSeleccionado.clabe ?? '-'"
+                <q-input :model-value="pagoSeleccionado.cuenta_clabe ?? '-'"
                   label="CLABE" dense outlined readonly />
               </div>
             </div>
@@ -436,9 +455,6 @@
                 />
               </div>
               <div class="col-12">
-                <q-input v-model="detallePagoForm.cuenta" label="Cuenta" dense outlined />
-              </div>
-              <div class="col-12">
                 <q-input v-model="detallePagoForm.folioPago" label="Folio de Pago" dense outlined />
               </div>
             </div>
@@ -481,12 +497,11 @@
 
         <!-- Botones del modal -->
         <q-card-actions align="center" class="q-pt-none">
-          <!-- SOLICITAR: guardar datos bancarios -->
+          <!-- SOLICITAR: guardar datos bancarios (solo si aún no están capturados) -->
           <template v-if="pagoSeleccionado?.status_pago === 'SOLICITAR'">
+            <q-btn color="grey-6" label="Cancelar" flat v-close-popup class="q-mr-sm" />
             <q-btn
-              color="grey-6" label="Cancelar" flat v-close-popup class="q-mr-sm"
-            />
-            <q-btn
+              v-if="!datosBancariosCompletos"
               color="purple" label="Guardar Datos Bancarios"
               :loading="guardando"
               @click="handleGuardarDatosBancarios"
@@ -541,9 +556,9 @@ interface PagoRecord {
   status_pago: 'SOLICITAR' | 'PAGO SOLICITADO' | 'AUTORIZADO' | 'PAGADO'
   banco_id: number | null
   nombre_banco: string | null
-  forma_pago_id: number | null
+  metodo_pago: number | null
   nombre_forma_pago: string | null
-  clabe: string | null
+  cuenta_clabe: string | null
   cuenta: string | null
   cuenta_clabe_productor: string | null
   banco_id_productor: number | null
@@ -552,7 +567,7 @@ interface PagoRecord {
 }
 
 interface BancoOption { id: number; nombre_banco: string; codigo_banco: string }
-interface FormaPagoOption { id: number; nombre: string; codigo: string }
+interface FormaPagoOption { id: number; nombre: string; codigo: string; requiere_clabe?: boolean }
 
 // ══════════════════════════════════════════════════════════════════
 //  STATE
@@ -679,6 +694,18 @@ const todosSeleccionadosSonSolicitar = computed(() =>
   selected.value.length > 0 &&
   selected.value.every(p => p.status_pago === 'SOLICITAR'))
 
+const requiereClabe = computed(() => {
+  if (!detallePagoForm.value.formaPagoId) return false
+  const forma = formasPagoOptions.value.find(f => f.id === detallePagoForm.value.formaPagoId)
+  return forma?.requiere_clabe ?? false
+})
+
+const datosBancariosCompletos = computed(() => {
+  const p = pagoSeleccionado.value
+  if (!p) return false
+  return !!p.banco_id && !!p.metodo_pago
+})
+
 // ══════════════════════════════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════════════════════════════
@@ -718,8 +745,8 @@ async function cargarDatos() {
     ])
 
     pagos.value          = solicitudesRes.data
-    bancosOptions.value  = configRes.data.Bancos   ?? []
-    formasPagoOptions.value = configRes.data.FormasPago ?? []
+    bancosOptions.value  = configRes.data.bancos   ?? []
+    formasPagoOptions.value = configRes.data.formasPago ?? []
     topeDiario.value       = topeRes.data.topeDiario ?? 0
     montoSolicitadoHoy.value = topeRes.data.solicitadoHoy ?? 0
   } catch (err: unknown) {
@@ -786,8 +813,8 @@ function handleVerDetalle(pago: PagoRecord) {
   detallePagoForm.value = {
     fechaSolicitud: '',
     bancoId:        pago.banco_id ?? pago.banco_id_productor ?? null,
-    formaPagoId:    pago.forma_pago_id ?? null,
-    clabe:          pago.clabe ?? pago.cuenta_clabe_productor ?? '',
+    formaPagoId:    pago.metodo_pago ?? null,
+    clabe:          pago.cuenta_clabe ?? pago.cuenta_clabe_productor ?? '',
     cuenta:         pago.cuenta ?? '',
     fechaPago:      '',
     importePago:    pago.monto_solicitado,
