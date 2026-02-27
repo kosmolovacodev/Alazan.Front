@@ -4,7 +4,7 @@
     <div class="row items-center justify-between q-mb-md">
       <div class="text-h5 text-grey-8 text-weight-bold">
         <q-icon name="warehouse" class="q-mr-sm" size="md" />
-        Volcado a Bodega / Silo
+        Volcado a Almacen / Silo
       </div>
       <q-btn
         color="primary"
@@ -145,14 +145,14 @@
           <q-td :props="props">
             <q-badge
               :color="
-                props.value === 'Con Silo Asignado'
+                props.value === 'Con Silo Asignado' || props.value === 'Con Almacen Asignado'
                   ? 'green-2'
                   : props.value === 'Rechazado'
                     ? 'red-2'
                     : 'orange-2'
               "
               :text-color="
-                props.value === 'Con Silo Asignado'
+                props.value === 'Con Silo Asignado' || props.value === 'Con Almacen Asignado'
                   ? 'green-10'
                   : props.value === 'Rechazado'
                     ? 'red-10'
@@ -382,17 +382,16 @@
 
             <!-- Panel Derecho: BODEGA (frijol) o SILO/PRODUCCIÓN (garbanzo) -->
             <div class="col-12 col-md-5">
-
               <!-- ═══ FRIJOL: Selección de BODEGA ═══ -->
               <template v-if="esFrijol">
                 <q-card bordered class="q-mb-md">
                   <q-card-section class="bg-brown-8 text-white">
-                    <div class="text-h6 text-weight-bold">BODEGA</div>
+                    <div class="text-h6 text-weight-bold">ALMACÉN</div>
                     <div
                       class="text-caption"
                       v-if="registroDetalleSeleccionado?.estatusSilo === 'Sin Silo Asignado'"
                     >
-                      Asignación de bodega para frijol
+                      Asignación de almacén para frijol
                     </div>
                   </q-card-section>
                   <q-card-section>
@@ -401,20 +400,22 @@
                       v-if="registroDetalleSeleccionado?.siloNombre"
                       class="q-mb-md bg-green-1 q-pa-md rounded-borders"
                     >
-                      <div class="text-caption text-grey-7">Bodega Asignada:</div>
+                      <div class="text-caption text-grey-7">Almacén Asignado:</div>
                       <div class="text-weight-bold text-green-9 text-h6">
                         {{ registroDetalleSeleccionado.siloNombre }}
                       </div>
                     </div>
 
-                    <template v-if="registroDetalleSeleccionado?.estatusSilo === 'Sin Silo Asignado'">
+                    <template
+                      v-if="registroDetalleSeleccionado?.estatusSilo === 'Sin Silo Asignado'"
+                    >
                       <q-select
                         v-model="detalleBodegaSeleccionada"
                         :options="bodegas.filter((b) => b.activo)"
                         option-value="id"
                         option-label="nombre"
                         outlined
-                        label="Seleccionar Bodega"
+                        label="Seleccionar Almacén para Frijol"
                         emit-value
                         map-options
                       />
@@ -423,7 +424,10 @@
                     <!-- Motivo de Rechazo (solo si fue rechazado) -->
                     <template v-if="detalleData?.volcadoStatus === 'Rechazado'">
                       <q-separator class="q-my-md" />
-                      <div class="bg-red-1 q-pa-md rounded-borders" style="border: 1px solid #fca5a5">
+                      <div
+                        class="bg-red-1 q-pa-md rounded-borders"
+                        style="border: 1px solid #fca5a5"
+                      >
                         <div class="text-subtitle2 text-weight-bold text-red-9 q-mb-sm">
                           <q-icon name="report_problem" class="q-mr-xs" />
                           ¡VOLCADO FUE RECHAZADO!
@@ -504,7 +508,9 @@
                       </div>
                     </div>
 
-                    <template v-if="registroDetalleSeleccionado?.estatusSilo === 'Sin Silo Asignado'">
+                    <template
+                      v-if="registroDetalleSeleccionado?.estatusSilo === 'Sin Silo Asignado'"
+                    >
                       <q-select
                         v-model="detalleSiloCalibreSeleccionado"
                         :options="silosCalibre.filter((s) => s.activo)"
@@ -523,7 +529,9 @@
                               <q-item-label>{{ scope.opt.nombre }}</q-item-label>
                               <q-item-label caption>
                                 Capacidad: {{ scope.opt.capacidad_toneladas }} ton
-                                <span v-if="scope.opt.descripcion"> - {{ scope.opt.descripcion }}</span>
+                                <span v-if="scope.opt.descripcion">
+                                  - {{ scope.opt.descripcion }}</span
+                                >
                               </q-item-label>
                             </q-item-section>
                           </q-item>
@@ -534,7 +542,10 @@
                     <!-- Motivo de Rechazo (solo si fue rechazado) -->
                     <template v-if="detalleData?.volcadoStatus === 'Rechazado'">
                       <q-separator class="q-my-md" />
-                      <div class="bg-red-1 q-pa-md rounded-borders" style="border: 1px solid #fca5a5">
+                      <div
+                        class="bg-red-1 q-pa-md rounded-borders"
+                        style="border: 1px solid #fca5a5"
+                      >
                         <div class="text-subtitle2 text-weight-bold text-red-9 q-mb-sm">
                           <q-icon name="report_problem" class="q-mr-xs" />
                           ¡VOLCADO FUE RECHAZADO!
@@ -593,7 +604,9 @@
                             <q-item-label caption>
                               Tipo: {{ scope.opt.tipo }} | Capacidad:
                               {{ scope.opt.capacidad_toneladas }} ton
-                              <span v-if="scope.opt.descripcion"> - {{ scope.opt.descripcion }}</span>
+                              <span v-if="scope.opt.descripcion">
+                                - {{ scope.opt.descripcion }}</span
+                              >
                             </q-item-label>
                           </q-item-section>
                         </q-item>
@@ -636,7 +649,6 @@
                   />
                 </div>
               </template>
-
             </div>
           </div>
         </q-card-section>
@@ -649,7 +661,7 @@
         <q-card-section class="bg-primary text-white">
           <div class="text-h6">
             <q-icon name="warehouse" class="q-mr-sm" />
-            Asignar Silo / Bodega
+            Asignar Silo / Almacén
           </div>
         </q-card-section>
 
@@ -675,7 +687,7 @@
             option-value="id"
             option-label="displayName"
             outlined
-            label="Seleccionar Silo / Bodega"
+            label="Seleccionar Silo / Almacen"
             emit-value
             map-options
             :rules="[(val) => !!val || 'Debe seleccionar un silo']"
@@ -841,6 +853,7 @@ interface RegistroVolcado {
   estatusSilo: string;
   boletaId: number;
   volcadoId?: number;
+  granoId?: number;
 }
 
 interface DetalleBoletaData {
@@ -1061,7 +1074,7 @@ const columns: QTableColumn[] = [
   },
   { name: 'chofer', label: 'Chofer', field: 'chofer', align: 'left' },
   { name: 'placas', label: 'Placas', field: 'placas', align: 'left' },
-  { name: 'silo', label: 'Silo', field: 'siloNombre', align: 'left' },
+  { name: 'silo', label: 'Silo / Almacen', field: 'siloNombre', align: 'left' },
   { name: 'estatusSilo', label: 'Estatus', field: 'estatusSilo', align: 'center' },
   { name: 'acciones', label: 'Accion', field: 'boletaId', align: 'center' },
 ];
