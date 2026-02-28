@@ -58,6 +58,11 @@ const routes: RouteRecordRaw[] = [
         meta: { permiso: 'Configuración' },
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),
       },
+      // Ruta temporal para prueba de integración MBA3
+      {
+        path: 'prueba-mba3',
+        component: () => import('pages/prueba/ClientesMBA3Page.vue'),
+      },
     ],
   },
   {

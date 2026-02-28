@@ -93,6 +93,32 @@ export default defineConfig((/* ctx */) => {
           changeOrigin: true,
           secure: false,
         },
+        // Proxy para MBA3 — evita CORS en desarrollo
+        // El navegador llama a /mba3/... y Vite lo reenvía a 201.148.25.52:8443/...
+        '/mba3': {
+          target: 'http://201.148.25.52:8443',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path: string) => path.replace(/^\/mba3/, ''),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          configure: (proxy: any) => {
+            // Fix: http-proxy no reenvía el header Authorization automáticamente
+            // en requests POST con form-encoded. Lo re-inyectamos explícitamente.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            proxy.on('proxyReq', (proxyReq: any, req: any) => {
+              const auth = req.headers['authorization'];
+              if (auth) {
+                proxyReq.setHeader('Authorization', auth);
+              }
+            });
+            // Eliminar WWW-Authenticate para que el navegador no muestre
+            // su diálogo nativo de credenciales cuando MBA3 devuelve 401.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            proxy.on('proxyRes', (proxyRes: any) => {
+              delete proxyRes.headers['www-authenticate'];
+            });
+          },
+        },
       },
     },
 
