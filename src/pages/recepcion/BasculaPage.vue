@@ -169,8 +169,8 @@
         :catalogoGranos="catalogoGranos"
         :catalogoOrigenes="catalogoOrigenes"
         :catalogoCompradores="catalogoCompradores"
-        :listaProductores="listaProductores"
         :catalogoChoferes="catalogoChoferes"
+        :listaProductores="listaProductores"
         :ultimoGranoId="ultimoGranoId"
         :campos-config="camposBasculaConfig"
         @save="handleGuardarRegistro"
@@ -231,9 +231,11 @@ const loading = ref(false);
 
 const catalogoOrigenes = ref([]);
 const catalogoCompradores = ref([]);
-const listaProductores = ref([]);
 const catalogoChoferes = ref<{ chofer: string; placas: string }[]>([]);
 const ultimoGranoId = ref<number | null>(null);
+const listaProductores = ref<
+  { id: number; nombre: string; telefono: string; telefono2?: string; atiende?: string; rfc?: string; origen: 'LOCAL' }[]
+>([]);
 
 // Configuración de campos por pantalla (BASCULA)
 interface CampoConfig {
@@ -261,24 +263,38 @@ const cargarCamposConfig = async () => {
   }
 };
 
-const cargarCatalogosPrincipales = async () => {
+const cargarProductores = async () => {
   try {
-    const [resOri, resComp, resProd] = await Promise.all([
-      api.get('/api/catalogos/origenes'),
-      api.get('/api/catalogos/compradores'),
-      api.get('/api/catalogos/productores'),
-    ]);
-    catalogoOrigenes.value = resOri.data;
-    catalogoCompradores.value = resComp.data;
-    listaProductores.value = resProd.data;
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get('/api/catalogos/productores', {
+      params: { sedeId, page: 1, pageSize: 10000 },
+    });
+    const items = data.items ?? data;
+    listaProductores.value = (items as Record<string, unknown>[]).map((p) => ({
+      id: p['id'] as number,
+      nombre: (p['nombre'] as string) ?? '',
+      telefono: (p['telefono'] as string) ?? '',
+      ...(p['telefono2'] ? { telefono2: p['telefono2'] as string } : {}),
+      ...(p['atiende']   ? { atiende:   p['atiende']   as string } : {}),
+      ...(p['rfc']       ? { rfc:       p['rfc']       as string } : {}),
+      origen: 'LOCAL' as const,
+    }));
   } catch {
-    console.error('Error cargando catálogos secundarios');
+    console.error('Error al cargar lista de productores');
   }
 };
 
-const cargarProductores = async () => {
-  const res = await api.get('/api/catalogos/productores');
-  listaProductores.value = res.data;
+const cargarCatalogosPrincipales = async () => {
+  try {
+    const [resOri, resComp] = await Promise.all([
+      api.get('/api/catalogos/origenes'),
+      api.get('/api/catalogos/compradores'),
+    ]);
+    catalogoOrigenes.value = resOri.data;
+    catalogoCompradores.value = resComp.data;
+  } catch {
+    console.error('Error cargando catálogos secundarios');
+  }
 };
 
 const ultimoTicket = ref(0);
@@ -398,6 +414,7 @@ onMounted(async () => {
   await cargarDatos();
   await cargarCatalogosPrincipales();
   await cargarCamposConfig();
+  await cargarProductores();
 });
 
 // Watcher para recargar datos cuando cambia la sede activa (multisede)

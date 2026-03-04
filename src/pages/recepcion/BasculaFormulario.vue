@@ -41,22 +41,59 @@
 
             <div class="col-12 col-md-8" v-if="campoVisible('productor')">
               <q-select
-                v-model="form.productor_id"
-                :options="listaProductores"
-                option-value="id"
+                v-model="productorSeleccionado"
+                :options="opcionesProductores"
                 option-label="nombre"
-                emit-value
-                map-options
                 :label="campoLabel('productor', 'Productor')"
                 outlined
                 dense
                 bg-color="white"
                 use-input
+                input-debounce="0"
+                clearable
+                :loading="buscandoProductores"
                 :rules="
                   campoObligatorio('productor') ? [(v: unknown) => !!v || 'Campo requerido'] : []
                 "
+                @filter="filtrarProductores"
                 @update:model-value="onProductorSelected"
               >
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.nombre }}</q-item-label>
+                      <q-item-label caption v-if="scope.opt.rfc">{{ scope.opt.rfc }}</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-badge
+                        :color="
+                          scope.opt.origen === 'MBA3+LOCAL'
+                            ? 'deep-purple'
+                            : scope.opt.origen === 'MBA3'
+                              ? 'blue-7'
+                              : 'green-7'
+                        "
+                        :label="
+                          scope.opt.origen === 'MBA3+LOCAL'
+                            ? 'MBA3/INT'
+                            : scope.opt.origen === 'MBA3'
+                              ? 'MBA3'
+                              : 'INT'
+                        "
+                      />
+                    </q-item-section>
+                  </q-item>
+                </template>
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey text-caption">Sin resultados</q-item-section>
+                  </q-item>
+                  <q-item clickable @click="modalProductor = true">
+                    <q-item-section class="text-primary text-caption">
+                      + Registrar nuevo productor
+                    </q-item-section>
+                  </q-item>
+                </template>
                 <template v-slot:after>
                   <q-btn round dense color="primary" icon="add" @click="modalProductor = true" />
                 </template>
@@ -320,6 +357,7 @@ import { reactive, ref, computed, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth'; // Asegúrate de que la ruta sea correcta
+import { mba3Request } from 'src/services/mba3Api';
 
 const authStore = useAuthStore(); // Instanciamos el store de Pinia
 const usuarioDbId = ref<number | null>(null); // Aquí guardaremos el '3'
@@ -340,6 +378,8 @@ async function cargarIdRealDeUsuario() {
 
 onMounted(async () => {
   await cargarIdRealDeUsuario();
+  // Pre-cargar la lista inicial de MBA3 en background para que el dropdown sea instantáneo
+  void executeMba3Search('');
 });
 
 const $q = useQuasar();
@@ -371,7 +411,7 @@ const props = withDefaults(
     catalogoGranos: Grano[];
     catalogoOrigenes: Origen[];
     catalogoCompradores: Comprador[];
-    listaProductores: Productor[];
+    listaProductores?: Productor[];
     catalogoChoferes?: ChoferCatalogo[];
     ultimoGranoId?: number | null;
     camposConfig?: CampoConfigItem[];
@@ -445,11 +485,14 @@ const fechaDisplay = ref(new Date().toLocaleString());
 const modalProductor = ref(false);
 
 interface Productor {
-  id: number;
+  id: number | null; // null = existe solo en MBA3, pendiente de alta local
   nombre: string;
   telefono: string;
-  atiende?: string; // El '?' significa que es opcional (puede ser null)
+  telefono2?: string; // de TELEPHONE_PM
+  atiende?: string;
   rfc?: string;
+  origen: 'LOCAL' | 'MBA3' | 'MBA3+LOCAL';
+  mba3Raw?: Record<string, unknown>;
 }
 
 interface Grano {
@@ -474,9 +517,10 @@ const form = reactive({
   grano_id:
     props.ultimoGranoId ??
     (authStore.sedeActivaId === 8 ? 4 : authStore.sedeActivaId === 9 ? 5 : (null as number | null)),
-  productor_id: null,
+  productor_id: null as number | null,
   tipo_productor: 'Ejidal',
   celular: '',
+  telefono2: '',
   origen_id: null,
   comprador_id: null,
   chofer: '',
@@ -573,14 +617,188 @@ function onChoferSelectedObjeto(seleccionado: SelectOption | string | null) {
 }
 
 const nuevoProd = reactive({ tipo: 'Fisica', nombre: '', atiende: '', telefono: '', rfc: '' });
-const infoProductor = ref(''); // Info "Atiende:" del productor seleccionado
+const infoProductor = ref('');
+const opcionesProductores = ref<Productor[]>([]);
+const productorSeleccionado = ref<Productor | null>(null);
+const buscandoProductores = ref(false);
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const mba3InFlight = ref(false);        // hay una petición MBA3 activa
+let latestPendingVal: string | null = null; // última búsqueda encolada mientras había vuelo
+// Caché de resultados MBA3 por prefijo — evita re-consultas dentro de 5 minutos
+const mba3Cache = new Map<string, { productores: Productor[]; ts: number }>();
+const MBA3_CACHE_TTL = 5 * 60 * 1000; // 5 minutos en ms
 
-// 1. Al seleccionar productor, llenar celular automáticamente
-function onProductorSelected(id: number) {
-  const prod = props.listaProductores.find((p) => p.id === id);
-  if (prod) {
-    form.celular = prod.telefono;
-    infoProductor.value = prod.atiende ? `Atiende: ${prod.atiende}` : '';
+// Cota superior para búsqueda por prefijo sin wildcard %
+// Ej: 'CEYP' → { lower: 'CEYP', upper: 'CEYQ' }
+function calcularCotas(val: string): { lower: string; upper: string } {
+  const upper = val.toUpperCase();
+  const lastCode = upper.charCodeAt(upper.length - 1);
+  return {
+    lower: upper,
+    upper: upper.slice(0, -1) + String.fromCharCode(lastCode + 1),
+  };
+}
+
+/**
+ * Ejecuta UNA petición MBA3 para buscar productores.
+ * Si ya hay una en vuelo, encola esta como la siguiente a ejecutar.
+ * Esto garantiza que nunca haya dos peticiones simultáneas → sin race condition de tokens.
+ */
+async function executeMba3Search(val: string) {
+  // Verificar caché primero — si el prefijo ya fue consultado recientemente, usarlo al instante
+  const cacheKey = val.toLowerCase();
+  const cached = mba3Cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < MBA3_CACHE_TTL) {
+    opcionesProductores.value = cached.productores;
+    buscandoProductores.value = false;
+    return;
+  }
+
+  // Si ya hay petición en vuelo, encolar y salir (la petición activa la retomará al terminar)
+  if (mba3InFlight.value) {
+    latestPendingVal = val;
+    return;
+  }
+
+  const MBA3_CODIGO = 'API100';
+  const MBA3_PWD = 'zaqxsw97531';
+
+  mba3InFlight.value = true;
+  buscandoProductores.value = true;
+
+  try {
+    // Val vacío → primeros 30 MBA3 sin filtro de nombre (listado inicial al abrir)
+    // Val con texto → BETWEEN por prefijo (buscar al dejar de teclear)
+    let whereClause = "CORP='BGAR1'";
+    if (val.length >= 1) {
+      const { lower, upper } = calcularCotas(val);
+      whereClause = `CORP='BGAR1' AND VENDOR_NAME >= '${lower}' AND VENDOR_NAME < '${upper}'`;
+    }
+
+    const data = await mba3Request<unknown>({
+      method: 'post',
+      endpoint: '/ws_Consulta_externa_MBA3/',
+      codigo: MBA3_CODIGO,
+      pwd: MBA3_PWD,
+      formData: {
+        select: 'VENDOR_NAME,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE',
+        from: 'PROV_Ficha_Principal',
+        where: whereClause,
+        limit: '30',
+      },
+    });
+
+    const localList = props.listaProductores ?? [];
+    const mba3Items = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+
+    const productores: Productor[] = mba3Items.map((m) => {
+      const rfc = ((m['RUC_or_FED_ID'] as string) ?? '').replace(/\s/g, '');
+      // MORAL: RFC de 12 dígitos → atiende = ACCOUNT_MNGR
+      // FÍSICO: RFC de 13 dígitos → sin atiende
+      const esMoral = rfc.length === 12;
+      const atiende = esMoral ? ((m['ACCOUNT_MNGR'] as string) || null) : null;
+      const telMain = ((m['TELEPHONE_MAIN'] as string) ?? '').replace(/\s/g, '');
+      const telPm   = ((m['TELEPHONE_PM']   as string) ?? '').replace(/\s/g, '');
+      // Cross-reference: si el RFC coincide con un productor local, es MBA3+LOCAL
+      const localMatch = rfc ? localList.find((p) => p.rfc === rfc) : undefined;
+
+      return {
+        id: localMatch?.id ?? null,
+        nombre: (m['VENDOR_NAME'] as string) ?? '',
+        telefono: telMain,
+        ...(telPm   ? { telefono2: telPm } : {}),
+        ...(rfc     ? { rfc }              : {}),
+        ...(atiende ? { atiende }          : {}),
+        origen: (localMatch ? 'MBA3+LOCAL' : 'MBA3') as Productor['origen'],
+        mba3Raw: m,
+      };
+    });
+
+    // Añadir productores solo-locales que no están en MBA3 (coincidencia parcial del nombre)
+    if (val.length >= 1) {
+      const mba3Rfcs = new Set(productores.map((p) => p.rfc).filter(Boolean));
+      const soloLocales = localList.filter(
+        (p) => p.nombre.toUpperCase().includes(val.toUpperCase()) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
+      );
+      soloLocales.forEach((p) => productores.push({ ...p, origen: 'LOCAL' }));
+    }
+
+    opcionesProductores.value = productores; // actualización reactiva
+    mba3Cache.set(cacheKey, { productores, ts: Date.now() }); // guardar en caché
+  } catch {
+    opcionesProductores.value = [];
+  } finally {
+    buscandoProductores.value = false;
+    mba3InFlight.value = false;
+    // Si llegó una nueva búsqueda mientras estábamos en vuelo, ejecutarla ahora
+    if (latestPendingVal !== null) {
+      const nextVal = latestPendingVal;
+      latestPendingVal = null;
+      void executeMba3Search(nextVal);
+    }
+  }
+}
+
+function filtrarProductores(val: string, update: (fn: () => void) => void) {
+  if (debounceTimer) clearTimeout(debounceTimer);
+
+  // Llamar update() inmediatamente para que Quasar no quede sin respuesta.
+  // Las opciones se actualizan reactivamente cuando executeMba3Search() termina.
+  update(() => {});
+
+  buscandoProductores.value = true;
+
+  // Debounce: 0ms al abrir dropdown (val=''), 400ms al escribir (busca al dejar de teclear)
+  debounceTimer = setTimeout(() => {
+    void executeMba3Search(val);
+  }, val ? 400 : 0);
+}
+
+function onProductorSelected(prod: Productor | null) {
+  if (!prod) {
+    form.productor_id = null;
+    form.celular = '';
+    form.telefono2 = '';
+    infoProductor.value = '';
+    return;
+  }
+  form.productor_id = prod.id;
+  form.celular   = prod.telefono  ?? '';
+  form.telefono2 = prod.telefono2 ?? '';
+  infoProductor.value = prod.atiende ? `Atiende: ${prod.atiende}` : '';
+
+  // Sync silencioso: si el productor existe en ambos sistemas, actualizar BD local si cambió
+  if (prod.origen === 'MBA3+LOCAL' && prod.id) {
+    void actualizarProductorLocalSilencioso(prod);
+  }
+}
+
+async function actualizarProductorLocalSilencioso(prod: Productor) {
+  if (!prod.id) return;
+  const localList = props.listaProductores ?? [];
+  const local = localList.find((p) => p.id === prod.id);
+  if (!local) return;
+
+  const telefonoNuevo = prod.telefono || null;
+  const atiendeNuevo  = prod.atiende  || null;
+  // Solo llamar PUT si algún campo relevante cambió
+  if (telefonoNuevo === (local.telefono || null) && atiendeNuevo === (local.atiende || null)) return;
+
+  try {
+    await api.put(`/api/catalogos/editar/productores/${prod.id}`, {
+      Nombre:       local.nombre,
+      Telefono:     telefonoNuevo ?? local.telefono,
+      Telefono2:    prod.telefono2 ?? null,
+      Rfc:          prod.rfc ?? local.rfc ?? null,
+      Correo:       null,
+      Tipo_persona: null,
+      Banco_id:     null,
+      Cuenta_clabe: null,
+      Atiende:      atiendeNuevo ?? local.atiende ?? null,
+    });
+    emit('refresh-productores');
+  } catch {
+    // Fallo silencioso — no interrumpir el flujo del usuario
   }
 }
 
@@ -611,9 +829,15 @@ async function guardarNuevoProductor() {
 
     const res = await api.post('/api/catalogos/productores', payload);
 
-    emit('refresh-productores');
+    const recienCreado: Productor = {
+      id: res.data.id,
+      nombre: payload.nombre,
+      telefono: payload.telefono,
+      ...(payload.atiende ? { atiende: payload.atiende } : {}),
+      origen: 'LOCAL',
+    };
+    opcionesProductores.value = [recienCreado, ...opcionesProductores.value];
 
-    // Asignamos el ID recién creado al formulario de báscula
     form.productor_id = res.data.id;
     form.celular = nuevoProd.telefono;
     infoProductor.value = nuevoProd.tipo === 'Moral' ? `Atiende: ${nuevoProd.atiende}` : '';
@@ -630,7 +854,7 @@ async function guardarNuevoProductor() {
   }
 }
 
-function onSubmit() {
+async function onSubmit() {
   if (form.peso_bruto_kg <= 0) {
     return $q.notify({ type: 'warning', message: 'Debe capturar el peso bruto' });
   }
@@ -641,6 +865,58 @@ function onSubmit() {
       type: 'negative',
       message: 'Error de integridad: No se pudo verificar tu ID de usuario.',
     });
+  }
+
+  // Si el productor seleccionado viene de MBA3 y no tiene ID local (id: null),
+  // buscar si ya existe en SQL Server (por RFC o nombre) antes de crear uno nuevo.
+  if (productorSeleccionado.value && !productorSeleccionado.value.id) {
+    const prod = productorSeleccionado.value;
+    const localList = props.listaProductores ?? [];
+
+    // 1. Buscar por RFC
+    let match = prod.rfc ? localList.find((p) => p.rfc === prod.rfc) : undefined;
+    // 2. Fallback: buscar por nombre exacto
+    if (!match) match = localList.find((p) => p.nombre.toLowerCase() === prod.nombre.toLowerCase());
+
+    if (match?.id) {
+      // Ya existe en SQL Server — reutilizar ID sin crear duplicado
+      form.productor_id = match.id;
+      productorSeleccionado.value = { ...prod, id: match.id, origen: 'MBA3+LOCAL' };
+    } else {
+      // No existe — registrar nuevo en SQL Server con todos los datos disponibles de MBA3
+      try {
+        const esMoral = prod.rfc ? prod.rfc.length === 12 : !!prod.atiende;
+        const raw = prod.mba3Raw ?? {};
+        const strOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+        const res = await api.post('/api/catalogos/productores', {
+          // Datos básicos
+          nombre:       prod.nombre,
+          rfc:          prod.rfc       || null,
+          tipo_persona: esMoral ? 'Moral' : 'Fisica',
+          atiende:      prod.atiende   || null,
+          // Teléfonos (sin espacios — MBA3 los incluye formateados)
+          telefono:          (prod.telefono  || '').replace(/\s/g, '') || null,
+          telefono2:         (prod.telefono2 || '').replace(/\s/g, '') || null,
+          fax:               strOf(raw['FACSIMILE']),
+          // Identificador ERP
+          codigo_proveedor:  strOf(raw['ACCT_CODE']),
+          // Dirección
+          direccion1:        strOf(raw['ADDRESS_1']),
+          direccion2:        strOf(raw['ADDRESS_2']),
+          ciudad:            strOf(raw['CITY']),
+          estado:            strOf(raw['STATE']),
+          codigo_postal:     strOf(raw['ZIP']),
+          pais:              strOf(raw['COUNTRY']),
+          // Nombre legal completo (razón social)
+          nombre_alterno:    strOf(raw['NAME_RAZON_SOCIAL']),
+        });
+        form.productor_id = res.data.id;
+        productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };
+        emit('refresh-productores');
+      } catch {
+        return $q.notify({ type: 'negative', message: 'No se pudo registrar el productor en el sistema local.' });
+      }
+    }
   }
 
   const registroParaGuardar = {
@@ -658,6 +934,7 @@ function onSubmit() {
       tipo_productor: form.tipo_productor,
       observaciones: form.observaciones,
       celular: form.celular,
+      telefono2: form.telefono2,
       atiende: infoProductor.value,
       ...valoresCamposPersonalizados,
     }),

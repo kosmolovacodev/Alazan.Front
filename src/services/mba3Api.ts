@@ -37,9 +37,6 @@ export interface Mba3RequestConfig {
  */
 export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promise<T> {
   const store = useMba3Store();
-
-  // 1. Obtener token vigente (se renueva automáticamente si es necesario)
-  const jwt = await store.getValidToken(config.codigo, config.pwd);
   const bearerMode = config.useBearerPrefix ?? false;
 
   // 2. Preparar body y content-type
@@ -65,25 +62,47 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
     },
   });
 
+  const is401 = (err: unknown): boolean =>
+    !!(
+      err &&
+      typeof err === 'object' &&
+      'response' in err &&
+      (err as { response?: { status?: number } }).response?.status === 401
+    );
+
+  // 1. Obtener token vigente y limpiar de inmediato (MBA3 usa tokens de un solo uso)
+  let jwt = await store.getValidToken(config.codigo, config.pwd);
+  store.clearToken(config.codigo);
+
   // 3. Primer intento con el formato de Authorization configurado
   try {
     const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
     const response = await mba3Client.request<T>(buildAxiosConfig(authHeader));
     return response.data;
   } catch (firstError: unknown) {
-    // 4. Si el primer intento falla con 401 y no era Bearer, reintentar con Bearer
-    const isAuth401 =
-      firstError &&
-      typeof firstError === 'object' &&
-      'response' in firstError &&
-      (firstError as { response?: { status?: number } }).response?.status === 401;
+    if (!is401(firstError)) throw firstError;
 
-    if (isAuth401 && !bearerMode) {
+    // 4. Si el primer intento falla con 401 y no era Bearer, reintentar con Bearer
+    if (!bearerMode) {
       console.warn('[MBA3] JWT directo rechazado (401). Reintentando con Bearer prefix...');
-      const response = await mba3Client.request<T>(buildAxiosConfig(`Bearer ${jwt}`));
-      return response.data;
+      try {
+        const response = await mba3Client.request<T>(buildAxiosConfig(`Bearer ${jwt}`));
+        return response.data;
+      } catch (bearerError: unknown) {
+        if (!is401(bearerError)) throw bearerError;
+        // Bearer también rechazado — el token ya fue invalidado en MBA3, caer a re-auth
+        console.warn('[MBA3] Bearer también rechazado (401). El token fue invalidado en servidor.');
+      }
     }
 
-    throw firstError;
+    // 5. Token inválido en servidor (uso único o expirado anticipadamente).
+    //    Forzar re-autenticación y un último reintento.
+    console.warn('[MBA3] Forzando re-autenticación tras 401...');
+    store.clearToken(config.codigo);
+    jwt = await store.getValidToken(config.codigo, config.pwd);
+    store.clearToken(config.codigo); // MBA3 token es de un solo uso: limpiar igual que en paso 1
+    const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
+    const response = await mba3Client.request<T>(buildAxiosConfig(authHeader));
+    return response.data;
   }
 }

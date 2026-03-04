@@ -7,7 +7,6 @@
       </div>
     </div>
 
-    <!-- Estado del token -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
         <div class="row items-center q-gutter-md">
@@ -20,7 +19,6 @@
           </div>
         </div>
 
-        <!-- Selector de formato Authorization (para debugging) -->
         <div class="q-mt-sm row items-center q-gutter-sm">
           <div class="text-caption text-grey">Formato Authorization:</div>
           <q-btn-toggle
@@ -37,14 +35,20 @@
       </q-card-section>
     </q-card>
 
-    <!-- Controles -->
     <div class="row q-gutter-sm q-mb-md">
       <q-btn
         color="primary"
         icon="search"
-        label="Consultar Clientes"
+        label="Consultar Registros"
         :loading="loading"
-        @click="consultarClientes"
+        @click="consultarEndpointExterno"
+      />
+      <q-btn
+        color="green-7"
+        icon="file_download"
+        label="Exportar Excel"
+        :disable="!resultado || !Array.isArray(resultado) || resultado.length === 0"
+        @click="exportarAExcel"
       />
       <q-btn
         color="orange"
@@ -66,7 +70,6 @@
       />
     </div>
 
-    <!-- Error -->
     <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-md" rounded>
       <template #avatar>
         <q-icon name="error" color="red" />
@@ -78,7 +81,6 @@
       </div>
     </q-banner>
 
-    <!-- Resultado -->
     <q-card v-if="resultado !== null" flat bordered>
       <q-card-section>
         <div class="row items-center justify-between q-mb-sm">
@@ -103,7 +105,6 @@
           />
         </div>
 
-        <!-- Vista Tabla -->
         <div v-if="vistaResultado === 'tabla' && Array.isArray(resultado)">
           <q-table
             :rows="resultado"
@@ -116,14 +117,12 @@
           />
         </div>
 
-        <!-- Vista JSON -->
         <div v-else>
           <pre class="json-output">{{ JSON.stringify(resultado, null, 2) }}</pre>
         </div>
       </q-card-section>
     </q-card>
 
-    <!-- Log de peticiones -->
     <q-card flat bordered class="q-mt-md">
       <q-card-section>
         <div class="row items-center justify-between">
@@ -154,9 +153,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { mba3Request } from 'src/services/mba3Api';
 import { useMba3Store } from 'src/stores/mba3Store';
+import * as XLSX from 'xlsx'; // <-- Importación para exportar a Excel
 
 // ── Credenciales de este módulo ──────────────────────────────────────────────
-const CODIGO = 'CON003';
+//const CODIGO = 'CON003';
+const CODIGO = 'API100';
 const PWD = 'zaqxsw97531';
 
 // ── Estado ───────────────────────────────────────────────────────────────────
@@ -240,7 +241,7 @@ function addLog(mensaje: string, ok: boolean) {
 }
 
 // ── Acciones ─────────────────────────────────────────────────────────────────
-async function consultarClientes() {
+async function consultarEndpointExterno() {
   loading.value = true;
   error.value = null;
 
@@ -255,20 +256,49 @@ async function consultarClientes() {
       useBearerPrefix: usarBearer,
       formData: {
         select: '*',
-        from: 'CLNT_Ficha_Principal',
-        where: "EMPRESA='BGAR1'",
+        from: 'PROV_Ficha_Principal',
+        where: "CORP='BGAR1'",
+        //groupBy: 'DESCRIPTION',
         limit: '1',
       },
     });
 
     resultado.value = data;
-    addLog(`Clientes consultados: ${Array.isArray(data) ? data.length : '?'} registros`, true);
+    addLog(`Registros consultados: ${Array.isArray(data) ? data.length : '?'} registros`, true);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     error.value = msg;
     addLog(`Error: ${msg}`, false);
   } finally {
     loading.value = false;
+  }
+}
+
+// ── Función para Exportar a Excel ────────────────────────────────────────────
+function exportarAExcel() {
+  if (!Array.isArray(resultado.value) || resultado.value.length === 0) {
+    addLog('No hay datos para exportar', false);
+    return;
+  }
+
+  try {
+    // 1. Crear una hoja de trabajo a partir del JSON
+    const worksheet = XLSX.utils.json_to_sheet(resultado.value);
+
+    // 2. Crear un libro de trabajo (workbook)
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados_Consulta');
+
+    // 3. Generar el archivo y disparar la descarga
+    const fecha = new Date().toISOString().slice(0, 10);
+    const nombreArchivo = `Consulta_MBA3_${fecha}.xlsx`;
+
+    XLSX.writeFile(workbook, nombreArchivo);
+
+    addLog(`Excel exportado: ${nombreArchivo}`, true);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    addLog(`Error al exportar: ${msg}`, false);
   }
 }
 
