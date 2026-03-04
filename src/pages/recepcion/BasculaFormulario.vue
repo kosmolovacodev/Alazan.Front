@@ -491,6 +491,7 @@ interface Productor {
   telefono2?: string; // de TELEPHONE_PM
   atiende?: string;
   rfc?: string;
+  correo?: string; // de E_MAIL
   origen: 'LOCAL' | 'MBA3' | 'MBA3+LOCAL';
   mba3Raw?: Record<string, unknown>;
 }
@@ -622,21 +623,37 @@ const opcionesProductores = ref<Productor[]>([]);
 const productorSeleccionado = ref<Productor | null>(null);
 const buscandoProductores = ref(false);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const mba3InFlight = ref(false);        // hay una petición MBA3 activa
+const mba3InFlight = ref(false); // hay una petición MBA3 activa
 let latestPendingVal: string | null = null; // última búsqueda encolada mientras había vuelo
 // Caché de resultados MBA3 por prefijo — evita re-consultas dentro de 5 minutos
 const mba3Cache = new Map<string, { productores: Productor[]; ts: number }>();
 const MBA3_CACHE_TTL = 5 * 60 * 1000; // 5 minutos en ms
 
-// Cota superior para búsqueda por prefijo sin wildcard %
-// Ej: 'CEYP' → { lower: 'CEYP', upper: 'CEYQ' }
-function calcularCotas(val: string): { lower: string; upper: string } {
-  const upper = val.toUpperCase();
-  const lastCode = upper.charCodeAt(upper.length - 1);
-  return {
-    lower: upper,
-    upper: upper.slice(0, -1) + String.fromCharCode(lastCode + 1),
-  };
+
+function mapMba3Items(
+  mba3Items: Record<string, unknown>[],
+  localList: Pick<Productor, 'id' | 'rfc'>[],
+): Productor[] {
+  return mba3Items.map((m) => {
+    const rfc = ((m['RUC_or_FED_ID'] as string) ?? '').replace(/\s/g, '');
+    const esMoral = rfc.length === 12;
+    const atiende = esMoral ? (m['ACCOUNT_MNGR'] as string) || null : null;
+    const telMain = ((m['TELEPHONE_MAIN'] as string) ?? '').replace(/\s/g, '');
+    const telPm = ((m['TELEPHONE_PM'] as string) ?? '').replace(/\s/g, '');
+    const correo = ((m['E_MAIL'] as string) ?? '').trim() || undefined;
+    const localMatch = rfc ? localList.find((p) => p.rfc === rfc) : undefined;
+    return {
+      id: localMatch?.id ?? null,
+      nombre: (m['VENDOR_NAME'] as string) ?? '',
+      telefono: telMain,
+      ...(telPm ? { telefono2: telPm } : {}),
+      ...(rfc ? { rfc } : {}),
+      ...(atiende ? { atiende } : {}),
+      ...(correo ? { correo } : {}),
+      origen: (localMatch ? 'MBA3+LOCAL' : 'MBA3') as Productor['origen'],
+      mba3Raw: m,
+    };
+  });
 }
 
 /**
@@ -654,6 +671,52 @@ async function executeMba3Search(val: string) {
     return;
   }
 
+  // Para carga inicial (val vacío), intentar localStorage precargado desde BasculaPage
+  if (val === '') {
+    const raw = localStorage.getItem('mba3_productores_init');
+    if (raw) {
+      try {
+        const { data, ts, sedeId } = JSON.parse(raw) as {
+          data: unknown;
+          ts: number;
+          sedeId: number;
+        };
+        const esFresco = Date.now() - ts < MBA3_CACHE_TTL;
+        const esMiSede = sedeId === (authStore.sedeActivaId ?? 0);
+        if (esFresco && esMiSede && Array.isArray(data)) {
+          const productores = mapMba3Items(
+            data as Record<string, unknown>[],
+            props.listaProductores ?? [],
+          );
+          opcionesProductores.value = productores;
+          mba3Cache.set(cacheKey, { productores, ts });
+          buscandoProductores.value = false;
+          return;
+        }
+      } catch {
+        /* JSON corrupto, continuar con petición normal */
+      }
+    }
+  }
+
+  // Si el usuario está filtrando y ya tenemos el catálogo completo en caché, filtrar client-side
+  if (val.length >= 1) {
+    const fullCache = mba3Cache.get('');
+    if (fullCache && Date.now() - fullCache.ts < MBA3_CACHE_TTL) {
+      const valUpper = val.toUpperCase();
+      const filtrados = fullCache.productores.filter((p) => p.nombre.toUpperCase().includes(valUpper));
+      const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
+      const localList = props.listaProductores ?? [];
+      localList
+        .filter((p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)))
+        .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
+      opcionesProductores.value = filtrados;
+      mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
+      buscandoProductores.value = false;
+      return;
+    }
+  }
+
   // Si ya hay petición en vuelo, encolar y salir (la petición activa la retomará al terminar)
   if (mba3InFlight.value) {
     latestPendingVal = val;
@@ -667,64 +730,44 @@ async function executeMba3Search(val: string) {
   buscandoProductores.value = true;
 
   try {
-    // Val vacío → primeros 30 MBA3 sin filtro de nombre (listado inicial al abrir)
-    // Val con texto → BETWEEN por prefijo (buscar al dejar de teclear)
-    let whereClause = "CORP='BGAR1'";
-    if (val.length >= 1) {
-      const { lower, upper } = calcularCotas(val);
-      whereClause = `CORP='BGAR1' AND VENDOR_NAME >= '${lower}' AND VENDOR_NAME < '${upper}'`;
-    }
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 3);
+    const fecha3 = d.toISOString().split('T')[0]; // 3 años atrás
 
+    // Sin BETWEEN ni limit — se trae todo el catálogo (~200 registros) y se filtra client-side
     const data = await mba3Request<unknown>({
       method: 'post',
       endpoint: '/ws_Consulta_externa_MBA3/',
       codigo: MBA3_CODIGO,
       pwd: MBA3_PWD,
       formData: {
-        select: 'VENDOR_NAME,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE',
+        select:
+          'VENDOR_NAME,RECORD_DATE,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE,E_MAIL',
         from: 'PROV_Ficha_Principal',
-        where: whereClause,
-        limit: '30',
+        where: `CORP='BGAR1' AND RECORD_DATE > '${fecha3}'`,
       },
     });
 
     const localList = props.listaProductores ?? [];
     const mba3Items = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    const todosProductores: Productor[] = mapMba3Items(mba3Items, localList);
 
-    const productores: Productor[] = mba3Items.map((m) => {
-      const rfc = ((m['RUC_or_FED_ID'] as string) ?? '').replace(/\s/g, '');
-      // MORAL: RFC de 12 dígitos → atiende = ACCOUNT_MNGR
-      // FÍSICO: RFC de 13 dígitos → sin atiende
-      const esMoral = rfc.length === 12;
-      const atiende = esMoral ? ((m['ACCOUNT_MNGR'] as string) || null) : null;
-      const telMain = ((m['TELEPHONE_MAIN'] as string) ?? '').replace(/\s/g, '');
-      const telPm   = ((m['TELEPHONE_PM']   as string) ?? '').replace(/\s/g, '');
-      // Cross-reference: si el RFC coincide con un productor local, es MBA3+LOCAL
-      const localMatch = rfc ? localList.find((p) => p.rfc === rfc) : undefined;
+    // Guardar catálogo completo bajo clave '' para filtrado client-side posterior
+    mba3Cache.set('', { productores: todosProductores, ts: Date.now() });
 
-      return {
-        id: localMatch?.id ?? null,
-        nombre: (m['VENDOR_NAME'] as string) ?? '',
-        telefono: telMain,
-        ...(telPm   ? { telefono2: telPm } : {}),
-        ...(rfc     ? { rfc }              : {}),
-        ...(atiende ? { atiende }          : {}),
-        origen: (localMatch ? 'MBA3+LOCAL' : 'MBA3') as Productor['origen'],
-        mba3Raw: m,
-      };
-    });
-
-    // Añadir productores solo-locales que no están en MBA3 (coincidencia parcial del nombre)
     if (val.length >= 1) {
-      const mba3Rfcs = new Set(productores.map((p) => p.rfc).filter(Boolean));
-      const soloLocales = localList.filter(
-        (p) => p.nombre.toUpperCase().includes(val.toUpperCase()) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
-      );
-      soloLocales.forEach((p) => productores.push({ ...p, origen: 'LOCAL' }));
+      // Petición disparada antes de que el caché estuviera listo — filtrar ahora
+      const valUpper = val.toUpperCase();
+      const filtrados = todosProductores.filter((p) => p.nombre.toUpperCase().includes(valUpper));
+      const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
+      localList
+        .filter((p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)))
+        .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
+      opcionesProductores.value = filtrados;
+      mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
+    } else {
+      opcionesProductores.value = todosProductores;
     }
-
-    opcionesProductores.value = productores; // actualización reactiva
-    mba3Cache.set(cacheKey, { productores, ts: Date.now() }); // guardar en caché
   } catch {
     opcionesProductores.value = [];
   } finally {
@@ -749,9 +792,12 @@ function filtrarProductores(val: string, update: (fn: () => void) => void) {
   buscandoProductores.value = true;
 
   // Debounce: 0ms al abrir dropdown (val=''), 400ms al escribir (busca al dejar de teclear)
-  debounceTimer = setTimeout(() => {
-    void executeMba3Search(val);
-  }, val ? 400 : 0);
+  debounceTimer = setTimeout(
+    () => {
+      void executeMba3Search(val);
+    },
+    val ? 400 : 0,
+  );
 }
 
 function onProductorSelected(prod: Productor | null) {
@@ -763,7 +809,7 @@ function onProductorSelected(prod: Productor | null) {
     return;
   }
   form.productor_id = prod.id;
-  form.celular   = prod.telefono  ?? '';
+  form.celular = prod.telefono ?? '';
   form.telefono2 = prod.telefono2 ?? '';
   infoProductor.value = prod.atiende ? `Atiende: ${prod.atiende}` : '';
 
@@ -780,21 +826,27 @@ async function actualizarProductorLocalSilencioso(prod: Productor) {
   if (!local) return;
 
   const telefonoNuevo = prod.telefono || null;
-  const atiendeNuevo  = prod.atiende  || null;
+  const atiendeNuevo = prod.atiende || null;
+  const correoNuevo = prod.correo || null;
   // Solo llamar PUT si algún campo relevante cambió
-  if (telefonoNuevo === (local.telefono || null) && atiendeNuevo === (local.atiende || null)) return;
+  if (
+    telefonoNuevo === (local.telefono || null) &&
+    atiendeNuevo === (local.atiende || null) &&
+    correoNuevo === (local.correo || null)
+  )
+    return;
 
   try {
     await api.put(`/api/catalogos/editar/productores/${prod.id}`, {
-      Nombre:       local.nombre,
-      Telefono:     telefonoNuevo ?? local.telefono,
-      Telefono2:    prod.telefono2 ?? null,
-      Rfc:          prod.rfc ?? local.rfc ?? null,
-      Correo:       null,
+      Nombre: local.nombre,
+      Telefono: telefonoNuevo ?? local.telefono,
+      Telefono2: prod.telefono2 ?? null,
+      Rfc: prod.rfc ?? local.rfc ?? null,
+      Correo: correoNuevo ?? local.correo ?? null,
       Tipo_persona: null,
-      Banco_id:     null,
+      Banco_id: null,
       Cuenta_clabe: null,
-      Atiende:      atiendeNuevo ?? local.atiende ?? null,
+      Atiende: atiendeNuevo ?? local.atiende ?? null,
     });
     emit('refresh-productores');
   } catch {
@@ -890,31 +942,35 @@ async function onSubmit() {
         const strOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
         const res = await api.post('/api/catalogos/productores', {
           // Datos básicos
-          nombre:       prod.nombre,
-          rfc:          prod.rfc       || null,
+          nombre: prod.nombre,
+          rfc: prod.rfc || null,
           tipo_persona: esMoral ? 'Moral' : 'Fisica',
-          atiende:      prod.atiende   || null,
+          atiende: prod.atiende || null,
           // Teléfonos (sin espacios — MBA3 los incluye formateados)
-          telefono:          (prod.telefono  || '').replace(/\s/g, '') || null,
-          telefono2:         (prod.telefono2 || '').replace(/\s/g, '') || null,
-          fax:               strOf(raw['FACSIMILE']),
+          telefono: (prod.telefono || '').replace(/\s/g, '') || null,
+          telefono2: (prod.telefono2 || '').replace(/\s/g, '') || null,
+          fax: strOf(raw['FACSIMILE']),
           // Identificador ERP
-          codigo_proveedor:  strOf(raw['ACCT_CODE']),
+          codigo_proveedor: strOf(raw['ACCT_CODE']),
           // Dirección
-          direccion1:        strOf(raw['ADDRESS_1']),
-          direccion2:        strOf(raw['ADDRESS_2']),
-          ciudad:            strOf(raw['CITY']),
-          estado:            strOf(raw['STATE']),
-          codigo_postal:     strOf(raw['ZIP']),
-          pais:              strOf(raw['COUNTRY']),
+          direccion1: strOf(raw['ADDRESS_1']),
+          direccion2: strOf(raw['ADDRESS_2']),
+          ciudad: strOf(raw['CITY']),
+          estado: strOf(raw['STATE']),
+          codigo_postal: strOf(raw['ZIP']),
+          pais: strOf(raw['COUNTRY']),
           // Nombre legal completo (razón social)
-          nombre_alterno:    strOf(raw['NAME_RAZON_SOCIAL']),
+          nombre_alterno: strOf(raw['NAME_RAZON_SOCIAL']),
+          correo: strOf(raw['E_MAIL']),
         });
         form.productor_id = res.data.id;
         productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };
         emit('refresh-productores');
       } catch {
-        return $q.notify({ type: 'negative', message: 'No se pudo registrar el productor en el sistema local.' });
+        return $q.notify({
+          type: 'negative',
+          message: 'No se pudo registrar el productor en el sistema local.',
+        });
       }
     }
   }

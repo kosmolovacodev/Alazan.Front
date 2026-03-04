@@ -188,6 +188,7 @@ import { Notify, useQuasar, exportFile } from 'quasar';
 import type { QTableProps } from 'quasar';
 import BasculaFormulario from './BasculaFormulario.vue';
 import { useAuthStore } from 'src/stores/auth';
+import { precargarMba3Productores, MBA3_LS_KEY } from 'src/services/mba3ProductoresPreload';
 
 const $q = useQuasar();
 
@@ -234,7 +235,7 @@ const catalogoCompradores = ref([]);
 const catalogoChoferes = ref<{ chofer: string; placas: string }[]>([]);
 const ultimoGranoId = ref<number | null>(null);
 const listaProductores = ref<
-  { id: number; nombre: string; telefono: string; telefono2?: string; atiende?: string; rfc?: string; origen: 'LOCAL' }[]
+  { id: number; nombre: string; telefono: string; telefono2?: string; atiende?: string; rfc?: string; correo?: string; origen: 'LOCAL' }[]
 >([]);
 
 // Configuración de campos por pantalla (BASCULA)
@@ -277,6 +278,7 @@ const cargarProductores = async () => {
       ...(p['telefono2'] ? { telefono2: p['telefono2'] as string } : {}),
       ...(p['atiende']   ? { atiende:   p['atiende']   as string } : {}),
       ...(p['rfc']       ? { rfc:       p['rfc']       as string } : {}),
+      ...(p['correo']    ? { correo:    p['correo']    as string } : {}),
       origen: 'LOCAL' as const,
     }));
   } catch {
@@ -423,7 +425,9 @@ watch(
   () => authStore.sedeActivaId,
   async (nuevaSedeId, sedeAnterior) => {
     if (nuevaSedeId !== sedeAnterior && sedeAnterior !== undefined) {
+      localStorage.removeItem(MBA3_LS_KEY);
       await cargarDatos();
+      void precargarMba3Productores();
       Notify.create({
         type: 'info',
         message: `Datos actualizados para: ${authStore.nombreSedeActiva}`,
@@ -437,8 +441,10 @@ async function handleGuardarRegistro(nuevoRegistro: RegistroBascula) {
   $q.loading.show({ message: 'Procesando registro...' });
   try {
     await api.post('/api/bascula/guardar', nuevoRegistro);
+    localStorage.removeItem(MBA3_LS_KEY);
     await cargarDatos();
     showFormulario.value = false;
+    void precargarMba3Productores();
     Notify.create({ type: 'positive', message: '¡Ticket generado correctamente!' });
   } catch {
     Notify.create({ type: 'negative', message: 'Error al guardar el registro' });
