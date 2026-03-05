@@ -257,9 +257,9 @@ async function consultarEndpointExterno() {
       formData: {
         select: '*',
         from: 'PROV_Ficha_Principal',
-        where: "CORP='BGAR1' and RECORD_DATE > '2025-01-01'",
+        where: "CORP='BGAR1'",
         //groupBy: 'DESCRIPTION',
-        //limit: '1',
+        limit: '1',
       },
     });
 

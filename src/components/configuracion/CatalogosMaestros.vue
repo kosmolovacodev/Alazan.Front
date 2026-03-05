@@ -919,8 +919,8 @@ async function procesarArchivoXlsx(event: Event) {
     listaBancos.value.forEach((b) => mapaBancos.set(normalizar(b.nombre), b.id));
 
     const productores = rows.slice(1)
-      .filter((row) => toStr(row[iNombre]).trim() !== '')
-      .map((row) => {
+      .filter((row: unknown[]) => toStr(row[iNombre]).trim() !== '')
+      .map((row: unknown[]) => {
         const rfcRaw = toStr(row[iRfc]).trim();
         return {
           // Originales
