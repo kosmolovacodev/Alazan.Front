@@ -20,6 +20,7 @@ export async function precargarMba3Productores(): Promise<void> {
         select: 'VENDOR_NAME,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE,E_MAIL',
         from: 'PROV_Ficha_Principal',
         where: `CORP='BGAR1' AND RECORD_DATE > '${fecha3}'`,
+        limit: '9999',
       },
     });
     localStorage.setItem(MBA3_LS_KEY, JSON.stringify({

@@ -738,7 +738,7 @@ async function executeMba3Search(val: string) {
     return;
   }
 
-  const MBA3_CODIGO = 'API101';
+  const MBA3_CODIGO = 'CON100';
   const MBA3_PWD = 'zaqxsw97531';
 
   mba3InFlight.value = true;
@@ -760,6 +760,7 @@ async function executeMba3Search(val: string) {
           'VENDOR_NAME,RECORD_DATE,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE,E_MAIL',
         from: 'PROV_Ficha_Principal',
         where: `CORP='BGAR1' AND RECORD_DATE > '${fecha3}'`,
+        limit: '9999',
       },
     });
 

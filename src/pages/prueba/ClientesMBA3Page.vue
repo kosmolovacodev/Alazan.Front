@@ -628,7 +628,7 @@ import { useMba3Store } from 'src/stores/mba3Store';
 import * as XLSX from 'xlsx';
 
 // ── Credenciales ──────────────────────────────────────────────────────────────
-const CODIGO = 'API101'; // consulta
+const CODIGO = 'CON100'; // consulta
 const CODIGO_GUARDAR = 'API101'; // guardado/escritura
 const PWD = 'zaqxsw97531';
 
