@@ -628,7 +628,8 @@ import { useMba3Store } from 'src/stores/mba3Store';
 import * as XLSX from 'xlsx';
 
 // ── Credenciales ──────────────────────────────────────────────────────────────
-const CODIGO = 'API100';
+const CODIGO = 'API101'; // consulta
+const CODIGO_GUARDAR = 'API101'; // guardado/escritura
 const PWD = 'zaqxsw97531';
 
 // Mismo servidor que la pestaña Consultar: 201.148.25.52:8443
@@ -704,7 +705,7 @@ const proveedorForm = ref({
   numero_interior: '',
   nombre_colonia: '',
   nombre_localizacion: '',
-  moneda_unica: '1',
+  moneda_unica: 'True',
   proveedor_global: 'CONSUL-TEK',
   grupo_impuestos: '',
   codigo_regimen_fiscal: '',
@@ -841,10 +842,15 @@ async function guardarProveedor() {
     const data = await mba3Request<{ error?: string; respuesta?: string }>({
       method: 'post',
       endpoint: '/mba3api/proveedores',
-      codigo: CODIGO,
+      codigo: CODIGO_GUARDAR,
       pwd: PWD,
       useBearerPrefix: authFormatGuardar.value === 'bearer',
-      jsonData: proveedorForm.value,
+      formData: Object.fromEntries(
+        Object.entries(proveedorForm.value).map(([k, v]) => {
+          if (k === 'moneda_unica') return [k, v === '1' || v === 'True' ? 'True' : 'False'];
+          return [k, String(v ?? '')];
+        }),
+      ) as Record<string, string>,
     });
 
     // El servidor retorna 200 incluso en errores de negocio — detectarlos aquí

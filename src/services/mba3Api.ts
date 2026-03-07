@@ -19,7 +19,7 @@ function addDebugInterceptors(client: AxiosInstance): void {
     console.log('[mba3Request] Authorization:', req.headers?.['Authorization'] ?? req.headers?.['authorization'] ?? '(AUSENTE)');
     if (req.data) {
       const bodyStr = typeof req.data === 'string' ? req.data : JSON.stringify(req.data);
-      console.log('[mba3Request] Body (primeros 300 chars):', bodyStr.slice(0, 300));
+      console.log('[mba3Request] Body completo:', bodyStr);
     }
     console.groupEnd();
     return req;

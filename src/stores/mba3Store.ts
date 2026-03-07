@@ -63,17 +63,26 @@ export const useMba3Store = defineStore('mba3', {
         throw new Error('MBA3 no retornó un JWT válido en la respuesta de autenticación');
       }
 
-      // Usar el 'expira' del servidor con buffer de 30s para evitar problemas de reloj
-      // El campo en MBA3 se llama 'expira' (no 'expires')
+      // Intentar obtener expiry: 1) body de respuesta, 2) payload del JWT, 3) fallback fijo
       const serverExpiryStr = (data.expira ?? data.expires) as string | undefined;
+      let jwtExpiryStr: string | undefined;
+      try {
+        const payload = JSON.parse(atob(data.jwt.split('.')[1] ?? '')) as Record<string, unknown>;
+        jwtExpiryStr = (payload['expira'] ?? payload['exp']) as string | undefined;
+      } catch { /* JWT mal formado — ignorar */ }
+
       let expiresAt: number;
       if (serverExpiryStr) {
         const serverExpiry = new Date(serverExpiryStr).getTime();
         expiresAt = serverExpiry - RENEW_BUFFER_MS;
-        console.log(`[MBA3] Token expira (servidor): ${serverExpiryStr} — renovaremos en: ${new Date(expiresAt).toISOString()}`);
+        console.log(`[MBA3] Token expira (body): ${serverExpiryStr} — renovaremos en: ${new Date(expiresAt).toISOString()}`);
+      } else if (jwtExpiryStr) {
+        const jwtExpiry = new Date(jwtExpiryStr).getTime();
+        expiresAt = jwtExpiry - RENEW_BUFFER_MS;
+        console.log(`[MBA3] Token expira (JWT payload): ${jwtExpiryStr} — renovaremos en: ${new Date(expiresAt).toISOString()}`);
       } else {
         expiresAt = Date.now() + TOKEN_TTL_FALLBACK;
-        console.warn('[MBA3] El servidor no devolvió "expira"/"expires" — usando TTL fijo de 4m30s');
+        console.warn('[MBA3] No se encontró expiry en body ni JWT — usando TTL fijo de 4m30s');
       }
 
       this.tokens[codigo] = {

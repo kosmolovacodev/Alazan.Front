@@ -630,7 +630,6 @@ let latestPendingVal: string | null = null; // última búsqueda encolada mientr
 const mba3Cache = new Map<string, { productores: Productor[]; ts: number }>();
 const MBA3_CACHE_TTL = 5 * 60 * 1000; // 5 minutos en ms
 
-
 function mapMba3Items(
   mba3Items: Record<string, unknown>[],
   localList: Pick<Productor, 'id' | 'rfc'>[],
@@ -716,11 +715,15 @@ async function executeMba3Search(val: string) {
     const fullCache = mba3Cache.get('');
     if (fullCache && Date.now() - fullCache.ts < MBA3_CACHE_TTL) {
       const valUpper = val.toUpperCase();
-      const filtrados = fullCache.productores.filter((p) => p.nombre.toUpperCase().includes(valUpper));
+      const filtrados = fullCache.productores.filter((p) =>
+        p.nombre.toUpperCase().includes(valUpper),
+      );
       const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
       const localList = props.listaProductores ?? [];
       localList
-        .filter((p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)))
+        .filter(
+          (p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
+        )
         .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
       opcionesProductores.value = filtrados;
       mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
@@ -735,7 +738,7 @@ async function executeMba3Search(val: string) {
     return;
   }
 
-  const MBA3_CODIGO = 'API100';
+  const MBA3_CODIGO = 'API101';
   const MBA3_PWD = 'zaqxsw97531';
 
   mba3InFlight.value = true;
@@ -773,7 +776,9 @@ async function executeMba3Search(val: string) {
       const filtrados = todosProductores.filter((p) => p.nombre.toUpperCase().includes(valUpper));
       const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
       localList
-        .filter((p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)))
+        .filter(
+          (p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
+        )
         .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
       opcionesProductores.value = filtrados;
       mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
