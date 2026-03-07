@@ -6,11 +6,13 @@ import axios from 'axios';
 const MBA3_BASE_URL = process.env.DEV
   ? '/mba3'
   : 'https://alazan-app.consul-tek.com/api/v1/mba3';
-const TOKEN_TTL = 270_000; // 4 minutos 30 segundos en ms (token dura 5 min)
+const TOKEN_TTL_FALLBACK = 270_000; // fallback si el servidor no devuelve 'expires'
+const RENEW_BUFFER_MS = 30_000;    // renovar 30s antes del vencimiento real
 
 interface Mba3TokenEntry {
   jwt: string;
   obtainedAt: number; // Date.now() al momento de obtenerlo
+  expiresAt: number;  // timestamp UTC en ms según el servidor (con buffer ya aplicado)
 }
 
 interface Mba3State {
@@ -19,7 +21,7 @@ interface Mba3State {
 }
 
 // Cliente axios exclusivo para auth de MBA3 (sin interceptores del sistema interno)
-const mba3AuthClient = axios.create({ baseURL: MBA3_BASE_URL });
+const mba3AuthClient = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 });
 
 export const useMba3Store = defineStore('mba3', {
   state: (): Mba3State => ({
@@ -32,15 +34,14 @@ export const useMba3Store = defineStore('mba3', {
     isTokenValid: (state) => (codigo: string): boolean => {
       const entry = state.tokens[codigo];
       if (!entry) return false;
-      return Date.now() - entry.obtainedAt < TOKEN_TTL;
+      return Date.now() < entry.expiresAt;
     },
 
     // Retorna información de estado del token para mostrar en UI
     tokenInfo: (state) => (codigo: string) => {
       const entry = state.tokens[codigo];
       if (!entry) return { status: 'sin_token', segundosRestantes: 0 };
-      const elapsed = Date.now() - entry.obtainedAt;
-      const remaining = TOKEN_TTL - elapsed;
+      const remaining = entry.expiresAt - Date.now();
       if (remaining <= 0) return { status: 'expirado', segundosRestantes: 0 };
       return { status: 'activo', segundosRestantes: Math.floor(remaining / 1000) };
     },
@@ -62,12 +63,27 @@ export const useMba3Store = defineStore('mba3', {
         throw new Error('MBA3 no retornó un JWT válido en la respuesta de autenticación');
       }
 
+      // Usar el 'expira' del servidor con buffer de 30s para evitar problemas de reloj
+      // El campo en MBA3 se llama 'expira' (no 'expires')
+      const serverExpiryStr = (data.expira ?? data.expires) as string | undefined;
+      let expiresAt: number;
+      if (serverExpiryStr) {
+        const serverExpiry = new Date(serverExpiryStr).getTime();
+        expiresAt = serverExpiry - RENEW_BUFFER_MS;
+        console.log(`[MBA3] Token expira (servidor): ${serverExpiryStr} — renovaremos en: ${new Date(expiresAt).toISOString()}`);
+      } else {
+        expiresAt = Date.now() + TOKEN_TTL_FALLBACK;
+        console.warn('[MBA3] El servidor no devolvió "expira"/"expires" — usando TTL fijo de 4m30s');
+      }
+
       this.tokens[codigo] = {
         jwt: data.jwt,
         obtainedAt: Date.now(),
+        expiresAt,
       };
 
-      console.log(`[MBA3] Token obtenido para ${codigo}. Válido por ${TOKEN_TTL / 1000}s`);
+      const secsRemaining = Math.floor((expiresAt - Date.now()) / 1000);
+      console.log(`[MBA3] Token obtenido para ${codigo}. Válido por ~${secsRemaining}s (con buffer)`);
       return data.jwt;
     },
 

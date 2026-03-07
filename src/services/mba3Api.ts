@@ -1,4 +1,4 @@
-import axios, { type AxiosRequestConfig } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
 import { useMba3Store } from 'src/stores/mba3Store';
 
 // En desarrollo: usa el proxy de Vite (/mba3 → http://201.148.25.52:8443)
@@ -8,7 +8,43 @@ const MBA3_BASE_URL = process.env.DEV
   : 'https://alazan-app.consul-tek.com/api/v1/mba3';
 
 // Instancia axios exclusiva para MBA3 (separada del 'api' interno de Alazan)
-export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL });
+export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 });
+
+/** Registra interceptores de diagnóstico en un cliente axios (llamar una sola vez por instancia). */
+function addDebugInterceptors(client: AxiosInstance): void {
+  client.interceptors.request.use((req) => {
+    console.group(`[mba3Request] ${req.method?.toUpperCase()} ${req.baseURL ?? ''}${req.url ?? ''}`);
+    console.log('[mba3Request] Headers enviados:', JSON.stringify(req.headers));
+    console.log('[mba3Request] Content-Type:', req.headers?.['Content-Type'] ?? req.headers?.['content-type'] ?? '—');
+    console.log('[mba3Request] Authorization:', req.headers?.['Authorization'] ?? req.headers?.['authorization'] ?? '(AUSENTE)');
+    if (req.data) {
+      const bodyStr = typeof req.data === 'string' ? req.data : JSON.stringify(req.data);
+      console.log('[mba3Request] Body (primeros 300 chars):', bodyStr.slice(0, 300));
+    }
+    console.groupEnd();
+    return req;
+  });
+
+  client.interceptors.response.use(
+    (res) => {
+      console.log(`[mba3Request] Respuesta ${res.status} de ${res.config.url}`);
+      return res;
+    },
+    (err: unknown) => {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const e = err as { response?: { status?: number; headers?: unknown; data?: unknown }; config?: { url?: string } };
+        console.warn(`[mba3Request] Error ${e.response?.status ?? '?'} de ${e.config?.url ?? '?'}`);
+        console.warn('[mba3Request] Response headers:', JSON.stringify(e.response?.headers ?? {}));
+        console.warn('[mba3Request] Response body:', JSON.stringify(e.response?.data ?? null));
+      }
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      return Promise.reject(err); // preservar error axios para que is401() funcione
+    },
+  );
+}
+
+// Registrar interceptores una sola vez en el cliente compartido
+addDebugInterceptors(mba3Client);
 
 export interface Mba3RequestConfig {
   method: 'get' | 'post' | 'put' | 'delete';
@@ -25,6 +61,8 @@ export interface Mba3RequestConfig {
   extraHeaders?: Record<string, string> | undefined;
   /** Forzar prefijo "Bearer " en el header Authorization (default: false) */
   useBearerPrefix?: boolean | undefined;
+  /** Sobreescribe la base URL (para apuntar a un servidor MBA3 diferente) */
+  baseURL?: string;
 }
 
 /**
@@ -69,22 +107,34 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
       (err as { response?: { status?: number } }).response?.status === 401
     );
 
+  // Para baseURL personalizada: crear instancia fresca y añadirle interceptores una sola vez
+  const client = config.baseURL
+    ? (() => {
+        const c = axios.create({ baseURL: config.baseURL });
+        addDebugInterceptors(c);
+        return c;
+      })()
+    : mba3Client;
+
   // 1. Obtener token (usa caché si sigue vigente, autentica si no)
   let jwt = await store.getValidToken(config.codigo, config.pwd);
 
   // 2. Primer intento
   try {
     const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
-    const response = await mba3Client.request<T>(buildAxiosConfig(authHeader));
+    console.log(`[mba3Request] Intento 1 — bearerMode=${bearerMode} | JWT: ${jwt.slice(0, 20)}...`);
+    const response = await client.request<T>(buildAxiosConfig(authHeader));
     return response.data;
   } catch (firstError: unknown) {
     if (!is401(firstError)) throw firstError;
 
     // 3. Token rechazado — forzar re-autenticación y un último reintento.
+    console.warn('[mba3Request] 401 en intento 1 — renovando token...');
     store.clearToken(config.codigo);
     jwt = await store.getValidToken(config.codigo, config.pwd);
     const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
-    const response = await mba3Client.request<T>(buildAxiosConfig(authHeader));
+    console.log(`[mba3Request] Intento 2 — nuevo JWT: ${jwt.slice(0, 20)}...`);
+    const response = await client.request<T>(buildAxiosConfig(authHeader));
     return response.data;
   }
 }

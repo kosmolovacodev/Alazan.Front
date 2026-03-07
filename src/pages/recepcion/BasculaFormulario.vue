@@ -623,6 +623,7 @@ const opcionesProductores = ref<Productor[]>([]);
 const productorSeleccionado = ref<Productor | null>(null);
 const buscandoProductores = ref(false);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const mba3Disponible = ref(true); // se vuelve false la primera vez que MBA3 falla en esta sesión
 const mba3InFlight = ref(false); // hay una petición MBA3 activa
 let latestPendingVal: string | null = null; // última búsqueda encolada mientras había vuelo
 // Caché de resultados MBA3 por prefijo — evita re-consultas dentro de 5 minutos
@@ -662,6 +663,17 @@ function mapMba3Items(
  * Esto garantiza que nunca haya dos peticiones simultáneas → sin race condition de tokens.
  */
 async function executeMba3Search(val: string) {
+  // Si MBA3 ya falló antes en esta sesión, usar directamente la lista local
+  if (!mba3Disponible.value) {
+    const localList = props.listaProductores ?? [];
+    const filtered = val
+      ? localList.filter((p) => p.nombre.toUpperCase().includes(val.toUpperCase()))
+      : localList;
+    opcionesProductores.value = filtered;
+    buscandoProductores.value = false;
+    return;
+  }
+
   // Verificar caché primero — si el prefijo ya fue consultado recientemente, usarlo al instante
   const cacheKey = val.toLowerCase();
   const cached = mba3Cache.get(cacheKey);
@@ -769,7 +781,12 @@ async function executeMba3Search(val: string) {
       opcionesProductores.value = todosProductores;
     }
   } catch {
-    opcionesProductores.value = [];
+    mba3Disponible.value = false; // marcar caído para evitar reintentos lentos
+    const localList = props.listaProductores ?? [];
+    const filtered = val
+      ? localList.filter((p) => p.nombre.toUpperCase().includes(val.toUpperCase()))
+      : localList;
+    opcionesProductores.value = filtered;
   } finally {
     buscandoProductores.value = false;
     mba3InFlight.value = false;
