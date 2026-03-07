@@ -3,9 +3,7 @@ import { useMba3Store } from 'src/stores/mba3Store';
 
 // En desarrollo: usa el proxy de Vite (/mba3 → http://201.148.25.52:8443)
 // En producción: el backend .NET en /api/v1/mba3 hace de proxy hacia MBA3
-const MBA3_BASE_URL = process.env.DEV
-  ? '/mba3'
-  : 'https://alazan-app.consul-tek.com/api/v1/mba3';
+const MBA3_BASE_URL = process.env.DEV ? '/mba3' : 'https://alazan-app.consul-tek.com/api/v1/mba3';
 
 // Instancia axios exclusiva para MBA3 (separada del 'api' interno de Alazan)
 export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 });
@@ -13,10 +11,18 @@ export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 }
 /** Registra interceptores de diagnóstico en un cliente axios (llamar una sola vez por instancia). */
 function addDebugInterceptors(client: AxiosInstance): void {
   client.interceptors.request.use((req) => {
-    console.group(`[mba3Request] ${req.method?.toUpperCase()} ${req.baseURL ?? ''}${req.url ?? ''}`);
+    console.group(
+      `[mba3Request] ${req.method?.toUpperCase()} ${req.baseURL ?? ''}${req.url ?? ''}`,
+    );
     console.log('[mba3Request] Headers enviados:', JSON.stringify(req.headers));
-    console.log('[mba3Request] Content-Type:', req.headers?.['Content-Type'] ?? req.headers?.['content-type'] ?? '—');
-    console.log('[mba3Request] Authorization:', req.headers?.['Authorization'] ?? req.headers?.['authorization'] ?? '(AUSENTE)');
+    console.log(
+      '[mba3Request] Content-Type:',
+      req.headers?.['Content-Type'] ?? req.headers?.['content-type'] ?? '—',
+    );
+    console.log(
+      '[mba3Request] Authorization:',
+      req.headers?.['Authorization'] ?? req.headers?.['authorization'] ?? '(AUSENTE)',
+    );
     if (req.data) {
       const bodyStr = typeof req.data === 'string' ? req.data : JSON.stringify(req.data);
       console.log('[mba3Request] Body completo:', bodyStr);
@@ -32,7 +38,10 @@ function addDebugInterceptors(client: AxiosInstance): void {
     },
     (err: unknown) => {
       if (err && typeof err === 'object' && 'response' in err) {
-        const e = err as { response?: { status?: number; headers?: unknown; data?: unknown }; config?: { url?: string } };
+        const e = err as {
+          response?: { status?: number; headers?: unknown; data?: unknown };
+          config?: { url?: string };
+        };
         console.warn(`[mba3Request] Error ${e.response?.status ?? '?'} de ${e.config?.url ?? '?'}`);
         console.warn('[mba3Request] Response headers:', JSON.stringify(e.response?.headers ?? {}));
         console.warn('[mba3Request] Response body:', JSON.stringify(e.response?.data ?? null));
@@ -70,13 +79,14 @@ export interface Mba3RequestConfig {
  *
  * - Gestión de token automática: reutiliza el JWT si sigue vigente (<4m30s),
  *   o solicita uno nuevo antes de continuar.
- * - Retry automático: si el primer intento devuelve 401, fuerza re-autenticación
- *   y reintenta una vez más.
+ * - Retry automático con "Bearer": si el primer intento sin "Bearer" devuelve
+ *   401, reintenta añadiendo el prefijo "Bearer " al header Authorization.
  */
 export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promise<T> {
   const store = useMba3Store();
   const bearerMode = config.useBearerPrefix ?? false;
 
+  // 2. Preparar body y content-type
   let requestData: unknown;
   let contentType: string | undefined;
 
@@ -94,6 +104,7 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
     data: requestData,
     headers: {
       Authorization: authHeader,
+      'X-MBA3-Auth': authHeader, // IIS elimina Authorization estándar → este header llega intacto al proxy .NET
       ...(contentType ? { 'Content-Type': contentType } : {}),
       ...config.extraHeaders,
     },
@@ -118,8 +129,9 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
 
   // 1. Obtener token (usa caché si sigue vigente, autentica si no)
   let jwt = await store.getValidToken(config.codigo, config.pwd);
+  store.clearToken(config.codigo);
 
-  // 2. Primer intento
+  // 3. Primer intento con el formato de Authorization configurado
   try {
     const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
     console.log(`[mba3Request] Intento 1 — bearerMode=${bearerMode} | JWT: ${jwt.slice(0, 20)}...`);
@@ -132,6 +144,7 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
     console.warn('[mba3Request] 401 en intento 1 — renovando token...');
     store.clearToken(config.codigo);
     jwt = await store.getValidToken(config.codigo, config.pwd);
+    store.clearToken(config.codigo); // MBA3 token es de un solo uso: limpiar igual que en paso 1
     const authHeader = bearerMode ? `Bearer ${jwt}` : jwt;
     console.log(`[mba3Request] Intento 2 — nuevo JWT: ${jwt.slice(0, 20)}...`);
     const response = await client.request<T>(buildAxiosConfig(authHeader));
