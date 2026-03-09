@@ -572,6 +572,13 @@ const fechaHoyStr = computed(() => {
   return `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`
 })
 
+function parseFechaDDMMYYYY(str: string | null): Date | null {
+  if (!str) return null
+  const [d, m, y] = str.split('/')
+  if (!d || !m || !y) return null
+  return new Date(Number(y), Number(m) - 1, Number(d))
+}
+
 const pagosFiltrados = computed(() => {
   return pagos.value.filter(p => {
     if (filtros.value.ticket       && !p.ticket.includes(filtros.value.ticket)) return false
@@ -581,14 +588,15 @@ const pagosFiltrados = computed(() => {
     if (filtros.value.statusPago   && p.status_pago !== filtros.value.statusPago) return false
     if (filtros.value.hoy && p.fecha_solicitud !== fechaHoyStr.value) return false
     if (filtros.value.fechaInicio || filtros.value.fechaFin) {
-      const ref = p.fecha_solicitud ?? ''
+      const fechaReg = parseFechaDDMMYYYY(p.fecha_solicitud)
+      if (!fechaReg) return false
       if (filtros.value.fechaInicio) {
-        const fi = filtros.value.fechaInicio.split('-').reverse().join('/')
-        if (ref < fi) return false
+        const fi = new Date(filtros.value.fechaInicio + 'T00:00:00')
+        if (fechaReg < fi) return false
       }
       if (filtros.value.fechaFin) {
-        const ff = filtros.value.fechaFin.split('-').reverse().join('/')
-        if (ref > ff) return false
+        const ff = new Date(filtros.value.fechaFin + 'T23:59:59')
+        if (fechaReg > ff) return false
       }
     }
     return true

@@ -641,7 +641,17 @@ const statusOptions = [
 // ══════════════════════════════════════════════════════════════════
 //  COMPUTED
 // ══════════════════════════════════════════════════════════════════
-const hoy = computed(() => new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g,'/'))
+const hoy = computed(() => {
+  const now = new Date()
+  return `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`
+})
+
+function parseFechaDDMMYYYY(str: string | null): Date | null {
+  if (!str) return null
+  const [d, m, y] = str.split('/')
+  if (!d || !m || !y) return null
+  return new Date(Number(y), Number(m) - 1, Number(d))
+}
 
 const pagosFiltrados = computed(() => {
   return pagos.value.filter(p => {
@@ -651,14 +661,15 @@ const pagosFiltrados = computed(() => {
     if (filtros.value.statusPago && p.status_pago !== filtros.value.statusPago) return false
     if (filtros.value.hoy && p.fecha_entrega !== hoy.value) return false
     if (filtros.value.fechaInicio || filtros.value.fechaFin) {
-      const fechaRaw = p.fecha_entrega ?? ''
+      const fechaReg = parseFechaDDMMYYYY(p.fecha_entrega)
+      if (!fechaReg) return false
       if (filtros.value.fechaInicio) {
-        const fi = filtros.value.fechaInicio.split('-').reverse().join('/')
-        if (fechaRaw < fi) return false
+        const fi = new Date(filtros.value.fechaInicio + 'T00:00:00')
+        if (fechaReg < fi) return false
       }
       if (filtros.value.fechaFin) {
-        const ff = filtros.value.fechaFin.split('-').reverse().join('/')
-        if (fechaRaw > ff) return false
+        const ff = new Date(filtros.value.fechaFin + 'T23:59:59')
+        if (fechaReg > ff) return false
       }
     }
     return true

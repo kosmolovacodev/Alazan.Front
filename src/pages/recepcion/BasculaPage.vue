@@ -318,7 +318,6 @@ const filtros = reactive({
 const registrosFiltrados = computed(() => {
   let lista = registrosBascula.value;
 
-  // 1. Filtro por búsqueda (Ticket o Productor)
   if (filtros.buscar) {
     const busqueda = filtros.buscar.toLowerCase();
     lista = lista.filter(
@@ -326,20 +325,37 @@ const registrosFiltrados = computed(() => {
     );
   }
 
-  // 2. Filtro de "Hoy"
+  if (filtros.ticket) {
+    lista = lista.filter((r) => r.ticket.toString().includes(filtros.ticket));
+  }
+
+  if (filtros.boleta) {
+    lista = lista.filter((r) => r.boleta?.toString().includes(filtros.boleta));
+  }
+
+  if (filtros.origen) {
+    lista = lista.filter((r) => r.origen_nombre?.toLowerCase().includes(filtros.origen.toLowerCase()));
+  }
+
+  if (filtros.productor) {
+    lista = lista.filter((r) => r.productor?.toLowerCase().includes(filtros.productor.toLowerCase()));
+  }
+
+  if (filtros.comprador) {
+    lista = lista.filter((r) => r.comprador?.toLowerCase().includes(filtros.comprador.toLowerCase()));
+  }
+
   if (filtros.hoy) {
     const hoy = new Date().toLocaleDateString();
     lista = lista.filter((r) => new Date(r.fecha).toLocaleDateString() === hoy);
-  }
-  // 3. Si no es hoy, filtrar por rango de fechas (solo si hay fechas seleccionadas)
-  else if (filtros.fechaInicio && filtros.fechaFin) {
-    const inicio = new Date(filtros.fechaInicio);
-    const fin = new Date(filtros.fechaFin);
-    fin.setHours(23, 59, 59); // Asegurar que incluya todo el día final
-
+  } else if (filtros.fechaInicio || filtros.fechaFin) {
+    const inicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
+    const fin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
     lista = lista.filter((r) => {
       const fechaReg = new Date(r.fecha);
-      return fechaReg >= inicio && fechaReg <= fin;
+      if (inicio && fechaReg < inicio) return false;
+      if (fin && fechaReg > fin) return false;
+      return true;
     });
   }
 

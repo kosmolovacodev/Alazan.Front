@@ -684,13 +684,14 @@ const boletasFiltradas = computed(() => {
     lista = lista.filter((b) => b.calibre === filtros.calibre);
   }
 
-  if (filtros.fechaInicio && filtros.fechaFin) {
-    const inicio = new Date(filtros.fechaInicio);
-    const fin = new Date(filtros.fechaFin);
-    fin.setHours(23, 59, 59);
+  if (filtros.fechaInicio || filtros.fechaFin) {
+    const inicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
+    const fin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
     lista = lista.filter((b) => {
       const fechaBoleta = new Date(b.fecha);
-      return fechaBoleta >= inicio && fechaBoleta <= fin;
+      if (inicio && fechaBoleta < inicio) return false;
+      if (fin && fechaBoleta > fin) return false;
+      return true;
     });
   }
 

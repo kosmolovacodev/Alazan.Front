@@ -1163,13 +1163,14 @@ const registrosFiltrados = computed(() => {
   if (filtros.hoy) {
     const hoy = new Date().toLocaleDateString();
     lista = lista.filter((r) => new Date(r.fecha).toLocaleDateString() === hoy);
-  } else if (filtros.fechaInicio && filtros.fechaFin) {
-    const inicio = new Date(filtros.fechaInicio);
-    const fin = new Date(filtros.fechaFin);
-    fin.setHours(23, 59, 59);
+  } else if (filtros.fechaInicio || filtros.fechaFin) {
+    const inicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
+    const fin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
     lista = lista.filter((r) => {
       const f = new Date(r.fecha);
-      return f >= inicio && f <= fin;
+      if (inicio && f < inicio) return false;
+      if (fin && f > fin) return false;
+      return true;
     });
   }
   return lista;

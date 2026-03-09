@@ -334,6 +334,13 @@ function obtenerStatusClase(f: FacturaRecord): string {
 /* =========================
    Filtrado
 ========================= */
+function parseFechaDDMMYYYY(str: string | null | undefined): Date | null {
+  if (!str) return null;
+  const [d, m, y] = str.split('/');
+  if (!d || !m || !y) return null;
+  return new Date(Number(y), Number(m) - 1, Number(d));
+}
+
 const facturasFiltradas = computed(() => {
   const f = filtros.value;
   return recepciones.value.filter((factura) => {
@@ -343,6 +350,18 @@ const facturasFiltradas = computed(() => {
     if (f.status) {
       const status = obtenerStatusTexto(factura);
       if (!status.toLowerCase().includes(f.status.toLowerCase())) return false;
+    }
+    if (f.fechaInicio || f.fechaFin) {
+      const fechaReg = parseFechaDDMMYYYY(factura.fecha);
+      if (!fechaReg) return false;
+      if (f.fechaInicio) {
+        const fi = new Date(f.fechaInicio + 'T00:00:00');
+        if (fechaReg < fi) return false;
+      }
+      if (f.fechaFin) {
+        const ff = new Date(f.fechaFin + 'T23:59:59');
+        if (fechaReg > ff) return false;
+      }
     }
     return true;
   });

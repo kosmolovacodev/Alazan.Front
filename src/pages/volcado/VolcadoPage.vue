@@ -1111,16 +1111,21 @@ const registrosFiltrados = computed(() => {
     lista = lista.filter((r) => r.siloId === Number(filtros.silo));
   }
 
+  if (filtros.toneladas !== null && filtros.toneladas > 0) {
+    lista = lista.filter((r) => r.tonsAprox >= filtros.toneladas!);
+  }
+
   if (filtros.hoy) {
     const hoy = new Date().toLocaleDateString();
     lista = lista.filter((r) => new Date(r.fecha).toLocaleDateString() === hoy);
-  } else if (filtros.fechaInicio && filtros.fechaFin) {
-    const inicio = new Date(filtros.fechaInicio);
-    const fin = new Date(filtros.fechaFin);
-    fin.setHours(23, 59, 59);
+  } else if (filtros.fechaInicio || filtros.fechaFin) {
+    const inicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
+    const fin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
     lista = lista.filter((r) => {
       const fechaReg = new Date(r.fecha);
-      return fechaReg >= inicio && fechaReg <= fin;
+      if (inicio && fechaReg < inicio) return false;
+      if (fin && fechaReg > fin) return false;
+      return true;
     });
   }
 
