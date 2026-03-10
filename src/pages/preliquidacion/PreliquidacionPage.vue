@@ -199,7 +199,7 @@
             color="orange-7"
             unelevated
             label="PRE-LIQUIDACIÓN"
-            @click="showPreliquidacion = true"
+            @click="abrirPreliquidacionGuardada"
           />
         </div>
       </div>
@@ -413,6 +413,16 @@
               readonly
               bg-color="grey-2"
             />
+            <q-chip
+              v-if="divisionConfirmada"
+              color="teal-1"
+              text-color="teal-9"
+              icon="call_split"
+              dense
+              class="q-mt-xs"
+            >
+              Dividido entre {{ divisionConfirmada.length }} productores
+            </q-chip>
           </div>
           <div class="col-12 col-md">
             <q-input
@@ -433,6 +443,20 @@
               dense
               readonly
               bg-color="grey-2"
+            />
+          </div>
+        </div>
+
+        <!-- A Liquidar con descuento IPRM -->
+        <div v-if="aLiquidarIPRM" class="row q-mb-lg">
+          <div class="col-12 col-md-4">
+            <q-input
+              :model-value="fmtMoney(aLiquidarIPRM)"
+              label="A Liquidar (con descuento IPRM)"
+              outlined
+              dense
+              readonly
+              bg-color="green-1"
             />
           </div>
         </div>
@@ -520,8 +544,8 @@
           </div>
         </template>
 
-        <!-- Botón Generar Pre-Liquidación -->
-        <div v-if="!preliquidacionGuardada" class="row justify-center">
+        <!-- Botones: Generar Pre-Liquidación / Dividir entre Productores -->
+        <div v-if="!preliquidacionGuardada" class="row justify-center q-gutter-md">
           <q-btn
             unelevated
             color="orange-7"
@@ -529,16 +553,34 @@
             size="lg"
             @click="handleGenerarPreliquidacion"
           />
+          <q-btn
+            v-if="pesoNeto && Number(pesoNeto) > 0"
+            unelevated
+            color="teal-7"
+            icon="call_split"
+            label="Dividir entre Productores"
+            size="lg"
+            @click="abrirModalDivision"
+          />
         </div>
       </q-card>
     </template>
 
     <!-- ==================== VISTA PRE-LIQUIDACIÓN DOCUMENTO ==================== -->
-    <template v-if="showPreliquidacion && selectedRegistro">
+    <template v-if="showPreliquidacion && selectedRegistro && docActual">
+      <!-- Encabezado con navegación -->
       <div class="row items-center justify-between q-mb-md">
         <div class="row items-center q-gutter-sm">
           <q-btn flat round icon="arrow_back" @click="showPreliquidacion = false" />
-          <div class="text-h5 text-grey-8 text-weight-bold">Báscula Recepción</div>
+          <div class="text-h5 text-grey-8 text-weight-bold">Pre-Liquidación</div>
+        </div>
+        <!-- Navegación entre documentos (solo si hay más de uno) -->
+        <div v-if="preliquidacionDocumentos.length > 1" class="row items-center q-gutter-xs">
+          <q-btn flat round dense icon="chevron_left" :disable="docActualIdx === 0" @click="docAnterior" />
+          <span class="text-body2 text-grey-7 q-px-xs">
+            {{ docActualIdx + 1 }} / {{ preliquidacionDocumentos.length }}
+          </span>
+          <q-btn flat round dense icon="chevron_right" :disable="docActualIdx === preliquidacionDocumentos.length - 1" @click="docSiguiente" />
         </div>
         <div class="row q-gutter-sm">
           <q-btn flat round icon="print" size="lg" @click="imprimirPantalla" />
@@ -550,6 +592,22 @@
         <!-- Header naranja -->
         <div class="bg-orange-7 text-white text-center q-pa-md rounded-borders q-mb-lg">
           <div class="text-h4 text-weight-bold">Pre-Liquidación</div>
+          <div v-if="preliquidacionDocumentos.length > 1" class="text-body2 q-mt-xs">
+            Documento {{ docActualIdx + 1 }} de {{ preliquidacionDocumentos.length }}
+          </div>
+        </div>
+
+        <!-- Fila de Boleta / Ticket -->
+        <div
+          class="row q-mb-lg q-px-md q-py-sm"
+          style="border: 1px solid #1565c0; border-radius: 4px"
+        >
+          <div class="col-6 text-primary text-body2">
+            <span class="text-weight-medium">Boleta:</span> {{ docActual.boleta }}
+          </div>
+          <div class="col-6 text-primary text-body2">
+            <span class="text-weight-medium">Ticket:</span> {{ docActual.ticket }}
+          </div>
         </div>
 
         <!-- Contenido en dos columnas -->
@@ -557,7 +615,7 @@
           <!-- Columna izquierda -->
           <div class="col-12 col-md-6">
             <q-input
-              :model-value="selectedRegistro.productor"
+              :model-value="docActual.productor"
               label="PRODUCTOR"
               outlined
               dense
@@ -573,16 +631,17 @@
               class="q-mb-sm"
             />
             <q-input
-              :model-value="detalle.grano || 'Cargando...'"
+              :model-value="detalle.grano || '-'"
               label="PRODUCTO"
               outlined
               dense
               readonly
               bg-color="grey-2"
+              class="q-mb-sm"
             />
             <q-input
               :model-value="selectedRegistro.chofer || '-'"
-              label="CAMIÓN / CHOFER"
+              label="CAMIÓN"
               outlined
               dense
               readonly
@@ -591,6 +650,14 @@
             <q-input
               :model-value="selectedRegistro.placas || '-'"
               label="PLACAS"
+              outlined
+              dense
+              readonly
+              class="q-mb-sm"
+            />
+            <q-input
+              :model-value="selectedRegistro.chofer || '-'"
+              label="CHOFER"
               outlined
               dense
               readonly
@@ -609,8 +676,8 @@
               class="q-mb-sm"
             />
             <q-input
-              :model-value="fmtMoney(detalle.precio || 0)"
-              label="PRECIO / KG"
+              :model-value="fmtNum(detalle.precio || 0)"
+              label="PRECIO"
               outlined
               dense
               readonly
@@ -624,12 +691,15 @@
               readonly
               class="q-mb-sm"
             />
+            <!-- KG LIQUIDAR: en naranja, valor del documento actual -->
             <q-input
-              :model-value="fmtNum(kgALiquidar)"
+              :model-value="fmtNum(docActual.kgALiquidar)"
               label="KG LIQUIDAR"
               outlined
               dense
               readonly
+              label-color="orange-8"
+              input-class="text-orange-8 text-weight-bold"
               class="q-mb-sm"
             />
             <q-input
@@ -659,16 +729,24 @@
           </div>
         </div>
 
-        <!-- Observaciones -->
-        <q-input
-          v-model="observaciones"
-          label="OBSERVACIONES"
-          type="textarea"
-          outlined
-          :rows="2"
-          readonly
-          class="q-mb-lg"
-        />
+        <!-- Monto a Liquidar -->
+        <div
+          class="q-pa-md q-mb-lg text-center"
+          style="border: 1px solid #4caf50; border-radius: 8px; background: #f1f8e9"
+        >
+          <div class="text-subtitle1 text-weight-bold text-uppercase text-grey-8 q-mb-xs">
+            Monto a Liquidar
+          </div>
+          <div class="text-h3 text-weight-bold text-green-8">
+            {{ fmtMoney(docActual.montoIPRM !== null ? docActual.montoIPRM : docActual.monto) }}
+          </div>
+          <div
+            v-if="docActual.montoIPRM !== null && docActual.iprmPorcentaje !== null"
+            class="text-caption text-grey-6"
+          >
+            (Incluye descuento IPRM del {{ Number(docActual.iprmPorcentaje).toFixed(4) }}%)
+          </div>
+        </div>
 
         <!-- Documentación requerida -->
         <div class="q-mb-lg">
@@ -697,12 +775,16 @@
           <span class="text-body2">Dudas Whatsapp 673-163-75-73</span>
         </div>
 
-        <!-- Botón Guardar -->
-        <div class="row justify-center">
+        <!-- Botón Guardar (solo cuando aún no está guardada) -->
+        <div v-if="!preliquidacionGuardada" class="row justify-center">
           <q-btn
             unelevated
             color="orange-7"
-            label="Guardar"
+            :label="
+              preliquidacionDocumentos.length > 1
+                ? `Guardar ${preliquidacionDocumentos.length} Pre-liquidaciones`
+                : 'Guardar'
+            "
             size="lg"
             class="q-px-xl"
             @click="handleGuardarPreliquidacion"
@@ -936,6 +1018,251 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <!-- ==================== MODAL DIVIDIR ENTRE PRODUCTORES ==================== -->
+  <q-dialog v-model="modalDivision" persistent>
+    <q-card style="max-width: 860px; width: 100%; max-height: 92vh; display: flex; flex-direction: column">
+
+      <!-- Header -->
+      <q-toolbar class="bg-blue-8 text-white">
+        <q-toolbar-title>
+          <div class="text-subtitle1 text-weight-bold">Dividir Kilogramos entre Productores</div>
+          <div class="text-caption">Ticket: {{ selectedRegistro?.ticket }}</div>
+        </q-toolbar-title>
+        <q-btn flat round dense icon="close" @click="modalDivision = false" />
+      </q-toolbar>
+
+      <q-card-section style="overflow-y: auto; flex: 1" class="q-pa-md">
+
+        <!-- Info -->
+        <q-banner class="bg-blue-1 q-mb-md" rounded>
+          <template #avatar><q-icon name="info" color="blue-7" size="sm" /></template>
+          <div class="text-weight-medium text-blue-9 q-mb-xs">¿Cómo dividir el ticket?</div>
+          <ul class="q-ma-none q-pl-md text-blue-9 text-caption">
+            <li><strong>Opción 1:</strong> Usa los botones de "División Rápida" para dividir en partes iguales automáticamente</li>
+            <li><strong>Opción 2:</strong> Haz clic en "+ Agregar Productor" y asigna los kg manualmente a cada uno</li>
+            <li>La suma de todos los kg debe ser exactamente igual al total disponible</li>
+          </ul>
+        </q-banner>
+
+        <!-- Resumen -->
+        <div class="row q-col-gutter-md q-mb-md">
+          <div class="col-6 col-sm-3">
+            <q-card flat bordered class="q-pa-sm text-center">
+              <div class="text-caption text-grey-6">Total Kg a Liquidar</div>
+              <div class="text-h6 text-blue-9 text-weight-bold">{{ fmtNum(kgALiquidar) }} kg</div>
+            </q-card>
+          </div>
+          <div class="col-6 col-sm-3">
+            <q-card flat bordered class="q-pa-sm text-center">
+              <div class="text-caption text-grey-6">Precio por Kg</div>
+              <div class="text-h6 text-green-8 text-weight-bold">{{ fmtMoney(detalle.precio || 0) }}</div>
+            </q-card>
+          </div>
+          <div class="col-6 col-sm-3">
+            <q-card flat bordered class="q-pa-sm text-center">
+              <div class="text-caption text-grey-6">Total Asignado</div>
+              <div
+                class="text-h6 text-weight-bold"
+                :class="pendientePorAsignar < 0.001 ? 'text-positive' : 'text-orange-8'"
+              >
+                {{ fmtNum(totalKgAsignado) }} kg
+              </div>
+            </q-card>
+          </div>
+          <div class="col-6 col-sm-3">
+            <q-card flat bordered class="q-pa-sm text-center">
+              <div class="text-caption text-grey-6">Pendiente por Asignar</div>
+              <div
+                class="text-h6 text-weight-bold"
+                :class="pendientePorAsignar < 0.001 ? 'text-grey-5' : 'text-negative'"
+              >
+                {{ fmtNum(pendientePorAsignar) }} kg
+              </div>
+            </q-card>
+          </div>
+        </div>
+
+        <!-- División Rápida -->
+        <q-card flat bordered class="q-pa-md q-mb-md bg-purple-1">
+          <div class="row items-center q-mb-sm">
+            <q-icon name="bolt" color="purple-7" class="q-mr-xs" />
+            <span class="text-weight-bold text-purple-9">División Rápida (Partes Iguales):</span>
+          </div>
+          <div class="row q-gutter-sm q-mb-sm">
+            <q-btn
+              v-for="n in [2, 3, 4, 5]"
+              :key="n"
+              unelevated
+              color="purple-7"
+              icon="call_split"
+              size="sm"
+              :label="`${n} Productores`"
+              @click="divisionRapida(n)"
+            />
+          </div>
+          <div class="text-caption text-purple-8">
+            <q-icon name="lightbulb" size="xs" />
+            Estos botones dividen automáticamente los kilogramos en partes iguales. Puedes ajustar manualmente después.
+          </div>
+        </q-card>
+
+        <!-- Botón Agregar Productor -->
+        <div class="row justify-end q-mb-sm">
+          <q-btn unelevated color="green-7" icon="add" label="Agregar Productor" @click="agregarProductorDivision" />
+        </div>
+
+        <!-- Tabla de productores -->
+        <q-markup-table flat bordered separator="cell" class="q-mb-md">
+          <thead>
+            <tr class="bg-grey-3">
+              <th class="text-center" style="width: 40px">#</th>
+              <th class="text-left">Nombre del Productor</th>
+              <th class="text-center" style="width: 180px">Kg Asignados</th>
+              <th class="text-center" style="width: 160px">Monto a Liquidar</th>
+              <th class="text-center" style="width: 56px">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(prod, idx) in divisionProductores" :key="idx">
+              <td class="text-center">{{ idx + 1 }}</td>
+              <td>
+                <span v-if="prod.esPrincipal" class="text-weight-medium">{{ prod.nombre }}</span>
+                <q-select
+                  v-else
+                  :model-value="productoresCatalogo.find((x) => x.id === prod.productorId) || null"
+                  :options="opcionesProductoresFiltradas"
+                  option-label="nombre"
+                  use-input
+                  input-debounce="200"
+                  dense
+                  outlined
+                  style="min-width: 220px"
+                  @filter="filtrarProductoresCatalogo"
+                  @update:model-value="seleccionarProductorDivision(idx, $event)"
+                >
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey text-caption">Productor no encontrado</q-item-section>
+                    </q-item>
+                    <q-item clickable @click="abrirModalNuevoProductorDivision">
+                      <q-item-section class="text-primary text-caption">
+                        + Registrar nuevo productor
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+              </td>
+              <td class="text-center">
+                <q-input
+                  :model-value="prod.kgAsignados"
+                  type="number"
+                  dense
+                  outlined
+                  style="width: 150px"
+                  min="0"
+                  @update:model-value="onKgDivisionChange(idx, $event)"
+                />
+              </td>
+              <td class="text-center text-green-8 text-weight-medium">
+                {{ fmtMoney((Number(prod.kgAsignados) || 0) * (detalle.precio || 0)) }}
+              </td>
+              <td class="text-center">
+                <q-btn
+                  v-if="!prod.esPrincipal"
+                  flat
+                  round
+                  icon="delete"
+                  color="negative"
+                  size="sm"
+                  @click="eliminarProductorDivision(idx)"
+                />
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="bg-blue-1">
+              <td colspan="2" class="text-right text-weight-bold q-pr-md">TOTALES:</td>
+              <td class="text-center text-weight-bold text-blue-8">{{ fmtNum(totalKgAsignado) }} kg</td>
+              <td class="text-center text-weight-bold text-green-8">{{ fmtMoney(totalImporteDivision) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </q-markup-table>
+
+        <!-- Advertencia -->
+        <q-banner v-if="pendientePorAsignar > 0.001" class="bg-amber-1 text-orange-9" rounded>
+          <template #avatar><q-icon name="warning" color="orange-7" /></template>
+          La suma de kilogramos asignados debe ser exactamente igual al total de
+          <strong>{{ fmtNum(kgALiquidar) }} kg</strong>
+        </q-banner>
+
+      </q-card-section>
+
+      <q-card-actions align="right" class="q-pa-md bg-grey-1">
+        <q-btn flat label="Cancelar" @click="modalDivision = false" />
+        <q-btn unelevated color="blue-8" label="Confirmar División" @click="confirmarDivision" />
+      </q-card-actions>
+
+    </q-card>
+  </q-dialog>
+
+  <!-- ==================== MODAL NUEVO PRODUCTOR (desde división) ==================== -->
+  <q-dialog v-model="modalProductor" persistent>
+    <q-card style="min-width: 420px; max-width: 95vw">
+      <q-card-section class="bg-primary text-white">
+        <div class="text-h6">Agregar nuevo Productor</div>
+      </q-card-section>
+
+      <q-card-section class="q-gutter-md">
+        <div class="row q-gutter-md">
+          <q-radio v-model="nuevoProd.tipo" val="Fisica" label="Física" />
+          <q-radio v-model="nuevoProd.tipo" val="Moral" label="Moral" />
+        </div>
+
+        <template v-if="nuevoProd.tipo === 'Fisica'">
+          <q-input
+            v-model="nuevoProd.nombre"
+            label="Nombre del productor"
+            placeholder="Ing. Luis Perez"
+            outlined
+            dense
+          />
+        </template>
+        <template v-else>
+          <q-input
+            v-model="nuevoProd.nombre"
+            label="Razón Social"
+            placeholder="Agronegocios SA DE CV"
+            outlined
+            dense
+          />
+          <q-input
+            v-model="nuevoProd.atiende"
+            label="Nombre de quien atiende"
+            placeholder="Ing. Carlos Ramírez"
+            outlined
+            dense
+          />
+        </template>
+
+        <q-input
+          v-model="nuevoProd.telefono"
+          label="Teléfono"
+          placeholder="6441234567"
+          outlined
+          dense
+          mask="##########"
+        />
+      </q-card-section>
+
+      <q-card-actions align="right">
+        <q-btn label="Cerrar" flat v-close-popup />
+        <q-btn label="Registrar Productor" color="primary" @click="guardarNuevoProductorDivision" />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
 </template>
 
 <script setup lang="ts">
@@ -1075,6 +1402,34 @@ interface DetalleData {
   analisisDatosAdicionales?: string;
   granoId?: number;
   siloNombre?: string;
+  productorId?: number;
+  divisiones?: { productorId: number; nombre: string; kgAsignados: number; importeTotal: number }[];
+  divisionesJson?: string;
+}
+
+interface ProductorDivision {
+  productorId: number;
+  nombre: string;
+  kgAsignados: number;
+  rfc: string;
+  esPrincipal: boolean;
+}
+
+interface ProductorCatalogo {
+  id: number;
+  nombre: string;
+  rfc: string;
+}
+
+interface PreliquidacionDoc {
+  productor: string;
+  tProductor: string;
+  boleta: string;
+  ticket: string;
+  kgALiquidar: number;
+  monto: number;
+  montoIPRM: number | null;
+  iprmPorcentaje: number | null;
 }
 
 const opcionesRT = ['Riego', 'Temporal'];
@@ -1119,6 +1474,29 @@ const modoManual = ref(false);
 
 // Upload
 const uploadedPhotos = ref<string[]>([]);
+
+// IPRM
+const iprmCatalogo = ref<{ tipoProductorNombre: string; porcentaje: number }[]>([]);
+
+// División entre productores
+const modalDivision = ref(false);
+const productoresCatalogo = ref<ProductorCatalogo[]>([]);
+const opcionesProductoresFiltradas = ref<ProductorCatalogo[]>([]);
+const productoresCargados = ref(false);
+const divisionProductores = ref<ProductorDivision[]>([]);
+const divisionConfirmada = ref<ProductorDivision[] | null>(null);
+
+// Modal nuevo productor (desde división)
+const modalProductor = ref(false);
+const nuevoProd = reactive({ tipo: 'Fisica', nombre: '', atiende: '', telefono: '' });
+// Índice del productor en la tabla de división que abrió el modal (para auto-seleccionar al registrar)
+const idxProductorPendiente = ref<number | null>(null);
+
+// Documentos de pre-liquidación (uno por productor cuando hay división)
+const preliquidacionDocumentos = ref<PreliquidacionDoc[]>([]);
+const docActualIdx = ref(0);
+const docActual = computed(() => preliquidacionDocumentos.value[docActualIdx.value] || null);
+
 // Filtros
 const filtros = reactive({
   ticket: '',
@@ -1183,6 +1561,35 @@ const detalleTotalDanos = computed(() => {
   return (imp + r1 + sr2).toFixed(2);
 });
 
+const kgALiquidarNum = computed(() => parseFloat(kgALiquidar.value.replace(/,/g, '')) || 0);
+
+const aLiquidarIPRM = computed(() => {
+  const importe = parseFloat(aLiquidar.value) || 0;
+  if (importe <= 0) return '';
+  const tProductor = (detalle.value.tProductor || selectedRegistro.value?.tProductor || '').toLowerCase();
+  const regla = iprmCatalogo.value.find(
+    (r) => r.tipoProductorNombre?.toLowerCase() === tProductor,
+  );
+  if (!regla) return '';
+  const descuento = importe * (Number(regla.porcentaje) / 100);
+  return (importe - descuento).toFixed(2);
+});
+
+const totalKgAsignado = computed(() =>
+  divisionProductores.value.reduce((s, p) => s + (Number(p.kgAsignados) || 0), 0),
+);
+
+const pendientePorAsignar = computed(() =>
+  Math.max(0, kgALiquidarNum.value - totalKgAsignado.value),
+);
+
+const totalImporteDivision = computed(() =>
+  divisionProductores.value.reduce(
+    (s, p) => s + (Number(p.kgAsignados) || 0) * (detalle.value.precio || 0),
+    0,
+  ),
+);
+
 const frijolDataInicial = computed(() => {
   const raw = detalle.value.analisisDatosAdicionales || detalle.value.datosAdicionales;
   if (!raw) return undefined;
@@ -1245,6 +1652,16 @@ async function cargarFactorImpurezas() {
   }
 }
 
+async function cargarIPRM() {
+  try {
+    const sedeId = authStore.sedeActivaId || 0;
+    const { data } = await api.get('/api/ConfiguracionFacturacion/iprm', { params: { sedeId } });
+    iprmCatalogo.value = data;
+  } catch (err) {
+    console.error('Error al cargar IPRM:', err);
+  }
+}
+
 // --- VER DETALLE ---
 async function verDetalle(registro: RegistroPreliq) {
   selectedRegistro.value = registro;
@@ -1255,6 +1672,29 @@ async function verDetalle(registro: RegistroPreliq) {
     // 1. Carga el detalle completo desde la API
     const { data } = await api.get(`/api/preliquidacion/detalle/${registro.boletaId}`);
     detalle.value = data;
+
+    // Reconstruir divisionConfirmada desde divisiones_json si la preliquidación ya está guardada
+    divisionConfirmada.value = null;
+    preliquidacionDocumentos.value = [];
+    if (data.divisionesJson) {
+      try {
+        const parsed = JSON.parse(data.divisionesJson);
+        const productores = parsed.productores as Array<{
+          ProductorId: number; Nombre: string; KgAsignados: number; ImporteTotal: number;
+        }>;
+        if (productores && productores.length > 1) {
+          divisionConfirmada.value = productores.map((p, i) => ({
+            productorId: p.ProductorId,
+            nombre: p.Nombre,
+            kgAsignados: p.KgAsignados,
+            rfc: '',
+            esPrincipal: i === 0,
+          }));
+        }
+      } catch {
+        // JSON inválido, se ignora
+      }
+    }
 
     // 2. Manejo de Documentación (Fotos/PDF)
     uploadedPhotos.value = [];
@@ -1430,6 +1870,72 @@ function reconectarBascula() {
   }
 }
 
+// Abre la vista de pre-liquidación cuando ya está guardada (reconstruye documentos si es necesario)
+function abrirPreliquidacionGuardada() {
+  // Si ya están populados (misma sesión tras generar y guardar), solo mostrar
+  if (preliquidacionDocumentos.value.length > 0) {
+    docActualIdx.value = 0;
+    showPreliquidacion.value = true;
+    return;
+  }
+
+  // Calcular factor IPRM
+  const precio = detalle.value.precio || 0;
+  const tProductor = (
+    detalle.value.tProductor || selectedRegistro.value?.tProductor || ''
+  ).toLowerCase();
+  const regla = iprmCatalogo.value.find(
+    (r) => r.tipoProductorNombre?.toLowerCase() === tProductor,
+  );
+  const iprmPct = regla ? Number(regla.porcentaje) : null;
+  const calcMontoIPRM = (monto: number): number | null =>
+    iprmPct !== null ? monto * (1 - iprmPct / 100) : null;
+
+  // Reconstruir desde divisionConfirmada (poblada en verDetalle desde divisiones_json)
+  // o desde detalle.value.divisiones como fallback
+  const divs = divisionConfirmada.value ||
+    (detalle.value.divisiones && detalle.value.divisiones.length > 1
+      ? detalle.value.divisiones.map((d) => ({
+          productorId: d.productorId, nombre: d.nombre,
+          kgAsignados: d.kgAsignados, rfc: '', esPrincipal: false,
+        }))
+      : null);
+
+  if (divs && divs.length > 1) {
+    preliquidacionDocumentos.value = divs.map((prod, i) => {
+      const monto = Number(prod.kgAsignados) * precio;
+      return {
+        productor: prod.nombre,
+        tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
+        boleta: `${selectedRegistro.value?.noBoleta}-P${i + 1}`,
+        ticket: `${selectedRegistro.value?.ticket}-P${i + 1}`,
+        kgALiquidar: Number(prod.kgAsignados),
+        monto,
+        montoIPRM: calcMontoIPRM(monto),
+        iprmPorcentaje: iprmPct,
+      };
+    });
+  } else {
+    // Documento único desde datos históricos
+    const monto = detalle.value.importeTotal || parseFloat(aLiquidar.value) || 0;
+    preliquidacionDocumentos.value = [
+      {
+        productor: selectedRegistro.value?.productor || '',
+        tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
+        boleta: selectedRegistro.value?.noBoleta || '',
+        ticket: selectedRegistro.value?.ticket || '',
+        kgALiquidar: detalle.value.kgALiquidar || parseFloat(kgALiquidar.value) || 0,
+        monto,
+        montoIPRM: calcMontoIPRM(monto),
+        iprmPorcentaje: iprmPct,
+      },
+    ];
+  }
+
+  docActualIdx.value = 0;
+  showPreliquidacion.value = true;
+}
+
 function handleGenerarPreliquidacion() {
   if (!pesoNeto.value || pesoNeto.value.trim() === '' || Number(pesoNeto.value) === 0) {
     Notify.create({
@@ -1446,7 +1952,56 @@ function handleGenerarPreliquidacion() {
     Notify.create({ type: 'warning', message: 'El ticket no tiene Impurezas capturadas.' });
     return;
   }
+
+  // Calcular factor IPRM para el tipo de productor
+  const precio = detalle.value.precio || 0;
+  const tProductor = (detalle.value.tProductor || selectedRegistro.value?.tProductor || '').toLowerCase();
+  const regla = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === tProductor);
+  const iprmPct = regla ? Number(regla.porcentaje) : null;
+  const calcMontoIPRM = (monto: number): number | null =>
+    iprmPct !== null ? monto * (1 - iprmPct / 100) : null;
+
+  if (divisionConfirmada.value && divisionConfirmada.value.length > 1) {
+    // Un documento por productor, boleta/ticket con sufijo -1, -2, etc.
+    preliquidacionDocumentos.value = divisionConfirmada.value.map((prod, i) => {
+      const monto = Number(prod.kgAsignados) * precio;
+      return {
+        productor: prod.nombre,
+        tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
+        boleta: `${selectedRegistro.value?.noBoleta}-P${i + 1}`,
+        ticket: `${selectedRegistro.value?.ticket}-P${i + 1}`,
+        kgALiquidar: Number(prod.kgAsignados),
+        monto,
+        montoIPRM: calcMontoIPRM(monto),
+        iprmPorcentaje: iprmPct,
+      };
+    });
+  } else {
+    // Documento único
+    const monto = parseFloat(aLiquidar.value) || 0;
+    preliquidacionDocumentos.value = [
+      {
+        productor: selectedRegistro.value?.productor || '',
+        tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
+        boleta: selectedRegistro.value?.noBoleta || '',
+        ticket: selectedRegistro.value?.ticket || '',
+        kgALiquidar: parseFloat(kgALiquidar.value) || 0,
+        monto,
+        montoIPRM: calcMontoIPRM(monto),
+        iprmPorcentaje: iprmPct,
+      },
+    ];
+  }
+
+  docActualIdx.value = 0;
   showPreliquidacion.value = true;
+}
+
+function docAnterior() {
+  if (docActualIdx.value > 0) docActualIdx.value--;
+}
+function docSiguiente() {
+  if (docActualIdx.value < preliquidacionDocumentos.value.length - 1) docActualIdx.value++;
 }
 
 async function handleGuardarPreliquidacion() {
@@ -1472,6 +2027,7 @@ async function handleGuardarPreliquidacion() {
 
   try {
     // 2. Preparación del Payload (Coincidiendo con PreliquidacionDto.cs)
+    const precio = detalle.value?.precio || 0;
     preliquidacionDto.value = {
       boletaId: detalle.value?.boletaId || 0,
       pesoTara: parseFloat(pesoTara.value.toString().replace(/,/g, '')) || 0,
@@ -1480,14 +2036,24 @@ async function handleGuardarPreliquidacion() {
       kgALiquidar: parseFloat(kgALiquidar.value.toString().replace(/,/g, '')) || 0,
       importeTotal: parseFloat(aLiquidar.value.toString().replace(/,/g, '')) || 0,
       observaciones: observaciones.value || '',
-
-      // CORRECCIÓN AQUÍ:
       rt: rt.value || '',
-      tipoSiembra: rt.value || '', // Agregamos esta línea para que vue-tsc no marque error
+      tipoSiembra: rt.value || '',
     };
 
-    // 3. Envío al servidor (Nota: revisa si tu ruta es /api/preliquidacion o /preliquidacion)
-    await api.post('/api/preliquidacion/guardar', preliquidacionDto.value);
+    const payload = {
+      ...preliquidacionDto.value,
+      divisiones: divisionConfirmada.value
+        ? divisionConfirmada.value.map((p) => ({
+            productorId: p.productorId,
+            nombre: p.nombre,
+            kgAsignados: Number(p.kgAsignados),
+            importeTotal: Number(p.kgAsignados) * precio,
+          }))
+        : null,
+    };
+
+    // 3. Envío al servidor
+    await api.post('/api/preliquidacion/guardar', payload);
 
     // 4. Actualización de estado de la UI
     preliquidacionGuardada.value = true;
@@ -1579,6 +2145,200 @@ async function handleGuardarDocumentacion() {
   }
 }
 
+// --- FUNCIONES DE DIVISIÓN ---
+async function abrirModalDivision() {
+  if (!pesoNeto.value || Number(pesoNeto.value) === 0) {
+    Notify.create({ type: 'warning', message: 'Debe capturar el Peso Tara antes de dividir.' });
+    return;
+  }
+  if (!detalle.value.precio) {
+    Notify.create({ type: 'warning', message: 'El ticket no tiene un Precio autorizado.' });
+    return;
+  }
+  if (!productoresCargados.value) {
+    $q.loading.show({ message: 'Cargando catálogo de productores...' });
+    await cargarProductoresCatalogo();
+    $q.loading.hide();
+  }
+  opcionesProductoresFiltradas.value = [...productoresCatalogo.value];
+  if (divisionConfirmada.value) {
+    divisionProductores.value = divisionConfirmada.value.map((p) => ({ ...p }));
+  } else {
+    divisionProductores.value = [
+      {
+        productorId: detalle.value.productorId || 0,
+        nombre: selectedRegistro.value?.productor || '',
+        kgAsignados: kgALiquidarNum.value,
+        rfc: '',
+        esPrincipal: true,
+      },
+    ];
+  }
+  modalDivision.value = true;
+}
+
+async function cargarProductoresCatalogo() {
+  try {
+    const sedeId = authStore.sedeActivaId || 0;
+    const { data } = await api.get('/api/catalogos/productores', {
+      params: { sedeId, pageSize: 1000 },
+    });
+    productoresCatalogo.value = (data.items || data).map((p: Record<string, unknown>) => ({
+      id: p.id as number,
+      nombre: p.nombre as string,
+      rfc: (p.rfc as string) || '',
+    }));
+    productoresCargados.value = true;
+  } catch (err) {
+    console.error('Error al cargar productores:', err);
+  }
+}
+
+function divisionRapida(n: number) {
+  const kgTotal = kgALiquidarNum.value;
+  const kgBase = Math.floor((kgTotal * 1000) / n) / 1000;
+  const kgPrincipal = Math.round((kgTotal - kgBase * (n - 1)) * 1000) / 1000;
+  const nuevos: ProductorDivision[] = [];
+  for (let i = 0; i < n; i++) {
+    const kg = i === 0 ? kgPrincipal : kgBase;
+    const existente = divisionProductores.value[i];
+    nuevos.push({
+      productorId: i === 0 ? (detalle.value.productorId || 0) : (existente?.productorId || 0),
+      nombre: i === 0 ? (selectedRegistro.value?.productor || '') : (existente?.nombre || ''),
+      kgAsignados: kg,
+      rfc: i === 0 ? '' : (existente?.rfc || ''),
+      esPrincipal: i === 0,
+    });
+  }
+  divisionProductores.value = nuevos;
+}
+
+function agregarProductorDivision() {
+  divisionProductores.value.push({
+    productorId: 0,
+    nombre: '',
+    kgAsignados: 0,
+    rfc: '',
+    esPrincipal: false,
+  });
+}
+
+function eliminarProductorDivision(idx: number) {
+  if (idx === 0) return;
+  divisionProductores.value.splice(idx, 1);
+}
+
+function onKgDivisionChange(idx: number, val: string | number | null) {
+  const item = divisionProductores.value[idx];
+  if (!item) return;
+  const nuevo = Math.max(0, parseFloat(val?.toString() || '0') || 0);
+  const sumaOtros = divisionProductores.value
+    .filter((_, i) => i !== idx)
+    .reduce((s, p) => s + (Number(p.kgAsignados) || 0), 0);
+  const maxPermitido = Math.round((kgALiquidarNum.value - sumaOtros) * 1000) / 1000;
+  item.kgAsignados = Math.min(nuevo, Math.max(0, maxPermitido));
+}
+
+function seleccionarProductorDivision(idx: number, productor: ProductorCatalogo | null) {
+  const item = divisionProductores.value[idx];
+  if (!item || !productor) return;
+  item.productorId = productor.id;
+  item.nombre = productor.nombre;
+  item.rfc = productor.rfc || '';
+}
+
+function filtrarProductoresCatalogo(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    if (!val) {
+      opcionesProductoresFiltradas.value = productoresCatalogo.value;
+    } else {
+      const needle = val.toLowerCase();
+      opcionesProductoresFiltradas.value = productoresCatalogo.value.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(needle) || p.rfc?.toLowerCase().includes(needle),
+      );
+    }
+  });
+}
+
+function abrirModalNuevoProductorDivision() {
+  // Detectar el último productor sin asignar para auto-seleccionarlo tras registrar
+  let idx = -1;
+  for (let i = divisionProductores.value.length - 1; i >= 0; i--) {
+    const p = divisionProductores.value[i];
+    if (p && !p.esPrincipal && !p.productorId) { idx = i; break; }
+  }
+  idxProductorPendiente.value = idx >= 0 ? idx : null;
+  nuevoProd.tipo = 'Fisica';
+  nuevoProd.nombre = '';
+  nuevoProd.atiende = '';
+  nuevoProd.telefono = '';
+  modalProductor.value = true;
+}
+
+async function guardarNuevoProductorDivision() {
+  if (!nuevoProd.nombre.trim()) {
+    Notify.create({ type: 'warning', message: 'Debe ingresar el nombre del productor.' });
+    return;
+  }
+  try {
+    const sedeId = authStore.sedeActivaId || 0;
+    const payload = {
+      nombre: nuevoProd.nombre,
+      telefono: nuevoProd.telefono,
+      tipo_persona: nuevoProd.tipo,
+      atiende: nuevoProd.tipo === 'Moral' ? nuevoProd.atiende : null,
+      sedeId,
+    };
+
+    const res = await api.post('/api/catalogos/productores', payload);
+    const recienCreado: ProductorCatalogo = {
+      id: res.data.id,
+      nombre: nuevoProd.nombre,
+      rfc: '',
+    };
+
+    // Agregar al catálogo local
+    productoresCatalogo.value = [recienCreado, ...productoresCatalogo.value];
+    opcionesProductoresFiltradas.value = [...productoresCatalogo.value];
+
+    // Auto-asignar al productor pendiente si hay uno
+    if (idxProductorPendiente.value !== null) {
+      seleccionarProductorDivision(idxProductorPendiente.value, recienCreado);
+    }
+
+    modalProductor.value = false;
+    Notify.create({ type: 'positive', message: 'Productor registrado con éxito.' });
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al registrar productor.' });
+  }
+}
+
+function confirmarDivision() {
+  if (divisionProductores.value.length < 2) {
+    Notify.create({ type: 'warning', message: 'Debe agregar al menos 2 productores para dividir.' });
+    return;
+  }
+  if (Math.abs(pendientePorAsignar.value) > 0.001) {
+    Notify.create({
+      type: 'warning',
+      message: `Pendiente por asignar: ${pendientePorAsignar.value.toFixed(3)} kg. La suma debe ser exactamente ${fmtNum(kgALiquidar.value)} kg.`,
+    });
+    return;
+  }
+  const invalido = divisionProductores.value.find((p) => !p.esPrincipal && !p.productorId);
+  if (invalido) {
+    Notify.create({ type: 'warning', message: 'Debe seleccionar todos los productores de la lista.' });
+    return;
+  }
+  divisionConfirmada.value = divisionProductores.value.map((p) => ({ ...p }));
+  modalDivision.value = false;
+  Notify.create({
+    type: 'positive',
+    message: `División confirmada entre ${divisionProductores.value.length} productores.`,
+  });
+}
+
 function volverALista() {
   showDetail.value = false;
   showPreliquidacion.value = false;
@@ -1586,6 +2346,8 @@ function volverALista() {
   selectedRegistro.value = null;
   detalle.value = {};
   preliquidacionGuardada.value = false;
+  divisionConfirmada.value = null;
+  divisionProductores.value = [];
 }
 
 function limpiarFiltros() {
@@ -1638,6 +2400,7 @@ function exportarExcel() {
 // --- LIFECYCLE ---
 onMounted(async () => {
   await cargarFactorImpurezas();
+  await cargarIPRM();
   await cargarRegistros();
   await cargarResumen();
 });
@@ -1646,6 +2409,7 @@ watch(
   () => authStore.sedeActivaId,
   async () => {
     await cargarFactorImpurezas();
+    await cargarIPRM();
     await cargarRegistros();
     await cargarResumen();
   },

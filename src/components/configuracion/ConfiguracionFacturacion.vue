@@ -115,6 +115,90 @@
       </q-slide-transition>
     </q-card>
 
+    <!-- Configuración IPRM -->
+    <q-card bordered flat>
+      <q-item clickable v-ripple class="bg-grey-1" @click="toggleSeccion('iprm')">
+        <q-item-section avatar>
+          <q-icon name="percent" color="teal-6" />
+        </q-item-section>
+        <q-item-section>
+          <q-item-label class="text-subtitle1 text-weight-medium">Configuración IPRM</q-item-label>
+        </q-item-section>
+        <q-item-section side>
+          <q-icon :name="seccionExpandida === 'iprm' ? 'expand_less' : 'chevron_right'" color="grey-7" />
+        </q-item-section>
+      </q-item>
+
+      <q-separator />
+
+      <q-slide-transition>
+        <div v-show="seccionExpandida === 'iprm'" class="q-pa-md bg-white">
+          <div class="text-caption text-grey-7 q-mb-md">
+            Configura el porcentaje de descuento IPRM por tipo de productor. Se aplica al importe total para calcular el monto neto a liquidar.
+          </div>
+
+          <q-markup-table flat bordered dense class="q-mb-md">
+            <thead>
+              <tr class="bg-grey-2">
+                <th class="text-left">Tipo de Productor</th>
+                <th class="text-center" style="width: 170px">Porcentaje (%)</th>
+                <th class="text-center" style="width: 60px">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in iprmItems" :key="idx">
+                <td>
+                  <q-input v-model="item.tipoProductorNombre" dense outlined placeholder="Ej: Ejidal" />
+                </td>
+                <td class="text-center">
+                  <q-input
+                    v-model.number="item.porcentaje"
+                    type="number"
+                    step="0.0001"
+                    dense
+                    outlined
+                    style="width: 140px"
+                    input-class="text-center"
+                  />
+                </td>
+                <td class="text-center">
+                  <q-btn flat round icon="delete" color="negative" size="sm" @click="iprmItems.splice(idx, 1)" />
+                </td>
+              </tr>
+              <tr v-if="iprmItems.length === 0">
+                <td colspan="3" class="text-center text-grey-5 q-pa-md">Sin registros. Agrega un tipo de productor.</td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+
+          <div class="row justify-between items-center">
+            <q-btn
+              outline
+              color="teal-7"
+              icon="add"
+              label="Agregar Tipo"
+              size="sm"
+              @click="iprmItems.push({ tipoProductorNombre: '', porcentaje: 0 })"
+            />
+            <div class="text-caption text-grey-6">
+              <q-icon name="info" size="xs" /> Ejemplos: Ejidal → 1.2666%, Pequeña Propiedad → 1.6866%
+            </div>
+          </div>
+
+          <div class="row justify-end q-mt-md">
+            <q-btn
+              unelevated
+              color="teal-7"
+              icon="save"
+              label="Guardar IPRM"
+              :loading="guardandoIPRM"
+              @click="guardarIPRM"
+            />
+          </div>
+        </div>
+      </q-slide-transition>
+    </q-card>
+
     <q-card bordered flat>
       <q-item clickable v-ripple class="bg-grey-1" @click="toggleSeccion('validaciones')">
         <q-item-section avatar>
@@ -547,6 +631,9 @@
 import { ref, computed, h, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { Notify } from 'quasar'
+import { useAuthStore } from 'src/stores/auth'
+
+const authStore = useAuthStore()
 
 defineOptions({
   name: 'ConfiguracionRecepcionFacturas'
@@ -579,7 +666,7 @@ interface DocumentoEndoso {
   id: number; nombre: string; formato: string; obligatorio: boolean; activo: boolean;
 }
 
-type SeccionKey = '' | 'documentos' | 'validaciones' | 'financiero' | 'status' | 'persona' | 'formatos' | 'endoso'
+type SeccionKey = '' | 'documentos' | 'validaciones' | 'financiero' | 'status' | 'persona' | 'formatos' | 'endoso' | 'iprm'
 
 // --- Estado ---
 const seccionExpandida = ref<SeccionKey>('documentos')
@@ -604,6 +691,11 @@ const longitudRFCFisica = ref(13)
 const longitudRFCMoral = ref(12)
 const requiereActaMoral = ref(false)
 
+// IPRM
+interface IprmItem { tipoProductorNombre: string; porcentaje: number }
+const iprmItems = ref<IprmItem[]>([])
+const guardandoIPRM = ref(false)
+
 // Endoso
 const tituloEndoso = ref('')
 const requiereDocumentoEscaneado = ref(false)
@@ -624,6 +716,10 @@ const formatosPermitidos = ref<FormatoPermitido[]>([
 onMounted(async () => {
   loading.value = true
   try {
+    const sedeId = authStore.sedeActivaId || 0
+    const iprmRes = await api.get('/api/ConfiguracionFacturacion/iprm', { params: { sedeId } })
+    iprmItems.value = iprmRes.data
+
     const { data } = await api.get('/api/ConfiguracionFacturacion')
     
     if (data && data.general) {
@@ -683,6 +779,20 @@ const statusOrdenado = computed(() => [...statusFlujo.value].sort((a, b) => a.or
 const toggleSeccion = (s: SeccionKey) => { seccionExpandida.value = seccionExpandida.value === s ? '' : s }
 const calcRet = (base: number, pct: number) => (base * (pct || 0)) / 100
 const fmtMoney = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n)
+
+const guardarIPRM = async () => {
+  guardandoIPRM.value = true
+  try {
+    const sedeId = authStore.sedeActivaId || 0
+    await api.post('/api/ConfiguracionFacturacion/iprm/guardar', iprmItems.value, { params: { sedeId } })
+    Notify.create({ type: 'positive', message: 'Configuración IPRM guardada correctamente' })
+  } catch (e) {
+    console.error(e)
+    Notify.create({ type: 'negative', message: 'Error al guardar IPRM' })
+  } finally {
+    guardandoIPRM.value = false
+  }
+}
 
 const guardarConfiguracion = async () => {
   loading.value = true
