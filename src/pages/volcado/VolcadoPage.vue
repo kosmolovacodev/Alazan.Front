@@ -284,13 +284,13 @@
                       <div class="text-caption text-grey-7">DESCUENTO (KG/TON)</div>
                       <div class="text-weight-bold">{{ formatNumber(detalleData?.descuento) }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoPantallaVisible('calibre')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">CALIBRE</div>
                       <div class="text-weight-bold text-blue-9">
                         {{ detalleData?.calibre || '-' }}
                       </div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoPantallaVisible('humedad')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">HUMEDAD</div>
                       <div class="text-weight-bold">{{ detalleData?.humedad || 0 }}%</div>
                     </div>
@@ -327,7 +327,34 @@
                     :calibre="detalleData?.calibre || ''"
                     :read-only="true"
                     :frijol-data-inicial="frijolDataInicial"
+                    :camposConfig="camposConfigActual"
                   />
+
+                  <!-- CAMPOS PERSONALIZADOS -->
+                  <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
+                    <q-card-section class="q-gutter-sm">
+                      <div
+                        v-for="campo in camposPersonalizadosVisibles"
+                        :key="campo.claveCampo"
+                        class="row items-center justify-between"
+                      >
+                        <div class="col text-body2 text-grey-8 text-weight-medium">
+                          {{ campo.nombreMostrar }}
+                        </div>
+                        <div class="col-auto">
+                          <q-input
+                            :model-value="datosPersonalizados[campo.claveCampo] || ''"
+                            dense
+                            outlined
+                            readonly
+                            bg-color="grey-2"
+                            input-class="text-right"
+                            style="width: 160px"
+                          />
+                        </div>
+                      </div>
+                    </q-card-section>
+                  </q-card>
 
                   <!-- Fotos del Analisis -->
                   <div class="q-mt-md">
@@ -1297,6 +1324,65 @@ const frijolDataInicial = computed(() => {
   }
 });
 
+interface CampoConfig {
+  claveCampo: string;
+  visible: boolean;
+  nombreMostrar?: string;
+  granoId: number | null;
+}
+
+const camposAnalisisConfig = ref<CampoConfig[]>([]);
+
+const camposConfigActual = computed(() => {
+  const granoId = detalleData.value?.granoId ?? null;
+  return camposAnalisisConfig.value.filter(c => c.granoId === granoId);
+});
+
+function campoPantallaVisible(clave: string): boolean {
+  if (camposConfigActual.value.length === 0) return true;
+  const cfg = camposConfigActual.value.find(c => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+const CAMPOS_PREDEFINIDOS = new Set([
+  'calibre', 'humedad', 'impurezas', 'r1', 'r2', 'cafesLisos', 'manchados',
+  'quebMxc', 'helados', 'alimonados', 'revolcados', 'exportacion',
+  'frijol_impurezas', 'frijol_piedras', 'frijol_mitades', 'frijol_oscuros',
+  'frijol_arrugados', 'frijol_manchados', 'frijol_verdes', 'frijol_tierra',
+  'frijol_otras_variedades', 'frijol_granos_pequenos', 'frijol_danos_campo',
+  'frijol_plaga_viva', 'frijol_plaga_muerta',
+]);
+
+const camposPersonalizadosVisibles = computed(() =>
+  camposConfigActual.value.filter(c => c.visible && !CAMPOS_PREDEFINIDOS.has(c.claveCampo))
+);
+
+const datosPersonalizados = computed<Record<string, string>>(() => {
+  const raw = detalleData.value?.datosAdicionales;
+  if (!raw) return {};
+  try {
+    const datos = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return datos as Record<string, string>;
+  } catch {
+    return {};
+  }
+});
+
+async function cargarConfigCampos() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get<{ campos: (CampoConfig & { pantalla: string })[] }>(
+      '/api/configuracion-recepcion',
+      { params: { sedeId } },
+    );
+    camposAnalisisConfig.value = (data.campos ?? [])
+      .filter(c => c.pantalla === 'ANALISIS')
+      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+  } catch {
+    // Si falla, se muestran todos los campos
+  }
+}
+
 async function verDetalleBoleta(registro: RegistroVolcado) {
   registroDetalleSeleccionado.value = registro;
   detalleSiloSeleccionado.value = registro.siloId || null;
@@ -1498,24 +1584,14 @@ function exportarExcel() {
 
 // Lifecycle
 onMounted(async () => {
-  await cargarSilos();
-  await cargarSilosCalibre();
-  await cargarSilosPulmon();
-  await cargarBodegas();
-  await cargarRegistros();
-  await cargarResumen();
+  await Promise.all([cargarSilos(), cargarSilosCalibre(), cargarSilosPulmon(), cargarBodegas(), cargarRegistros(), cargarResumen(), cargarConfigCampos()]);
 });
 
 // Watcher para cambio de sede
 watch(
   () => authStore.sedeActivaId,
   async () => {
-    await cargarSilos();
-    await cargarSilosCalibre();
-    await cargarSilosPulmon();
-    await cargarBodegas();
-    await cargarRegistros();
-    await cargarResumen();
+    await Promise.all([cargarSilos(), cargarSilosCalibre(), cargarSilosPulmon(), cargarBodegas(), cargarRegistros(), cargarResumen(), cargarConfigCampos()]);
   },
 );
 </script>

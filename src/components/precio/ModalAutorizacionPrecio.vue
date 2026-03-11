@@ -209,15 +209,42 @@
                     :calibre="selectedBoleta?.calibre || ''"
                     :read-only="true"
                     :frijol-data-inicial="frijolDataInicial"
+                    :camposConfig="camposConfigActual"
                   />
 
                   <!-- HUMEDAD -->
-                  <div class="q-mt-sm bg-cyan-1 q-pa-md rounded-borders text-center">
+                  <div v-if="campoPantallaVisible('humedad')" class="q-mt-sm bg-cyan-1 q-pa-md rounded-borders text-center">
                     <div class="text-caption text-weight-bold text-grey-8">HUMEDAD</div>
                     <div class="text-h6 text-weight-bold text-cyan-9">
                       {{ selectedBoleta?.humedad || 0 }}%
                     </div>
                   </div>
+
+                  <!-- CAMPOS PERSONALIZADOS -->
+                  <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
+                    <q-card-section class="q-gutter-sm">
+                      <div
+                        v-for="campo in camposPersonalizadosVisibles"
+                        :key="campo.claveCampo"
+                        class="row items-center justify-between"
+                      >
+                        <div class="col text-body2 text-grey-8 text-weight-medium">
+                          {{ campo.nombreMostrar }}
+                        </div>
+                        <div class="col-auto">
+                          <q-input
+                            :model-value="datosPersonalizados[campo.claveCampo] || ''"
+                            dense
+                            outlined
+                            readonly
+                            bg-color="grey-2"
+                            input-class="text-right"
+                            style="width: 160px"
+                          />
+                        </div>
+                      </div>
+                    </q-card-section>
+                  </q-card>
 
                   <!-- FOTOS DEL ANÁLISIS -->
                   <div class="q-mt-md">
@@ -413,10 +440,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import type { BoletaPrecio } from 'src/types/precio';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
+import { api } from 'src/boot/axios';
+import { useAuthStore } from 'src/stores/auth';
+
+interface CampoConfig {
+  claveCampo: string;
+  visible: boolean;
+  nombreMostrar?: string;
+  granoId: number | null;
+}
 
 type PrecioItem = { codigo: string; valor: number };
 type TablaCalibreItem = { calibre: string; descuento_kg_ton: number };
@@ -445,7 +481,68 @@ const emit = defineEmits<{
 }>();
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 const fotoAmpliadaUrl = ref('');
+
+const camposAnalisisConfig = ref<CampoConfig[]>([]);
+
+const camposConfigActual = computed(() => {
+  const granoId = props.selectedBoleta?.granoId ?? null;
+  return camposAnalisisConfig.value.filter(c => c.granoId === granoId);
+});
+
+function campoPantallaVisible(clave: string): boolean {
+  if (camposConfigActual.value.length === 0) return true;
+  const cfg = camposConfigActual.value.find(c => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+const CAMPOS_PREDEFINIDOS = new Set([
+  'calibre', 'humedad', 'impurezas', 'r1', 'r2', 'cafesLisos', 'manchados',
+  'quebMxc', 'helados', 'alimonados', 'revolcados', 'exportacion',
+  'frijol_impurezas', 'frijol_piedras', 'frijol_mitades', 'frijol_oscuros',
+  'frijol_arrugados', 'frijol_manchados', 'frijol_verdes', 'frijol_tierra',
+  'frijol_otras_variedades', 'frijol_granos_pequenos', 'frijol_danos_campo',
+  'frijol_plaga_viva', 'frijol_plaga_muerta',
+]);
+
+const camposPersonalizadosVisibles = computed(() =>
+  camposConfigActual.value.filter(c => c.visible && !CAMPOS_PREDEFINIDOS.has(c.claveCampo))
+);
+
+const datosPersonalizados = computed<Record<string, string>>(() => {
+  const raw = props.selectedBoleta?.datosAdicionales;
+  if (!raw) return {};
+  try {
+    const datos = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return datos as Record<string, string>;
+  } catch {
+    return {};
+  }
+});
+
+async function cargarConfigCampos() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get<{ campos: (CampoConfig & { pantalla: string })[] }>(
+      '/api/configuracion-recepcion',
+      { params: { sedeId } },
+    );
+    camposAnalisisConfig.value = (data.campos ?? [])
+      .filter(c => c.pantalla === 'ANALISIS')
+      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+  } catch {
+    // Si falla, se muestran todos los campos
+  }
+}
+
+onMounted(() => {
+  void cargarConfigCampos();
+});
+
+watch(() => authStore.sedeActivaId, () => {
+  void cargarConfigCampos();
+});
 const precioInferiorClickPendiente = ref<string | null>(null);
 const precioInferiorTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const precioCustom96 = ref<number | string>('');

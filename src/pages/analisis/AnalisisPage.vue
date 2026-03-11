@@ -180,12 +180,38 @@
                 :readOnly="!esEditable"
                 :tipoGranoId="registroActual?.grano_id ?? 0"
                 :frijolDataInicial="frijolData"
+                :camposConfig="camposConfigActual"
                 @input-change="onTablaInputChange"
                 @frijol-data-change="onFrijolDataChange"
               />
 
+              <!-- Campos personalizados (no predefinidos) -->
+              <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
+                <q-card-section class="q-gutter-sm">
+                  <div
+                    v-for="campo in camposPersonalizadosVisibles"
+                    :key="campo.claveCampo"
+                    class="row items-center justify-between q-col-gutter-md"
+                  >
+                    <div class="col">
+                      <div class="text-body2 text-grey-8 text-weight-medium">{{ campo.nombreMostrar }}</div>
+                    </div>
+                    <div class="col-auto row items-center q-gutter-xs">
+                      <q-input
+                        v-model="datosPersonalizados[campo.claveCampo]"
+                        dense
+                        outlined
+                        :readonly="!esEditable"
+                        input-class="text-right"
+                        style="width: 160px"
+                      />
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+
               <div class="row q-col-gutter-md q-mt-md">
-                <div class="col-12 col-md-6">
+                <div v-if="campoPantallaVisible('calibre')" class="col-12 col-md-6">
                   <q-select
                     v-model="analisisData.calibre"
                     :options="listaCalibres"
@@ -208,7 +234,7 @@
                     </template>
                   </q-select>
                 </div>
-                <div class="col-12 col-md-6">
+                <div v-if="campoPantallaVisible('humedad')" class="col-12 col-md-6">
                   <q-input
                     v-model="analisisData.humedad"
                     type="number"
@@ -346,6 +372,15 @@ import TablaAnalisisDesplegable from './TablaAnalisisDesplegable.vue';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from 'src/stores/auth';
 
+interface CampoAnalisisConfig {
+  id: number;
+  claveCampo: string;
+  nombreMostrar: string;
+  visible: boolean;
+  obligatorio: boolean;
+  granoId: number | null;
+}
+
 interface RegistroBascula {
   id: number;
   ticket_numero: string;
@@ -425,6 +460,40 @@ const listaPendientes = ref<RegistroBascula[]>([]);
 const listaCalibres = ref<{ id: number; nombre: string }[]>([]);
 const uploadedPhotos = ref<string[]>([]);
 const frijolData = ref<FrijolRow[]>([]);
+
+// Config de campos de análisis por grano
+const camposAnalisisConfig = ref<CampoAnalisisConfig[]>([]);
+
+// Filtra los campos de análisis para el grano del registro actual
+const camposConfigActual = computed(() => {
+  const granoId = registroActual.value?.grano_id ?? null;
+  return camposAnalisisConfig.value.filter(c => c.granoId === granoId);
+});
+
+// Helper: true si el campo es visible según config (si no hay config, muestra todo)
+function campoPantallaVisible(clave: string): boolean {
+  if (camposConfigActual.value.length === 0) return true;
+  const cfg = camposConfigActual.value.find(c => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+// Claves manejadas por la UI fija (no se renderizan como campos personalizados)
+const CAMPOS_PREDEFINIDOS = new Set([
+  'calibre', 'humedad', 'impurezas', 'r1', 'r2', 'cafesLisos', 'manchados',
+  'quebMxc', 'helados', 'alimonados', 'revolcados', 'exportacion',
+  'frijol_impurezas', 'frijol_piedras', 'frijol_mitades', 'frijol_oscuros',
+  'frijol_arrugados', 'frijol_manchados', 'frijol_verdes', 'frijol_tierra',
+  'frijol_otras_variedades', 'frijol_granos_pequenos', 'frijol_danos_campo',
+  'frijol_plaga_viva', 'frijol_plaga_muerta',
+]);
+
+// Campos personalizados visibles (los que el usuario agregó y no son predefinidos)
+const camposPersonalizadosVisibles = computed(() =>
+  camposConfigActual.value.filter(c => c.visible && !CAMPOS_PREDEFINIDOS.has(c.claveCampo))
+);
+
+// Valores de campos personalizados (guardados en datos_adicionales)
+const datosPersonalizados = ref<Record<string, string>>({});
 
 // Cámara con getUserMedia
 const cameraDialog = ref(false);
@@ -514,9 +583,22 @@ async function cargarPendientes() {
   }
 }
 
+async function cargarConfigCampos() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get<{ campos: CampoAnalisisConfig[] }>('/api/configuracion-recepcion', {
+      params: { sedeId }
+    });
+    camposAnalisisConfig.value = (data.campos ?? [])
+      .filter(c => (c as unknown as { pantalla: string }).pantalla === 'ANALISIS')
+      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+  } catch {
+    // Si falla la carga de config, la pantalla sigue funcionando con todos los campos visibles
+  }
+}
+
 onMounted(async () => {
-  await cargarPendientes();
-  // Los calibres se cargan automáticamente vía watch de registroActual.grano_id
+  await Promise.all([cargarPendientes(), cargarConfigCampos()]);
   const granoId = registroActual.value?.grano_id;
   void cargarCalibres(granoId ?? undefined);
 });
@@ -594,10 +676,18 @@ watch(
 
         // Cargar datos de frijol si existen
         frijolData.value = Array.isArray(extra.frijol_datos) ? extra.frijol_datos : [];
+
+        // Cargar campos personalizados (cualquier clave que no sea de las reservadas)
+        const reservadas = new Set(['exportacion', 'cafes_lisos', 'helados', 'alimonados', 'revolcados', 'fotos', 'frijol_datos']);
+        datosPersonalizados.value = {};
+        for (const key of Object.keys(extra)) {
+          if (!reservadas.has(key)) datosPersonalizados.value[key] = String(extra[key] ?? '');
+        }
       } catch (e) {
         console.error('Error al parsear datos adicionales:', e);
         uploadedPhotos.value = [];
         frijolData.value = [];
+        datosPersonalizados.value = {};
       }
     } else {
       // Si no hay análisis previo, aseguramos que los campos calculados inicien limpios
@@ -607,6 +697,7 @@ watch(
       analisisData.revolcados = '';
       uploadedPhotos.value = [];
       frijolData.value = [];
+      datosPersonalizados.value = {};
     }
   },
   { immediate: true },
@@ -657,9 +748,10 @@ function limpiarFormulario() {
   analisisData.alimonados = '';
   analisisData.revolcados = '';
 
-  // Limpiar el array de fotos y datos de frijol
+  // Limpiar el array de fotos, datos de frijol y campos personalizados
   uploadedPhotos.value = [];
   frijolData.value = [];
+  datosPersonalizados.value = {};
 }
 
 function onTablaInputChange(campo: string, valor: string) {
@@ -789,6 +881,7 @@ async function guardar() {
         ...(r.grano_id === 1 && frijolData.value.length > 0
           ? { frijol_datos: frijolData.value }
           : {}),
+        ...datosPersonalizados.value,
       }),
     };
 

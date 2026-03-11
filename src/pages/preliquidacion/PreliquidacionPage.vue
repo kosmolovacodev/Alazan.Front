@@ -576,11 +576,25 @@
         </div>
         <!-- Navegación entre documentos (solo si hay más de uno) -->
         <div v-if="preliquidacionDocumentos.length > 1" class="row items-center q-gutter-xs">
-          <q-btn flat round dense icon="chevron_left" :disable="docActualIdx === 0" @click="docAnterior" />
+          <q-btn
+            flat
+            round
+            dense
+            icon="chevron_left"
+            :disable="docActualIdx === 0"
+            @click="docAnterior"
+          />
           <span class="text-body2 text-grey-7 q-px-xs">
             {{ docActualIdx + 1 }} / {{ preliquidacionDocumentos.length }}
           </span>
-          <q-btn flat round dense icon="chevron_right" :disable="docActualIdx === preliquidacionDocumentos.length - 1" @click="docSiguiente" />
+          <q-btn
+            flat
+            round
+            dense
+            icon="chevron_right"
+            :disable="docActualIdx === preliquidacionDocumentos.length - 1"
+            @click="docSiguiente"
+          />
         </div>
         <div class="row q-gutter-sm">
           <q-btn flat round icon="print" size="lg" @click="imprimirPantalla" />
@@ -610,121 +624,22 @@
           </div>
         </div>
 
-        <!-- Contenido en dos columnas -->
-        <div class="row q-col-gutter-lg q-mb-lg">
-          <!-- Columna izquierda -->
-          <div class="col-12 col-md-6">
+        <!-- Campos dinámicos de preliquidación -->
+        <div class="row q-col-gutter-sm q-mb-lg">
+          <div
+            v-for="campo in camposPLVisibles"
+            :key="campo.claveCampo"
+            class="col-12 col-sm-6"
+          >
             <q-input
-              :model-value="docActual.productor"
-              label="PRODUCTOR"
+              :model-value="getCampoValor(campo.claveCampo)"
+              :label="campo.nombreMostrar"
               outlined
               dense
               readonly
               class="q-mb-sm"
-            />
-            <q-input
-              :model-value="selectedRegistro.tProductor || '-'"
-              label="T. PRODUCTOR"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="detalle.grano || '-'"
-              label="PRODUCTO"
-              outlined
-              dense
-              readonly
-              bg-color="grey-2"
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="selectedRegistro.chofer || '-'"
-              label="CAMIÓN"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="selectedRegistro.placas || '-'"
-              label="PLACAS"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="selectedRegistro.chofer || '-'"
-              label="CHOFER"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input :model-value="rt || '-'" label="R/T" outlined dense readonly class="q-mb-sm" />
-          </div>
-          <!-- Columna derecha -->
-          <div class="col-12 col-md-6">
-            <q-input
-              :model-value="selectedRegistro.fecha"
-              label="FECHA"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="fmtNum(detalle.precio || 0)"
-              label="PRECIO"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="fmtNum(descuento)"
-              label="DESCUENTO"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <!-- KG LIQUIDAR: en naranja, valor del documento actual -->
-            <q-input
-              :model-value="fmtNum(docActual.kgALiquidar)"
-              label="KG LIQUIDAR"
-              outlined
-              dense
-              readonly
-              label-color="orange-8"
-              input-class="text-orange-8 text-weight-bold"
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="fmtNum(selectedRegistro.pesoBruto)"
-              label="PESO BRUTO"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="fmtNum(pesoTara)"
-              label="TARA"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
-            />
-            <q-input
-              :model-value="fmtNum(pesoNeto)"
-              label="PESO NETO"
-              outlined
-              dense
-              readonly
-              class="q-mb-sm"
+              :label-color="campo.claveCampo === 'kg_liquidar' ? 'orange-8' : undefined"
+              :input-class="campo.claveCampo === 'kg_liquidar' ? 'text-orange-8 text-weight-bold' : undefined"
             />
           </div>
         </div>
@@ -746,6 +661,14 @@
           >
             (Incluye descuento IPRM del {{ Number(docActual.iprmPorcentaje).toFixed(4) }}%)
           </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div v-if="campoPLVisible('observaciones')" class="q-mb-lg">
+          <div class="text-subtitle1 text-weight-bold text-uppercase text-grey-8 q-mb-xs">
+            Observaciones
+          </div>
+          <div class="text-body1">{{ detalle.observaciones }}</div>
         </div>
 
         <!-- Documentación requerida -->
@@ -920,7 +843,7 @@
                 bg-color="grey-2"
               />
             </div>
-            <div class="col-6">
+            <div v-if="campoPantallaVisible('calibre')" class="col-6">
               <q-input
                 :model-value="detalle.calibre || '-'"
                 label="CALIBRE"
@@ -930,7 +853,7 @@
                 bg-color="grey-2"
               />
             </div>
-            <div class="col-6">
+            <div v-if="campoPantallaVisible('humedad')" class="col-6">
               <q-input
                 :model-value="(detalle.humedad || 0) + '%'"
                 label="HUMEDAD"
@@ -964,7 +887,38 @@
               :calibre="detalle.calibre || ''"
               :read-only="true"
               :frijol-data-inicial="frijolDataInicial"
+              :camposConfig="camposConfigActual"
             />
+
+            <!-- CAMPOS PERSONALIZADOS -->
+            <q-card
+              v-if="camposPersonalizadosVisibles.length > 0"
+              bordered
+              class="bg-white q-mt-sm"
+            >
+              <q-card-section class="q-gutter-sm">
+                <div
+                  v-for="campo in camposPersonalizadosVisibles"
+                  :key="campo.claveCampo"
+                  class="row items-center justify-between"
+                >
+                  <div class="col text-body2 text-grey-8 text-weight-medium">
+                    {{ campo.nombreMostrar }}
+                  </div>
+                  <div class="col-auto">
+                    <q-input
+                      :model-value="datosPersonalizados[campo.claveCampo] || ''"
+                      dense
+                      outlined
+                      readonly
+                      bg-color="grey-2"
+                      input-class="text-right"
+                      style="width: 160px"
+                    />
+                  </div>
+                </div>
+              </q-card-section>
+            </q-card>
           </div>
 
           <q-separator class="q-my-md" />
@@ -1021,8 +975,9 @@
 
   <!-- ==================== MODAL DIVIDIR ENTRE PRODUCTORES ==================== -->
   <q-dialog v-model="modalDivision" persistent>
-    <q-card style="max-width: 860px; width: 100%; max-height: 92vh; display: flex; flex-direction: column">
-
+    <q-card
+      style="max-width: 860px; width: 100%; max-height: 92vh; display: flex; flex-direction: column"
+    >
       <!-- Header -->
       <q-toolbar class="bg-blue-8 text-white">
         <q-toolbar-title>
@@ -1033,14 +988,19 @@
       </q-toolbar>
 
       <q-card-section style="overflow-y: auto; flex: 1" class="q-pa-md">
-
         <!-- Info -->
         <q-banner class="bg-blue-1 q-mb-md" rounded>
           <template #avatar><q-icon name="info" color="blue-7" size="sm" /></template>
           <div class="text-weight-medium text-blue-9 q-mb-xs">¿Cómo dividir el ticket?</div>
           <ul class="q-ma-none q-pl-md text-blue-9 text-caption">
-            <li><strong>Opción 1:</strong> Usa los botones de "División Rápida" para dividir en partes iguales automáticamente</li>
-            <li><strong>Opción 2:</strong> Haz clic en "+ Agregar Productor" y asigna los kg manualmente a cada uno</li>
+            <li>
+              <strong>Opción 1:</strong> Usa los botones de "División Rápida" para dividir en partes
+              iguales automáticamente
+            </li>
+            <li>
+              <strong>Opción 2:</strong> Haz clic en "+ Agregar Productor" y asigna los kg
+              manualmente a cada uno
+            </li>
             <li>La suma de todos los kg debe ser exactamente igual al total disponible</li>
           </ul>
         </q-banner>
@@ -1056,7 +1016,9 @@
           <div class="col-6 col-sm-3">
             <q-card flat bordered class="q-pa-sm text-center">
               <div class="text-caption text-grey-6">Precio por Kg</div>
-              <div class="text-h6 text-green-8 text-weight-bold">{{ fmtMoney(detalle.precio || 0) }}</div>
+              <div class="text-h6 text-green-8 text-weight-bold">
+                {{ fmtMoney(detalle.precio || 0) }}
+              </div>
             </q-card>
           </div>
           <div class="col-6 col-sm-3">
@@ -1103,13 +1065,20 @@
           </div>
           <div class="text-caption text-purple-8">
             <q-icon name="lightbulb" size="xs" />
-            Estos botones dividen automáticamente los kilogramos en partes iguales. Puedes ajustar manualmente después.
+            Estos botones dividen automáticamente los kilogramos en partes iguales. Puedes ajustar
+            manualmente después.
           </div>
         </q-card>
 
         <!-- Botón Agregar Productor -->
         <div class="row justify-end q-mb-sm">
-          <q-btn unelevated color="green-7" icon="add" label="Agregar Productor" @click="agregarProductorDivision" />
+          <q-btn
+            unelevated
+            color="green-7"
+            icon="add"
+            label="Agregar Productor"
+            @click="agregarProductorDivision"
+          />
         </div>
 
         <!-- Tabla de productores -->
@@ -1143,7 +1112,9 @@
                 >
                   <template #no-option>
                     <q-item>
-                      <q-item-section class="text-grey text-caption">Productor no encontrado</q-item-section>
+                      <q-item-section class="text-grey text-caption"
+                        >Productor no encontrado</q-item-section
+                      >
                     </q-item>
                     <q-item clickable @click="abrirModalNuevoProductorDivision">
                       <q-item-section class="text-primary text-caption">
@@ -1183,8 +1154,12 @@
           <tfoot>
             <tr class="bg-blue-1">
               <td colspan="2" class="text-right text-weight-bold q-pr-md">TOTALES:</td>
-              <td class="text-center text-weight-bold text-blue-8">{{ fmtNum(totalKgAsignado) }} kg</td>
-              <td class="text-center text-weight-bold text-green-8">{{ fmtMoney(totalImporteDivision) }}</td>
+              <td class="text-center text-weight-bold text-blue-8">
+                {{ fmtNum(totalKgAsignado) }} kg
+              </td>
+              <td class="text-center text-weight-bold text-green-8">
+                {{ fmtMoney(totalImporteDivision) }}
+              </td>
               <td></td>
             </tr>
           </tfoot>
@@ -1196,14 +1171,12 @@
           La suma de kilogramos asignados debe ser exactamente igual al total de
           <strong>{{ fmtNum(kgALiquidar) }} kg</strong>
         </q-banner>
-
       </q-card-section>
 
       <q-card-actions align="right" class="q-pa-md bg-grey-1">
         <q-btn flat label="Cancelar" @click="modalDivision = false" />
         <q-btn unelevated color="blue-8" label="Confirmar División" @click="confirmarDivision" />
       </q-card-actions>
-
     </q-card>
   </q-dialog>
 
@@ -1262,7 +1235,6 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-
 </template>
 
 <script setup lang="ts">
@@ -1405,6 +1377,8 @@ interface DetalleData {
   productorId?: number;
   divisiones?: { productorId: number; nombre: string; kgAsignados: number; importeTotal: number }[];
   divisionesJson?: string;
+  rfc?: string;
+  atiende?: string;
 }
 
 interface ProductorDivision {
@@ -1566,10 +1540,12 @@ const kgALiquidarNum = computed(() => parseFloat(kgALiquidar.value.replace(/,/g,
 const aLiquidarIPRM = computed(() => {
   const importe = parseFloat(aLiquidar.value) || 0;
   if (importe <= 0) return '';
-  const tProductor = (detalle.value.tProductor || selectedRegistro.value?.tProductor || '').toLowerCase();
-  const regla = iprmCatalogo.value.find(
-    (r) => r.tipoProductorNombre?.toLowerCase() === tProductor,
-  );
+  const tProductor = (
+    detalle.value.tProductor ||
+    selectedRegistro.value?.tProductor ||
+    ''
+  ).toLowerCase();
+  const regla = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === tProductor);
   if (!regla) return '';
   const descuento = importe * (Number(regla.porcentaje) / 100);
   return (importe - descuento).toFixed(2);
@@ -1600,6 +1576,133 @@ const frijolDataInicial = computed(() => {
     return undefined;
   }
 });
+
+interface CampoConfig {
+  claveCampo: string;
+  visible: boolean;
+  nombreMostrar?: string;
+  granoId: number | null;
+  orden?: number;
+}
+
+const camposAnalisisConfig = ref<CampoConfig[]>([]);
+const camposPreliqConfig = ref<CampoConfig[]>([]);
+
+const camposConfigActual = computed(() => {
+  const granoId = detalle.value.granoId ?? null;
+  return camposAnalisisConfig.value.filter((c) => c.granoId === granoId);
+});
+
+function campoPantallaVisible(clave: string): boolean {
+  if (camposConfigActual.value.length === 0) return true;
+  const cfg = camposConfigActual.value.find((c) => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+function campoPLVisible(clave: string): boolean {
+  if (camposPreliqConfig.value.length === 0) return true;
+  const cfg = camposPreliqConfig.value.find((c) => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+const CAMPO_VALOR_MAP: Record<string, () => string> = {
+  folio: () => selectedRegistro.value?.noBoleta || detalle.value.noBoleta || '-',
+  fecha: () => selectedRegistro.value?.fecha || '-',
+  productor: () => docActual.value?.productor || detalle.value.productor || '-',
+  rfc: () => detalle.value.rfc || '-',
+  producto: () => detalle.value.grano || '-',
+  calibre: () => detalle.value.calibre || '-',
+  t_productor: () => selectedRegistro.value?.tProductor || detalle.value.tProductor || '-',
+  tipoProductor: () => selectedRegistro.value?.tProductor || detalle.value.tProductor || '-',
+  camion: () => selectedRegistro.value?.chofer || '-',
+  placas: () => selectedRegistro.value?.placas || '-',
+  chofer: () => selectedRegistro.value?.chofer || '-',
+  rt: () => rt.value || '-',
+  riegoTemporal: () => rt.value || '-',
+  atiende: () => detalle.value.atiende || '-',
+  precio: () => fmtNum(detalle.value.precio || 0),
+  descuento: () => fmtNum(Number(descuento.value) || 0),
+  descuentoKg: () => fmtNum(Number(descuento.value) || 0),
+  kg_liquidar: () => fmtNum(docActual.value?.kgALiquidar),
+  peso_bruto: () => fmtNum(selectedRegistro.value?.pesoBruto),
+  tara: () => fmtNum(Number(pesoTara.value) || 0),
+  peso_neto: () => fmtNum(Number(pesoNeto.value) || 0),
+  pesoNeto: () => fmtNum(detalle.value.pesoNeto),
+  totalPagar: () => fmtMoney(docActual.value?.montoIPRM ?? docActual.value?.monto),
+  observaciones: () => detalle.value.observaciones || '-',
+};
+
+function getCampoValor(clave: string): string {
+  return CAMPO_VALOR_MAP[clave]?.() ?? '-';
+}
+
+const camposPLVisibles = computed(() =>
+  [...camposPreliqConfig.value]
+    .filter((c) => c.visible && c.claveCampo !== 'observaciones')
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)),
+);
+
+const CAMPOS_PREDEFINIDOS = new Set([
+  'calibre',
+  'humedad',
+  'impurezas',
+  'r1',
+  'r2',
+  'cafesLisos',
+  'manchados',
+  'quebMxc',
+  'helados',
+  'alimonados',
+  'revolcados',
+  'exportacion',
+  'frijol_impurezas',
+  'frijol_piedras',
+  'frijol_mitades',
+  'frijol_oscuros',
+  'frijol_arrugados',
+  'frijol_manchados',
+  'frijol_verdes',
+  'frijol_tierra',
+  'frijol_otras_variedades',
+  'frijol_granos_pequenos',
+  'frijol_danos_campo',
+  'frijol_plaga_viva',
+  'frijol_plaga_muerta',
+]);
+
+const camposPersonalizadosVisibles = computed(() =>
+  camposConfigActual.value.filter((c) => c.visible && !CAMPOS_PREDEFINIDOS.has(c.claveCampo)),
+);
+
+const datosPersonalizados = computed<Record<string, string>>(() => {
+  const raw = detalle.value.analisisDatosAdicionales || detalle.value.datosAdicionales;
+  if (!raw) return {};
+  try {
+    const datos = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return datos as Record<string, string>;
+  } catch {
+    return {};
+  }
+});
+
+async function cargarConfigCampos() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get<{ campos: (CampoConfig & { pantalla: string })[] }>(
+      '/api/configuracion-recepcion',
+      { params: { sedeId } },
+    );
+    const todos = data.campos ?? [];
+    camposAnalisisConfig.value = todos
+      .filter((c) => c.pantalla === 'ANALISIS')
+      .map((c) => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+    camposPreliqConfig.value = todos
+      .filter((c) => c.pantalla === 'PRELIQUIDACION')
+      .map((c) => ({ ...c, visible: !!c.visible, granoId: null }));
+  } catch {
+    // Si falla, se muestran todos los campos
+  }
+}
 
 // --- FUNCIONES UTILITARIAS ---
 function fmtNum(val: number | string | undefined | null): string {
@@ -1680,7 +1783,10 @@ async function verDetalle(registro: RegistroPreliq) {
       try {
         const parsed = JSON.parse(data.divisionesJson);
         const productores = parsed.productores as Array<{
-          ProductorId: number; Nombre: string; KgAsignados: number; ImporteTotal: number;
+          ProductorId: number;
+          Nombre: string;
+          KgAsignados: number;
+          ImporteTotal: number;
         }>;
         if (productores && productores.length > 1) {
           divisionConfirmada.value = productores.map((p, i) => ({
@@ -1882,22 +1988,26 @@ function abrirPreliquidacionGuardada() {
   // Calcular factor IPRM
   const precio = detalle.value.precio || 0;
   const tProductor = (
-    detalle.value.tProductor || selectedRegistro.value?.tProductor || ''
+    detalle.value.tProductor ||
+    selectedRegistro.value?.tProductor ||
+    ''
   ).toLowerCase();
-  const regla = iprmCatalogo.value.find(
-    (r) => r.tipoProductorNombre?.toLowerCase() === tProductor,
-  );
+  const regla = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === tProductor);
   const iprmPct = regla ? Number(regla.porcentaje) : null;
   const calcMontoIPRM = (monto: number): number | null =>
     iprmPct !== null ? monto * (1 - iprmPct / 100) : null;
 
   // Reconstruir desde divisionConfirmada (poblada en verDetalle desde divisiones_json)
   // o desde detalle.value.divisiones como fallback
-  const divs = divisionConfirmada.value ||
+  const divs =
+    divisionConfirmada.value ||
     (detalle.value.divisiones && detalle.value.divisiones.length > 1
       ? detalle.value.divisiones.map((d) => ({
-          productorId: d.productorId, nombre: d.nombre,
-          kgAsignados: d.kgAsignados, rfc: '', esPrincipal: false,
+          productorId: d.productorId,
+          nombre: d.nombre,
+          kgAsignados: d.kgAsignados,
+          rfc: '',
+          esPrincipal: false,
         }))
       : null);
 
@@ -1955,7 +2065,11 @@ function handleGenerarPreliquidacion() {
 
   // Calcular factor IPRM para el tipo de productor
   const precio = detalle.value.precio || 0;
-  const tProductor = (detalle.value.tProductor || selectedRegistro.value?.tProductor || '').toLowerCase();
+  const tProductor = (
+    detalle.value.tProductor ||
+    selectedRegistro.value?.tProductor ||
+    ''
+  ).toLowerCase();
   const regla = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === tProductor);
   const iprmPct = regla ? Number(regla.porcentaje) : null;
   const calcMontoIPRM = (monto: number): number | null =>
@@ -2203,10 +2317,10 @@ function divisionRapida(n: number) {
     const kg = i === 0 ? kgPrincipal : kgBase;
     const existente = divisionProductores.value[i];
     nuevos.push({
-      productorId: i === 0 ? (detalle.value.productorId || 0) : (existente?.productorId || 0),
-      nombre: i === 0 ? (selectedRegistro.value?.productor || '') : (existente?.nombre || ''),
+      productorId: i === 0 ? detalle.value.productorId || 0 : existente?.productorId || 0,
+      nombre: i === 0 ? selectedRegistro.value?.productor || '' : existente?.nombre || '',
       kgAsignados: kg,
-      rfc: i === 0 ? '' : (existente?.rfc || ''),
+      rfc: i === 0 ? '' : existente?.rfc || '',
       esPrincipal: i === 0,
     });
   }
@@ -2254,8 +2368,7 @@ function filtrarProductoresCatalogo(val: string, update: (fn: () => void) => voi
     } else {
       const needle = val.toLowerCase();
       opcionesProductoresFiltradas.value = productoresCatalogo.value.filter(
-        (p) =>
-          p.nombre.toLowerCase().includes(needle) || p.rfc?.toLowerCase().includes(needle),
+        (p) => p.nombre.toLowerCase().includes(needle) || p.rfc?.toLowerCase().includes(needle),
       );
     }
   });
@@ -2266,7 +2379,10 @@ function abrirModalNuevoProductorDivision() {
   let idx = -1;
   for (let i = divisionProductores.value.length - 1; i >= 0; i--) {
     const p = divisionProductores.value[i];
-    if (p && !p.esPrincipal && !p.productorId) { idx = i; break; }
+    if (p && !p.esPrincipal && !p.productorId) {
+      idx = i;
+      break;
+    }
   }
   idxProductorPendiente.value = idx >= 0 ? idx : null;
   nuevoProd.tipo = 'Fisica';
@@ -2316,7 +2432,10 @@ async function guardarNuevoProductorDivision() {
 
 function confirmarDivision() {
   if (divisionProductores.value.length < 2) {
-    Notify.create({ type: 'warning', message: 'Debe agregar al menos 2 productores para dividir.' });
+    Notify.create({
+      type: 'warning',
+      message: 'Debe agregar al menos 2 productores para dividir.',
+    });
     return;
   }
   if (Math.abs(pendientePorAsignar.value) > 0.001) {
@@ -2328,7 +2447,10 @@ function confirmarDivision() {
   }
   const invalido = divisionProductores.value.find((p) => !p.esPrincipal && !p.productorId);
   if (invalido) {
-    Notify.create({ type: 'warning', message: 'Debe seleccionar todos los productores de la lista.' });
+    Notify.create({
+      type: 'warning',
+      message: 'Debe seleccionar todos los productores de la lista.',
+    });
     return;
   }
   divisionConfirmada.value = divisionProductores.value.map((p) => ({ ...p }));
@@ -2399,19 +2521,25 @@ function exportarExcel() {
 
 // --- LIFECYCLE ---
 onMounted(async () => {
-  await cargarFactorImpurezas();
-  await cargarIPRM();
-  await cargarRegistros();
-  await cargarResumen();
+  await Promise.all([
+    cargarFactorImpurezas(),
+    cargarIPRM(),
+    cargarRegistros(),
+    cargarResumen(),
+    cargarConfigCampos(),
+  ]);
 });
 
 watch(
   () => authStore.sedeActivaId,
   async () => {
-    await cargarFactorImpurezas();
-    await cargarIPRM();
-    await cargarRegistros();
-    await cargarResumen();
+    await Promise.all([
+      cargarFactorImpurezas(),
+      cargarIPRM(),
+      cargarRegistros(),
+      cargarResumen(),
+      cargarConfigCampos(),
+    ]);
   },
 );
 </script>

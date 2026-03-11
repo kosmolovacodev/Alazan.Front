@@ -54,6 +54,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/pagos/PagosSede.vue'),
       },
       {
+        path: 'produccion',
+        meta: { permiso: 'Producción' },
+        component: () => import('pages/produccion/ProduccionPage.vue'),
+      },
+      {
         path: 'configuracion',
         meta: { permiso: 'Configuración' },
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),

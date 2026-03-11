@@ -149,19 +149,21 @@
                   </template>
                   <template v-slot:body-cell-acciones="props">
                     <q-td :props="props">
-                      <q-btn 
-                        v-if="!props.row.esSistema" 
-                        icon="delete" 
-                        color="negative" 
-                        flat 
-                        dense 
-                        round 
-                        size="sm" 
+                      <q-btn icon="edit" color="primary" flat dense round size="sm" @click="abrirEdicion(props.row)">
+                        <q-tooltip>Editar nombre</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        v-if="!props.row.esSistema"
+                        icon="delete"
+                        color="negative"
+                        flat
+                        dense
+                        round
+                        size="sm"
                         @click="eliminarCampo(props.row)"
                       >
                         <q-tooltip>Eliminar campo personalizado</q-tooltip>
                       </q-btn>
-                      
                       <q-icon v-else name="lock" color="grey-4">
                         <q-tooltip>Campo de Sistema (Protegido)</q-tooltip>
                       </q-icon>
@@ -184,19 +186,21 @@
                   <template v-slot:body-cell-obligatorio="props"><q-td :props="props"><q-checkbox v-model="props.row.obligatorio" dense /></q-td></template>
                   <template v-slot:body-cell-acciones="props">
                     <q-td :props="props">
-                      <q-btn 
-                        v-if="!props.row.esSistema" 
-                        icon="delete" 
-                        color="negative" 
-                        flat 
-                        dense 
-                        round 
-                        size="sm" 
+                      <q-btn icon="edit" color="primary" flat dense round size="sm" @click="abrirEdicion(props.row)">
+                        <q-tooltip>Editar nombre</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        v-if="!props.row.esSistema"
+                        icon="delete"
+                        color="negative"
+                        flat
+                        dense
+                        round
+                        size="sm"
                         @click="eliminarCampo(props.row)"
                       >
                         <q-tooltip>Eliminar campo personalizado</q-tooltip>
                       </q-btn>
-                      
                       <q-icon v-else name="lock" color="grey-4">
                         <q-tooltip>Campo de Sistema (Protegido)</q-tooltip>
                       </q-icon>
@@ -205,13 +209,25 @@
                 </q-table>
               </q-tab-panel>
 
-              <q-tab-panel name="ANALISIS" class="q-pa-none">
-                <q-table :rows="camposAnalisis" :columns="columnsCampos" row-key="id" flat dense :pagination="{ rowsPerPage: 0 }" hide-bottom>
+              <q-tab-panel name="ANALISIS" class="q-pa-sm">
+                <div class="row items-center q-gutter-sm q-mb-sm">
+                  <div class="text-caption text-grey-7">Tipo de grano a configurar:</div>
+                  <q-select
+                    v-model="granoFiltroAnalisis"
+                    :options="opcionesGranoAnalisis"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    style="min-width: 180px"
+                  />
+                </div>
+                <q-table :rows="camposAnalisisFiltrados" :columns="columnsCampos" row-key="id" flat dense :pagination="{ rowsPerPage: 0 }" hide-bottom>
                     <template v-slot:body-cell-orden="props">
                       <q-td :props="props">
                         <div class="row justify-center no-wrap">
-                          <q-btn flat dense size="sm" icon="arrow_upward" @click="moverFila(camposAnalisis, props.rowIndex, -1)" color="grey-8" />
-                          <q-btn flat dense size="sm" icon="arrow_downward" @click="moverFila(camposAnalisis, props.rowIndex, 1)" color="grey-8" />
+                          <q-btn flat dense size="sm" icon="arrow_upward" @click="moverFilaAnalisis(props.rowIndex, -1)" :disable="props.rowIndex === 0" color="grey-8" />
+                          <q-btn flat dense size="sm" icon="arrow_downward" @click="moverFilaAnalisis(props.rowIndex, 1)" :disable="props.rowIndex === camposAnalisisFiltrados.length - 1" color="grey-8" />
                         </div>
                       </q-td>
                     </template>
@@ -219,19 +235,21 @@
                     <template v-slot:body-cell-obligatorio="props"><q-td :props="props"><q-checkbox v-model="props.row.obligatorio" dense /></q-td></template>
                   <template v-slot:body-cell-acciones="props">
                     <q-td :props="props">
-                      <q-btn 
-                        v-if="!props.row.esSistema" 
-                        icon="delete" 
-                        color="negative" 
-                        flat 
-                        dense 
-                        round 
-                        size="sm" 
+                      <q-btn icon="edit" color="primary" flat dense round size="sm" @click="abrirEdicion(props.row)">
+                        <q-tooltip>Editar nombre</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        v-if="!props.row.esSistema"
+                        icon="delete"
+                        color="negative"
+                        flat
+                        dense
+                        round
+                        size="sm"
                         @click="eliminarCampo(props.row)"
                       >
                         <q-tooltip>Eliminar campo personalizado</q-tooltip>
                       </q-btn>
-                      
                       <q-icon v-else name="lock" color="grey-4">
                         <q-tooltip>Campo de Sistema (Protegido)</q-tooltip>
                       </q-icon>
@@ -254,19 +272,21 @@
                     <template v-slot:body-cell-obligatorio="props"><q-td :props="props"><q-checkbox v-model="props.row.obligatorio" dense /></q-td></template>
                     <template v-slot:body-cell-acciones="props">
                       <q-td :props="props">
-                        <q-btn 
-                          v-if="!props.row.esSistema" 
-                          icon="delete" 
-                          color="negative" 
-                          flat 
-                          dense 
-                          round 
-                          size="sm" 
+                        <q-btn icon="edit" color="primary" flat dense round size="sm" @click="abrirEdicion(props.row)">
+                          <q-tooltip>Editar nombre</q-tooltip>
+                        </q-btn>
+                        <q-btn
+                          v-if="!props.row.esSistema"
+                          icon="delete"
+                          color="negative"
+                          flat
+                          dense
+                          round
+                          size="sm"
                           @click="eliminarCampo(props.row)"
                         >
                           <q-tooltip>Eliminar campo personalizado</q-tooltip>
                         </q-btn>
-                        
                         <q-icon v-else name="lock" color="grey-4">
                           <q-tooltip>Campo de Sistema (Protegido)</q-tooltip>
                         </q-icon>
@@ -382,6 +402,31 @@
         </div>
       </q-card>
 
+      <!-- Dialog: Editar nombre de campo -->
+      <q-dialog v-model="showDialogEditarCampo" persistent>
+        <q-card style="min-width: 350px">
+          <q-card-section class="row items-center">
+            <div class="text-h6">Editar Nombre del Campo</div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup />
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <q-input
+              v-model="campoEditando.nombreMostrar"
+              label="Nombre a mostrar en pantalla"
+              outlined
+              dense
+              autofocus
+              @keyup.enter="confirmarEdicion"
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="text-primary">
+            <q-btn flat label="Cancelar" v-close-popup />
+            <q-btn color="primary" label="Aplicar" @click="confirmarEdicion" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <q-dialog v-model="showDialogNuevoCampo" persistent>
         <q-card style="min-width: 350px">
           <q-card-section class="row items-center">
@@ -406,12 +451,22 @@
                 placeholder="Ej: Color del Grano"
               />
 
-              <q-input 
-                v-model="nuevoCampo.claveCampo" 
-                label="Clave técnica (ID)" 
-                outlined dense 
+              <q-input
+                v-model="nuevoCampo.claveCampo"
+                label="Clave técnica (ID)"
+                outlined dense
                 placeholder="Ej: color_grano"
                 hint="Se usará para identificar el dato en la base de datos"
+              />
+
+              <q-select
+                v-if="nuevoCampo.pantalla === 'ANALISIS'"
+                v-model="nuevoCampo.granoId"
+                :options="opcionesGranoAnalisis"
+                emit-value
+                map-options
+                label="Tipo de grano"
+                outlined dense
               />
 
               <div class="row q-gutter-md">
@@ -433,7 +488,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { Dialog, Notify } from 'quasar'
 import type { QTableColumn } from 'quasar'
@@ -476,6 +531,7 @@ interface CampoConfig {
   obligatorio: boolean;
   esSistema: boolean;
   descripcion?: string;
+  granoId?: number | null;
 }
 
 const columnsCampos: QTableColumn[] = [
@@ -559,16 +615,68 @@ const camposAnalisis = ref<CampoConfig[]>([])
 const camposPreliquidacion = ref<CampoConfig[]>([])
 
 const showDialogNuevoCampo = ref(false)
-const tabActual = ref('BASCULA') 
+const showDialogEditarCampo = ref(false)
+const campoEditando = ref<{ id: number; nombreMostrar: string }>({ id: 0, nombreMostrar: '' })
+const tabActual = ref('BASCULA')
 
-const nuevoCampo = ref({
+// --- ANÁLISIS: selector de grano ---
+const granosDisponibles = ref<{ id: number; nombre: string }[]>([])
+const granoFiltroAnalisis = ref<number | null>(null)
+
+const opcionesGranoAnalisis = computed(() =>
+  granosDisponibles.value.map(g => ({ label: g.nombre, value: g.id }))
+)
+
+const camposAnalisisFiltrados = computed(() =>
+  camposAnalisis.value.filter(c => c.granoId === granoFiltroAnalisis.value)
+)
+
+const cargarGranos = async () => {
+  try {
+    const { data } = await api.get<{ id: number; nombre: string }[]>('/api/catalogos/granos')
+    granosDisponibles.value = data
+    if (data.length > 0 && granoFiltroAnalisis.value === null) {
+      granoFiltroAnalisis.value = data[0]?.id ?? null
+    }
+  } catch {
+    // Si falla, el selector queda vacío pero no rompe nada
+  }
+}
+
+const nuevoCampo = ref<{
+  pantalla: string;
+  nombreMostrar: string;
+  claveCampo: string;
+  obligatorio: boolean;
+  visible: boolean;
+  esSistema: boolean;
+  granoId: number | null;
+}>({
   pantalla: 'BASCULA',
   nombreMostrar: '',
   claveCampo: '',
   obligatorio: false,
   visible: true,
-  esSistema: false // Al ser manual, siempre es false
+  esSistema: false,
+  granoId: null
 })
+
+const abrirEdicion = (campo: CampoConfig) => {
+  campoEditando.value = { id: campo.id, nombreMostrar: campo.nombreMostrar }
+  showDialogEditarCampo.value = true
+}
+
+const confirmarEdicion = () => {
+  const todasLasListas = [camposBascula, camposBoletaGrid, camposAnalisis, camposPreliquidacion]
+  for (const lista of todasLasListas) {
+    const idx = lista.value.findIndex(c => c.id === campoEditando.value.id)
+    if (idx >= 0) {
+      lista.value[idx]!.nombreMostrar = campoEditando.value.nombreMostrar
+      break
+    }
+  }
+  showDialogEditarCampo.value = false
+}
 
 const eliminarCampo = (campo: CampoConfig) => {
   Dialog.create({
@@ -598,14 +706,14 @@ const ejecutarEliminacion = async (id: number) => {
 }
 
 const abrirDialogoNuevoCampo = () => {
- 
   nuevoCampo.value = {
     pantalla: tabActual.value,
     nombreMostrar: '',
     claveCampo: '',
     obligatorio: false,
     visible: true,
-    esSistema: false
+    esSistema: false,
+    granoId: tabActual.value === 'ANALISIS' ? granoFiltroAnalisis.value : null
   }
   showDialogNuevoCampo.value = true
 }
@@ -682,7 +790,8 @@ const cargarConfiguracion = async () => {
         ...c,
         visible: !!c.visible,
         obligatorio: !!c.obligatorio,
-        esSistema: !!c.esSistema
+        esSistema: !!c.esSistema,
+        granoId: c.granoId ?? null
       }))
 
       camposBascula.value = camposLimpios.filter(c => c.pantalla === 'BASCULA')
@@ -722,7 +831,8 @@ const guardarConfiguracionCompleta = async () => {
       orden: campo.orden,
       visible: campo.visible,
       obligatorio: campo.obligatorio,
-      esSistema: campo.esSistema
+      esSistema: campo.esSistema,
+      granoId: campo.granoId ?? null
     }));
 
     // 3. Solo actualizamos campos si hay campos para actualizar
@@ -754,6 +864,24 @@ const guardarConfiguracionCompleta = async () => {
 };
 
 // --- LÓGICA DE MOVIMIENTO ---
+
+// Versión especial para ANÁLISIS: opera sobre camposAnalisis (el array real)
+// usando el índice visible del filtered computed
+const moverFilaAnalisis = (visibleIndex: number, direccion: number) => {
+  const filtrados = camposAnalisisFiltrados.value
+  const itemA = filtrados[visibleIndex]
+  const itemB = filtrados[visibleIndex + direccion]
+  if (!itemA || !itemB) return
+  // intercambia el orden entre los dos items en el array original
+  const realA = camposAnalisis.value.indexOf(itemA)
+  const realB = camposAnalisis.value.indexOf(itemB)
+  if (realA < 0 || realB < 0) return
+  camposAnalisis.value.splice(realA, 1, itemB)
+  camposAnalisis.value.splice(realB, 1, itemA)
+  // recalcula orden de todo camposAnalisis
+  camposAnalisis.value.forEach((campo, idx) => { campo.orden = idx + 1 })
+}
+
 const moverFila = (lista: CampoConfig[], index: number, direccion: number) => {
   const nuevaPos = index + direccion
   if (nuevaPos < 0 || nuevaPos >= lista.length) return
@@ -773,7 +901,9 @@ const moverFila = (lista: CampoConfig[], index: number, direccion: number) => {
   }
 }
 
-onMounted(cargarConfiguracion)
+onMounted(async () => {
+  await Promise.all([cargarConfiguracion(), cargarGranos()])
+})
 </script>
 
 <style scoped>

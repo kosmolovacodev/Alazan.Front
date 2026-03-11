@@ -27,6 +27,7 @@
         <q-tab name="granos" label="Recepción de Granos" icon="grass" />
         <q-tab name="facturas" label="Recepción de Facturas" icon="description" />
         <q-tab name="pagos" label="Pagos" icon="account_balance_wallet" />
+        <q-tab name="produccion" label="Producción" icon="precision_manufacturing" />
         <q-tab name="bitacoras" label="Bitácoras" icon="history" />
         <q-tab name="consultas" label="Consultas" icon="manage_search" />
       </q-tabs>
@@ -124,6 +125,11 @@
           <ConfiguracionPagos />
         </q-tab-panel>
 
+        <q-tab-panel name="produccion">
+          <div class="text-h6 q-mb-md">Configuración de Producción</div>
+          <ConfiguracionProduccion />
+        </q-tab-panel>
+
         <q-tab-panel name="bitacoras">
           <div class="text-h6">Configuración de Bitácoras</div>
           Define qué eventos se registran, nivel de detalle y retención de información.
@@ -163,6 +169,9 @@ import ConfiguracionFacturacion from 'src/components/configuracion/Configuracion
 
 // Importación de Configuración de Pagos
 import ConfiguracionPagos from 'src/components/configuracion/ConfiguracionPagos.vue';
+
+// Importación de Configuración de Producción
+import ConfiguracionProduccion from 'src/components/configuracion/ConfiguracionProduccion.vue';
 
 // Estado de la pestaña principal
 const mainTab = ref('general');

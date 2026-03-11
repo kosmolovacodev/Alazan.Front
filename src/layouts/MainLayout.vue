@@ -198,16 +198,28 @@
           </q-list>
         </q-expansion-item>
 
-        <q-item
+        <q-expansion-item
           v-if="authStore.tienePermiso('Producción')"
-          clickable
+          icon="precision_manufacturing"
+          label="Producción"
+          header-class="text-menu-inactive"
+          expand-icon-class="text-white"
           to="/produccion"
-          active-class="menu-item-active"
-          class="text-menu-inactive"
+          exact
         >
-          <q-item-section avatar><q-icon name="precision_manufacturing" /></q-item-section>
-          <q-item-section>Producción</q-item-section>
-        </q-item>
+          <q-list class="q-pl-sm">
+            <q-item
+              v-if="authStore.tienePermiso('Producción - Análisis de Calidad')"
+              clickable
+              :active="route.path === '/produccion' && route.query.seccion === 'analisis'"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+              @click="irAnalisisCalidad"
+            >
+              <q-item-section>Análisis de Calidad</q-item-section>
+            </q-item>
+          </q-list>
+        </q-expansion-item>
       </q-list>
     </q-drawer>
 
@@ -229,12 +241,17 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 
 const offlineStore = useOfflineStore();
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+
+function irAnalisisCalidad() {
+  void router.push({ path: '/produccion', query: { seccion: 'analisis', _t: Date.now() } });
+}
 const leftDrawerOpen = ref(false);
 const isOnline = ref(window.navigator.onLine);
 

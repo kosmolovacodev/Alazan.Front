@@ -18,8 +18,8 @@
             </thead>
             <tbody>
               <tr
-                v-for="(row, idx) in frijolRows"
-                :key="row.nombre"
+                v-for="(row, idx) in frijolRowsVisibles"
+                :key="(row.clave ?? row.nombre) + idx"
                 :class="{ 'bg-amber-1 text-weight-bold': row.esTotal }"
               >
                 <td class="text-body2" :class="{ 'text-weight-bold': row.esTotal }">
@@ -155,10 +155,10 @@
         <q-slide-transition>
           <div v-show="expandidoTotalDanos" class="q-pa-md bg-grey-1 q-gutter-md">
             <!-- Impurezas -->
-            <div class="row items-center justify-between q-col-gutter-md">
+            <div v-if="campoVisible('impurezas')" class="row items-center justify-between q-col-gutter-md">
               <div class="col">
                 <div class="text-body2 text-grey-8 text-weight-medium">
-                  Impurezas <span class="text-negative">*</span>
+                  {{ campoLabel('impurezas', 'Impurezas') }} <span class="text-negative">*</span>
                 </div>
               </div>
               <div class="col-auto row items-center q-gutter-xs">
@@ -179,9 +179,9 @@
             </div>
 
             <!-- R1 -->
-            <div class="row items-center justify-between q-col-gutter-md">
+            <div v-if="campoVisible('r1')" class="row items-center justify-between q-col-gutter-md">
               <div class="col">
-                <div class="text-body2 text-grey-8 text-weight-medium">R1</div>
+                <div class="text-body2 text-grey-8 text-weight-medium">{{ campoLabel('r1', 'R1') }}</div>
               </div>
               <div class="col-auto row items-center q-gutter-xs">
                 <q-input
@@ -238,7 +238,7 @@
                         { key: 'helados', label: 'Helados' },
                         { key: 'alimonados', label: 'Alimonados' },
                         { key: 'revolcados', label: 'Revolcados' },
-                      ]"
+                      ].filter(c => campoVisible(c.key))"
                       :key="campo.key"
                       class="q-py-xs"
                     >
@@ -246,7 +246,7 @@
                         <q-item-label
                           class="text-grey-8 text-caption text-uppercase text-weight-medium"
                         >
-                          {{ campo.label }}
+                          {{ campoLabel(campo.key, campo.label) }}
                         </q-item-label>
                       </q-item-section>
 
@@ -277,17 +277,17 @@
       </q-card>
 
       <!-- EXPORTACIÓN (Solo Lectura - Calculado) -->
-      <q-card bordered class="bg-green-1" style="border-width: 2px">
+      <q-card v-if="campoVisible('exportacion')" bordered class="bg-green-1" style="border-width: 2px">
         <q-card-section class="row items-center justify-between q-pa-sm">
-          <div class="text-subtitle2 text-green-10 text-weight-bold">EXPORTACIÓN</div>
+          <div class="text-subtitle2 text-green-10 text-weight-bold">{{ campoLabel('exportacion', 'EXPORTACIÓN') }}</div>
           <div class="text-h5 text-green-9 text-weight-bold">{{ exportacion.toFixed(2) }}%</div>
         </q-card-section>
       </q-card>
 
       <!-- CALIBRE (Opcional - Solo si se proporciona) -->
-      <q-card v-if="calibre" bordered class="bg-blue-1" style="border-width: 2px">
+      <q-card v-if="calibre && campoVisible('calibre')" bordered class="bg-blue-1" style="border-width: 2px">
         <q-card-section class="row items-center justify-between q-pa-sm">
-          <div class="text-subtitle2 text-blue-10 text-weight-bold">CALIBRE</div>
+          <div class="text-subtitle2 text-blue-10 text-weight-bold">{{ campoLabel('calibre', 'CALIBRE') }}</div>
           <div class="text-subtitle1 text-blue-9 text-weight-bold">
             {{ calibre }}
           </div>
@@ -301,6 +301,7 @@
 import { computed, ref, reactive, watch } from 'vue';
 
 interface FrijolRow {
+  clave?: string;
   nombre: string;
   pesoGrs: number | string;
   porcentaje: number | string;
@@ -309,6 +310,12 @@ interface FrijolRow {
   esTotal: boolean;
   esPlaga: boolean;
   plagaValor: string;
+}
+
+interface CampoConfig {
+  claveCampo: string;
+  visible: boolean;
+  nombreMostrar?: string;
 }
 
 interface Props {
@@ -328,11 +335,27 @@ interface Props {
   readOnly?: boolean;
   tipoGranoId?: number;
   frijolDataInicial?: FrijolRow[];
+  camposConfig?: CampoConfig[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   tipoGranoId: 2,
+  camposConfig: () => [],
 });
+
+// Helper: true si el campo es visible según config (si no hay config, muestra todo)
+function campoVisible(clave: string): boolean {
+  if (!props.camposConfig || props.camposConfig.length === 0) return true;
+  const cfg = props.camposConfig.find(c => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+// Helper: etiqueta del campo (usa nombreMostrar de config si existe)
+function campoLabel(clave: string, labelBase: string): string {
+  if (!props.camposConfig || props.camposConfig.length === 0) return labelBase;
+  const cfg = props.camposConfig.find(c => c.claveCampo === clave);
+  return cfg?.nombreMostrar || labelBase;
+}
 
 const emit = defineEmits<{
   (e: 'input-change', campo: string, valor: string): void;
@@ -358,23 +381,28 @@ function getColorBadge(val: string): string {
 
 // --- Datos de Frijol ---
 const frijolRowsDefault: FrijolRow[] = [
-  { nombre: 'Impurezas (Palo, Paja, Etc)', pesoGrs: '', porcentaje: '', color: 'MB', colorOpciones: true, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'Piedras y Terron', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'MITADES Y QUEBRADOS', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'OSCUROS/CAFES', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'ARRUGADOS/AMPOLLADOS', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'MANCHADOS', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'VERDES', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'TIERRA PEGADA', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'OTRAS VARIEDADES AFINES', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'GRANOS PEQUEÑOS', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'DAÑOS CAMPO', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
-  { nombre: 'TOTAL', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: true, esPlaga: false, plagaValor: '' },
-  { nombre: 'PLAGA VIVA', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: true, plagaValor: '' },
-  { nombre: 'PLAGA MUERTA', pesoGrs: '', porcentaje: '', color: '', colorOpciones: false, esTotal: false, esPlaga: true, plagaValor: '' },
+  { clave: 'frijol_impurezas',        nombre: 'Impurezas (Palo, Paja, Etc)', pesoGrs: '', porcentaje: '', color: 'MB', colorOpciones: true,  esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_piedras',          nombre: 'Piedras y Terron',             pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_mitades',          nombre: 'MITADES Y QUEBRADOS',          pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_oscuros',          nombre: 'OSCUROS/CAFES',                pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_arrugados',        nombre: 'ARRUGADOS/AMPOLLADOS',         pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_manchados',        nombre: 'MANCHADOS',                    pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_verdes',           nombre: 'VERDES',                       pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_tierra',           nombre: 'TIERRA PEGADA',                pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_otras_variedades', nombre: 'OTRAS VARIEDADES AFINES',      pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_granos_pequenos',  nombre: 'GRANOS PEQUEÑOS',              pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_danos_campo',      nombre: 'DAÑOS CAMPO',                  pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: false, plagaValor: '' },
+  { clave: '_total',                  nombre: 'TOTAL',                        pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: true,  esPlaga: false, plagaValor: '' },
+  { clave: 'frijol_plaga_viva',       nombre: 'PLAGA VIVA',                   pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: true,  plagaValor: '' },
+  { clave: 'frijol_plaga_muerta',     nombre: 'PLAGA MUERTA',                 pesoGrs: '', porcentaje: '', color: '',   colorOpciones: false, esTotal: false, esPlaga: true,  plagaValor: '' },
 ];
 
 const frijolRows = reactive<FrijolRow[]>(frijolRowsDefault.map((r) => ({ ...r })));
+
+// Filas de frijol filtradas por config (las filas especiales siempre se muestran)
+const frijolRowsVisibles = computed(() =>
+  frijolRows.filter(r => r.esTotal || r.esPlaga || !r.clave || campoVisible(r.clave))
+);
 
 // Cargar datos iniciales si se proporcionan
 watch(
@@ -413,8 +441,12 @@ const totalPorcentaje = computed(() => {
     }, 0);
 });
 
-function onFrijolChange(idx: number, field: 'pesoGrs' | 'porcentaje' | 'color' | 'plagaValor', value: unknown) {
-  const row = frijolRows[idx];
+function onFrijolChange(visibleIdx: number, field: 'pesoGrs' | 'porcentaje' | 'color' | 'plagaValor', value: unknown) {
+  // Traducimos el índice visible al índice real en frijolRows
+  const clave = frijolRowsVisibles.value[visibleIdx]?.clave;
+  if (!clave) return;
+  const realIdx = frijolRows.findIndex(r => r.clave === clave);
+  const row = realIdx >= 0 ? frijolRows[realIdx] : undefined;
   if (!row) return;
   const safeValue = typeof value === 'string' || typeof value === 'number' ? value : '';
   (row as Record<string, unknown>)[field] = safeValue;

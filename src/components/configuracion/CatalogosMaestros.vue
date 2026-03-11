@@ -18,6 +18,7 @@
       <q-tab name="silos-calibre" icon="storage" label="Silos Calibre" />
       <q-tab name="silos-pulmon" icon="warehouse" label="Silos Pulmón" />
       <q-tab name="bodegas" icon="store" label="Almacenes" />
+      <q-tab name="trenes" icon="precision_manufacturing" label="Trenes" />
       <!-- Solo visible para Admin General (sede_id = 0) -->
       <q-tab v-if="esAdminGlobal" name="sedes" icon="domain" label="Bodegas" />
     </q-tabs>
@@ -201,6 +202,12 @@
                   label="Tipo de Grano"
                   clearable
                 />
+              </div>
+            </template>
+
+            <template v-else-if="tab === 'trenes'">
+              <div class="col">
+                <q-input v-model="form.nombre" dense outlined label="Nombre del Tren (Ej: Tren 1)" />
               </div>
             </template>
 
@@ -548,6 +555,11 @@ const columnas = computed<QTableColumn[]>(() => {
           align: 'left',
           sortable: true,
         },
+        ...baseActions,
+      ];
+    case 'trenes':
+      return [
+        { name: 'nombre', label: 'Tren', field: 'nombre', align: 'left', sortable: true },
         ...baseActions,
       ];
     case 'sedes':
