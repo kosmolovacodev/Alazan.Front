@@ -63,6 +63,11 @@ const routes: RouteRecordRaw[] = [
         meta: { permiso: 'Configuración' },
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),
       },
+      // Lector serial de báscula REVUELTA ERCC (Web Serial API)
+      {
+        path: 'leerBascula',
+        component: () => import('pages/bascula/LeerBasculaPage.vue'),
+      },
       // Ruta temporal para prueba de integración MBA3
       {
         path: 'prueba-mba3',
