@@ -369,6 +369,8 @@
             <q-td align="center">
               <q-btn flat dense round icon="visibility" color="deep-purple-7"
                 @click="verAnalisis(props.row)" />
+              <q-btn flat dense round icon="check_circle" color="positive" title="Finalizar análisis"
+                @click="confirmarFinalizarAnalisis(props.row)" />
             </q-td>
           </template>
         </q-table>
@@ -553,7 +555,7 @@
                 :options="ordenesConResultadoFiltradas"
                 use-input
                 input-debounce="0"
-                outlined dense label="Orden (Resultado Registrado)"
+                outlined dense label="Orden"
                 clearable
                 @filter="(val, update) => { filtroOrden = val; update(() => {}) }"
               />
@@ -645,6 +647,8 @@ const vista = ref<Vista>('historial');
 function aplicarSeccionRuta() {
   if (route.query.seccion === 'analisis') {
     void cargarAnalisis().then(() => { vista.value = 'analisis-historial'; });
+  } else {
+    vista.value = 'historial';
   }
 }
 
@@ -949,7 +953,12 @@ const ordenActual = ref<OrdenResumen | null>(null);
 const trenesActuales = ref<TrenResultado[]>([]);
 const resultadoReadonly = computed(() => ordenActual.value?.status === 'Resultado Registrado');
 const filtroOrden = ref('');
-const ordenesConResultado = computed(() => ordenes.value.filter(o => o.status === 'Resultado Registrado').map(o => o.noOrden));
+const ordenesConResultado = computed(() => {
+  const yaAnalizados = new Set(listaAnalisis.value.map(a => a.noOrden));
+  return ordenes.value
+    .filter(o => o.status === 'Pendiente' && !yaAnalizados.has(o.noOrden))
+    .map(o => o.noOrden);
+});
 const ordenesConResultadoFiltradas = computed(() => {
   const q = filtroOrden.value.toLowerCase();
   return q ? ordenesConResultado.value.filter(n => n.toLowerCase().includes(q)) : ordenesConResultado.value;
@@ -1245,6 +1254,25 @@ async function guardarAnalisis() {
   } finally {
     $q.loading.hide();
   }
+}
+
+function confirmarFinalizarAnalisis(row: AnalisisResumen) {
+  $q.dialog({
+    title: 'Finalizar análisis',
+    message: `¿Confirmas finalizar el análisis de la orden <b>${row.noOrden}</b>? Ya no aparecerá en la lista activa.`,
+    html: true,
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Finalizar', color: 'positive', unelevated: true },
+  }).onOk(() => {
+    void api.post(`/api/produccion/analisis/${row.id}/finalizar`)
+      .then(() => {
+        Notify.create({ type: 'positive', message: 'Análisis finalizado correctamente' });
+        void cargarAnalisis();
+      })
+      .catch(() => {
+        Notify.create({ type: 'negative', message: 'Error al finalizar análisis' });
+      });
+  });
 }
 
 // ─── UTILIDADES ───────────────────────────────────────────────────────────

@@ -84,11 +84,11 @@
                     </q-item-section>
                   </q-item>
                 </template>
-                <template #no-option>
+                <template #no-option="scope">
                   <q-item>
                     <q-item-section class="text-grey text-caption">Sin resultados</q-item-section>
                   </q-item>
-                  <q-item clickable @click="modalProductor = true">
+                  <q-item clickable @click="iniciarNuevoProductor(scope.inputValue)">
                     <q-item-section class="text-primary text-caption">
                       + Registrar nuevo productor
                     </q-item-section>
@@ -99,16 +99,24 @@
                 </template>
               </q-select>
 
-              <q-banner
-                v-if="infoProductor"
-                dense
-                class="bg-blue-1 text-blue-9 q-mt-xs rounded-borders"
-              >
-                <template v-slot:avatar>
-                  <q-icon name="info" color="blue-9" size="xs" />
-                </template>
-                {{ infoProductor }}
-              </q-banner>
+              <!-- Datos del productor (siempre visibles) -->
+              <div class="q-mt-xs">
+                <q-banner
+                  v-if="camposProductor.tipo_persona === 'Moral' && camposProductor.atiende"
+                  dense
+                  class="bg-blue-1 text-blue-9 q-mb-xs rounded-borders"
+                >
+                  <template v-slot:avatar>
+                    <q-icon name="info" color="blue-9" size="xs" />
+                  </template>
+                  Atiende: {{ camposProductor.atiende }}
+                </q-banner>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-md-6">
+                    <q-input v-model="camposProductor.telefono" label="Teléfono" outlined dense bg-color="white" mask="##########" />
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="col-12 col-md-4" v-if="campoVisible('tProductor')">
               <q-select
@@ -121,16 +129,6 @@
               />
             </div>
 
-            <div class="col-12 col-md-4" v-if="campoVisible('celular')">
-              <q-input
-                v-model="form.celular"
-                :label="campoLabel('celular', 'Celular')"
-                outlined
-                dense
-                bg-color="grey-2"
-                readonly
-              />
-            </div>
             <div class="col-12 col-md-4" v-if="campoVisible('origen')">
               <q-select
                 v-model="form.origen_id"
@@ -307,41 +305,14 @@
             <q-radio v-model="nuevoProd.tipo" val="Fisica" label="Física" />
             <q-radio v-model="nuevoProd.tipo" val="Moral" label="Moral" />
           </div>
-
-          <template v-if="nuevoProd.tipo === 'Fisica'">
-            <q-input
-              v-model="nuevoProd.nombre"
-              label="Nombre del productor"
-              placeholder="Ing. Luis Perez"
-              outlined
-              dense
-            />
-          </template>
-          <template v-else>
-            <!-- <q-input v-model="nuevoProd.rfc" label="Razón Social" outlined dense /> -->
-            <q-input
-              v-model="nuevoProd.nombre"
-              label="Razón Social"
-              placeholder="Agronegocios SA DE CV"
-              outlined
-              dense
-            />
-            <q-input
-              v-model="nuevoProd.atiende"
-              label="Nombre de quien atiende"
-              placeholder="Ing. Carlos Ramírez"
-              outlined
-              dense
-            />
-          </template>
-          <q-input
-            v-model="nuevoProd.telefono"
-            label="Teléfono"
-            placeholder="6441234567"
-            outlined
-            dense
-            mask="##########"
-          />
+          <q-input v-model="nuevoProd.nombre"
+            :label="nuevoProd.tipo === 'Moral' ? 'Razón Social' : 'Nombre del productor'"
+            outlined dense />
+          <q-input v-if="nuevoProd.tipo === 'Moral'"
+            v-model="nuevoProd.atiende" label="Nombre de quien atiende"
+            outlined dense />
+          <q-input v-model="nuevoProd.telefono" label="Teléfono"
+            outlined dense mask="##########" />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn label="Cerrar" flat v-close-popup />
@@ -349,6 +320,7 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
   </q-card>
 </template>
 
@@ -483,6 +455,7 @@ const emit = defineEmits(['save', 'close', 'refresh-productores']);
 
 const fechaDisplay = ref(new Date().toLocaleString());
 const modalProductor = ref(false);
+const nuevoProd = reactive({ tipo: 'Fisica', nombre: '', atiende: '', telefono: '' });
 
 interface Productor {
   id: number | null; // null = existe solo en MBA3, pendiente de alta local
@@ -520,7 +493,6 @@ const form = reactive({
     (authStore.sedeActivaId === 8 ? 4 : authStore.sedeActivaId === 9 ? 5 : (null as number | null)),
   productor_id: null as number | null,
   tipo_productor: 'Ejidal',
-  celular: '',
   telefono2: '',
   origen_id: null,
   comprador_id: null,
@@ -617,8 +589,15 @@ function onChoferSelectedObjeto(seleccionado: SelectOption | string | null) {
   }
 }
 
-const nuevoProd = reactive({ tipo: 'Fisica', nombre: '', atiende: '', telefono: '', rfc: '' });
-const infoProductor = ref('');
+interface CamposProductor {
+  nombre: string;
+  rfc: string;
+  telefono: string;
+  tipo_persona: string;
+  atiende: string;
+}
+const camposProductor = reactive<CamposProductor>({ nombre: '', rfc: '', telefono: '', tipo_persona: 'Fisica', atiende: '' });
+const snapshotProductor = ref<CamposProductor | null>(null);
 const opcionesProductores = ref<Productor[]>([]);
 const productorSeleccionado = ref<Productor | null>(null);
 const buscandoProductores = ref(false);
@@ -826,54 +805,76 @@ function filtrarProductores(val: string, update: (fn: () => void) => void) {
 function onProductorSelected(prod: Productor | null) {
   if (!prod) {
     form.productor_id = null;
-    form.celular = '';
     form.telefono2 = '';
-    infoProductor.value = '';
+    camposProductor.nombre = '';
+    camposProductor.rfc = '';
+    camposProductor.telefono = '';
+    camposProductor.tipo_persona = 'Fisica';
+    camposProductor.atiende = '';
+    snapshotProductor.value = null;
     return;
   }
   form.productor_id = prod.id;
-  form.celular = prod.telefono ?? '';
   form.telefono2 = prod.telefono2 ?? '';
-  infoProductor.value = prod.atiende ? `Atiende: ${prod.atiende}` : '';
-
-  // Sync silencioso: si el productor existe en ambos sistemas, actualizar BD local si cambió
-  if (prod.origen === 'MBA3+LOCAL' && prod.id) {
-    void actualizarProductorLocalSilencioso(prod);
-  }
+  camposProductor.nombre = prod.nombre ?? '';
+  camposProductor.rfc = prod.rfc ?? '';
+  camposProductor.telefono = prod.telefono ?? '';
+  camposProductor.tipo_persona = (prod.rfc && prod.rfc.length === 12) || prod.atiende ? 'Moral' : 'Fisica';
+  camposProductor.atiende = prod.atiende ?? '';
+  // Guardar snapshot para detectar cambios al guardar
+  snapshotProductor.value = { ...camposProductor };
 }
 
-async function actualizarProductorLocalSilencioso(prod: Productor) {
-  if (!prod.id) return;
-  const localList = props.listaProductores ?? [];
-  const local = localList.find((p) => p.id === prod.id);
-  if (!local) return;
+function iniciarNuevoProductor(nombreInicial = '') {
+  productorSeleccionado.value = { id: null, nombre: nombreInicial, telefono: '', origen: 'LOCAL' };
+  camposProductor.nombre = nombreInicial;
+  camposProductor.rfc = '';
+  camposProductor.telefono = '';
+  camposProductor.tipo_persona = 'Fisica';
+  camposProductor.atiende = '';
+  snapshotProductor.value = null;
+  form.productor_id = null;
+}
 
-  const telefonoNuevo = prod.telefono || null;
-  const atiendeNuevo = prod.atiende || null;
-  const correoNuevo = prod.correo || null;
-  // Solo llamar PUT si algún campo relevante cambió
-  if (
-    telefonoNuevo === (local.telefono || null) &&
-    atiendeNuevo === (local.atiende || null) &&
-    correoNuevo === (local.correo || null)
-  )
-    return;
+function camposCambiaron(): boolean {
+  if (!snapshotProductor.value) return false;
+  const s = snapshotProductor.value;
+  return (
+    camposProductor.nombre !== s.nombre ||
+    camposProductor.rfc !== s.rfc ||
+    camposProductor.telefono !== s.telefono ||
+    camposProductor.tipo_persona !== s.tipo_persona ||
+    camposProductor.atiende !== s.atiende
+  );
+}
 
+async function guardarNuevoProductor() {
   try {
-    await api.put(`/api/catalogos/editar/productores/${prod.id}`, {
-      Nombre: local.nombre,
-      Telefono: telefonoNuevo ?? local.telefono,
-      Telefono2: prod.telefono2 ?? null,
-      Rfc: prod.rfc ?? local.rfc ?? null,
-      Correo: correoNuevo ?? local.correo ?? null,
-      Tipo_persona: null,
-      Banco_id: null,
-      Cuenta_clabe: null,
-      Atiende: atiendeNuevo ?? local.atiende ?? null,
+    const res = await api.post('/api/catalogos/productores', {
+      nombre: nuevoProd.nombre,
+      telefono: nuevoProd.telefono,
+      tipo_persona: nuevoProd.tipo,
+      atiende: nuevoProd.tipo === 'Moral' ? nuevoProd.atiende : null,
     });
+    const recienCreado: Productor = {
+      id: res.data.id,
+      nombre: nuevoProd.nombre,
+      telefono: nuevoProd.telefono,
+      ...(nuevoProd.atiende ? { atiende: nuevoProd.atiende } : {}),
+      origen: 'LOCAL',
+    };
+    opcionesProductores.value = [recienCreado, ...opcionesProductores.value];
+    productorSeleccionado.value = recienCreado;
+    onProductorSelected(recienCreado);
+    modalProductor.value = false;
+    nuevoProd.tipo = 'Fisica';
+    nuevoProd.nombre = '';
+    nuevoProd.atiende = '';
+    nuevoProd.telefono = '';
     emit('refresh-productores');
+    $q.notify({ type: 'positive', message: 'Productor registrado con éxito' });
   } catch {
-    // Fallo silencioso — no interrumpir el flujo del usuario
+    $q.notify({ type: 'negative', message: 'Error al registrar productor' });
   }
 }
 
@@ -890,44 +891,6 @@ function abrirCapturaManual() {
   });
 }
 
-// 3. Registro rápido de productor
-async function guardarNuevoProductor() {
-  try {
-    // Preparamos el objeto según el tipo de persona
-    const payload = {
-      nombre: nuevoProd.nombre, // En el modal es Razón Social si es Moral
-      telefono: nuevoProd.telefono,
-      // rfc: nuevoProd.tipo === 'Moral' ? nuevoProd.rfc : null,
-      tipo_persona: nuevoProd.tipo,
-      atiende: nuevoProd.tipo === 'Moral' ? nuevoProd.atiende : null,
-    };
-
-    const res = await api.post('/api/catalogos/productores', payload);
-
-    const recienCreado: Productor = {
-      id: res.data.id,
-      nombre: payload.nombre,
-      telefono: payload.telefono,
-      ...(payload.atiende ? { atiende: payload.atiende } : {}),
-      origen: 'LOCAL',
-    };
-    opcionesProductores.value = [recienCreado, ...opcionesProductores.value];
-
-    form.productor_id = res.data.id;
-    form.celular = nuevoProd.telefono;
-    infoProductor.value = nuevoProd.tipo === 'Moral' ? `Atiende: ${nuevoProd.atiende}` : '';
-
-    modalProductor.value = false;
-    nuevoProd.tipo = '';
-    nuevoProd.nombre = '';
-    nuevoProd.atiende = '';
-    nuevoProd.telefono = '';
-    // nuevoProd.rfc = '';
-    $q.notify({ type: 'positive', message: 'Productor registrado con éxito' });
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error al registrar productor' });
-  }
-}
 
 async function onSubmit() {
   if (form.peso_bruto_kg <= 0) {
@@ -942,58 +905,75 @@ async function onSubmit() {
     });
   }
 
-  // Si el productor seleccionado viene de MBA3 y no tiene ID local (id: null),
-  // buscar si ya existe en SQL Server (por RFC o nombre) antes de crear uno nuevo.
-  if (productorSeleccionado.value && !productorSeleccionado.value.id) {
+  // Resolver productor: crear si es nuevo, actualizar si cambió algún dato
+  if (productorSeleccionado.value) {
     const prod = productorSeleccionado.value;
-    const localList = props.listaProductores ?? [];
 
-    // 1. Buscar por RFC
-    let match = prod.rfc ? localList.find((p) => p.rfc === prod.rfc) : undefined;
-    // 2. Fallback: buscar por nombre exacto
-    if (!match) match = localList.find((p) => p.nombre.toLowerCase() === prod.nombre.toLowerCase());
+    if (!prod.id) {
+      // Productor nuevo (viene de MBA3 sin alta local, o fue iniciado manualmente)
+      const localList = props.listaProductores ?? [];
+      // Intentar encontrar coincidencia por RFC o nombre antes de crear
+      let match = camposProductor.rfc
+        ? localList.find((p) => p.rfc === camposProductor.rfc)
+        : undefined;
+      if (!match)
+        match = localList.find(
+          (p) => p.nombre.toLowerCase() === camposProductor.nombre.toLowerCase(),
+        );
 
-    if (match?.id) {
-      // Ya existe en SQL Server — reutilizar ID sin crear duplicado
-      form.productor_id = match.id;
-      productorSeleccionado.value = { ...prod, id: match.id, origen: 'MBA3+LOCAL' };
-    } else {
-      // No existe — registrar nuevo en SQL Server con todos los datos disponibles de MBA3
+      if (match?.id) {
+        form.productor_id = match.id;
+        productorSeleccionado.value = { ...prod, id: match.id, origen: 'MBA3+LOCAL' };
+      } else {
+        try {
+          const raw = prod.mba3Raw ?? {};
+          const strOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+          const res = await api.post('/api/catalogos/productores', {
+            nombre: camposProductor.nombre,
+            rfc: camposProductor.rfc || null,
+            tipo_persona: camposProductor.tipo_persona,
+            atiende: camposProductor.tipo_persona === 'Moral' ? camposProductor.atiende || null : null,
+            telefono: camposProductor.telefono || null,
+            telefono2: (prod.telefono2 || '').replace(/\s/g, '') || null,
+            fax: strOf(raw['FACSIMILE']),
+            codigo_proveedor: strOf(raw['ACCT_CODE']),
+            direccion1: strOf(raw['ADDRESS_1']),
+            direccion2: strOf(raw['ADDRESS_2']),
+            ciudad: strOf(raw['CITY']),
+            estado: strOf(raw['STATE']),
+            codigo_postal: strOf(raw['ZIP']),
+            pais: strOf(raw['COUNTRY']),
+            nombre_alterno: strOf(raw['NAME_RAZON_SOCIAL']),
+            correo: strOf(raw['E_MAIL']),
+          });
+          form.productor_id = res.data.id;
+          productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };
+          emit('refresh-productores');
+        } catch {
+          return $q.notify({
+            type: 'negative',
+            message: 'No se pudo registrar el productor en el sistema local.',
+          });
+        }
+      }
+    } else if (camposCambiaron()) {
+      // Productor existente con datos modificados → actualizar en SQL
       try {
-        const esMoral = prod.rfc ? prod.rfc.length === 12 : !!prod.atiende;
-        const raw = prod.mba3Raw ?? {};
-        const strOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
-        const res = await api.post('/api/catalogos/productores', {
-          // Datos básicos
-          nombre: prod.nombre,
-          rfc: prod.rfc || null,
-          tipo_persona: esMoral ? 'Moral' : 'Fisica',
-          atiende: prod.atiende || null,
-          // Teléfonos (sin espacios — MBA3 los incluye formateados)
-          telefono: (prod.telefono || '').replace(/\s/g, '') || null,
-          telefono2: (prod.telefono2 || '').replace(/\s/g, '') || null,
-          fax: strOf(raw['FACSIMILE']),
-          // Identificador ERP
-          codigo_proveedor: strOf(raw['ACCT_CODE']),
-          // Dirección
-          direccion1: strOf(raw['ADDRESS_1']),
-          direccion2: strOf(raw['ADDRESS_2']),
-          ciudad: strOf(raw['CITY']),
-          estado: strOf(raw['STATE']),
-          codigo_postal: strOf(raw['ZIP']),
-          pais: strOf(raw['COUNTRY']),
-          // Nombre legal completo (razón social)
-          nombre_alterno: strOf(raw['NAME_RAZON_SOCIAL']),
-          correo: strOf(raw['E_MAIL']),
+        await api.put(`/api/catalogos/editar/productores/${prod.id}`, {
+          Nombre: camposProductor.nombre,
+          Telefono: camposProductor.telefono || null,
+          Telefono2: prod.telefono2 ?? null,
+          Rfc: camposProductor.rfc || null,
+          Correo: prod.correo ?? null,
+          Tipo_persona: camposProductor.tipo_persona,
+          Banco_id: null,
+          Cuenta_clabe: null,
+          Atiende: camposProductor.tipo_persona === 'Moral' ? camposProductor.atiende || null : null,
         });
-        form.productor_id = res.data.id;
-        productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };
         emit('refresh-productores');
       } catch {
-        return $q.notify({
-          type: 'negative',
-          message: 'No se pudo registrar el productor en el sistema local.',
-        });
+        // No cancelar el guardado por un fallo en la actualización del productor
+        $q.notify({ type: 'warning', message: 'Registro guardado, pero no se pudo actualizar el productor.' });
       }
     }
   }
@@ -1012,9 +992,9 @@ async function onSubmit() {
     datos_adicionales: JSON.stringify({
       tipo_productor: form.tipo_productor,
       observaciones: form.observaciones,
-      celular: form.celular,
+      celular: camposProductor.telefono,
       telefono2: form.telefono2,
-      atiende: infoProductor.value,
+      atiende: camposProductor.tipo_persona === 'Moral' ? camposProductor.atiende : '',
       ...valoresCamposPersonalizados,
     }),
     boleta_numero: null,
