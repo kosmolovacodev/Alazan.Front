@@ -6,7 +6,7 @@ import { useMba3Store } from 'src/stores/mba3Store';
 const MBA3_BASE_URL = process.env.DEV ? '/mba3' : 'https://alazan-app.consul-tek.com/api/v1/mba3';
 
 // Instancia axios exclusiva para MBA3 (separada del 'api' interno de Alazan)
-export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 });
+export const mba3Client = axios.create({ baseURL: MBA3_BASE_URL });
 
 /** Registra interceptores de diagnóstico en un cliente axios (llamar una sola vez por instancia). */
 function addDebugInterceptors(client: AxiosInstance): void {

@@ -21,7 +21,7 @@ interface Mba3State {
 }
 
 // Cliente axios exclusivo para auth de MBA3 (sin interceptores del sistema interno)
-const mba3AuthClient = axios.create({ baseURL: MBA3_BASE_URL, timeout: 8000 });
+const mba3AuthClient = axios.create({ baseURL: MBA3_BASE_URL });
 
 export const useMba3Store = defineStore('mba3', {
   state: (): Mba3State => ({
