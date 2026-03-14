@@ -330,8 +330,11 @@ import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth'; // Asegúrate de que la ruta sea correcta
 import { mba3Request } from 'src/services/mba3Api';
+import { useOfflineStore } from 'src/stores/offlineStore';
+import type { ProductorPendiente } from 'src/stores/offlineStore';
 
 const authStore = useAuthStore(); // Instanciamos el store de Pinia
+const offlineStore = useOfflineStore();
 const usuarioDbId = ref<number | null>(null); // Aquí guardaremos el '3'
 
 async function cargarIdRealDeUsuario() {
@@ -339,9 +342,14 @@ async function cargarIdRealDeUsuario() {
 
   if (!uuid) return;
 
+  // Fallback desde caché si no hay red
+  const cached = Number(localStorage.getItem('alazan_usuario_db_id'));
+  if (cached) usuarioDbId.value = cached;
+
   try {
     const res = await api.get(`/api/usuarios/perfil/${uuid}`);
     usuarioDbId.value = res.data.id; // Guardamos el '3' (o el que corresponda)
+    localStorage.setItem('alazan_usuario_db_id', String(res.data.id));
     console.log('ID de auditoría cargado:', usuarioDbId.value);
   } catch (error) {
     console.error('No se pudo traducir el UUID a ID numérico', error);
@@ -387,10 +395,12 @@ const props = withDefaults(
     catalogoChoferes?: ChoferCatalogo[];
     ultimoGranoId?: number | null;
     camposConfig?: CampoConfigItem[];
+    isOnline?: boolean;
   }>(),
   {
     catalogoChoferes: () => [],
     camposConfig: () => [],
+    isOnline: true,
   },
 );
 
@@ -849,6 +859,37 @@ function camposCambiaron(): boolean {
 }
 
 async function guardarNuevoProductor() {
+  if (!props.isOnline) {
+    // Guardar localmente
+    const localId = 'LOCAL_PROD_' + Date.now();
+    const prodLocal: ProductorPendiente = {
+      nombre: nuevoProd.nombre,
+      telefono: nuevoProd.telefono,
+      tipo_persona: nuevoProd.tipo as 'Fisica' | 'Moral',
+      atiende: nuevoProd.tipo === 'Moral' ? nuevoProd.atiende : null,
+      _localId: localId,
+      _syncStatus: 'pending',
+    };
+    offlineStore.agregarProductor(prodLocal);
+
+    // Agregarlo al selector como si fuera real, marcado con _localId
+    const prodEnSelector = {
+      id: null,
+      _localId: localId,
+      nombre: nuevoProd.nombre,
+      telefono: nuevoProd.telefono,
+      origen: 'LOCAL_OFFLINE',
+    } as unknown as Productor;
+    opcionesProductores.value = [prodEnSelector, ...opcionesProductores.value];
+    productorSeleccionado.value = prodEnSelector;
+    onProductorSelected(prodEnSelector);
+    modalProductor.value = false;
+    nuevoProd.tipo = 'Fisica'; nuevoProd.nombre = ''; nuevoProd.atiende = ''; nuevoProd.telefono = '';
+    $q.notify({ type: 'warning', icon: 'cloud_off', message: 'Productor guardado localmente — se registrará al recuperar red' });
+    return;
+  }
+
+  // Lógica online original
   try {
     const res = await api.post('/api/catalogos/productores', {
       nombre: nuevoProd.nombre,
@@ -897,19 +938,11 @@ async function onSubmit() {
     return $q.notify({ type: 'warning', message: 'Debe capturar el peso bruto' });
   }
 
-  // Validamos que tengamos el ID numérico antes de enviar
-  if (!usuarioDbId.value) {
-    return $q.notify({
-      type: 'negative',
-      message: 'Error de integridad: No se pudo verificar tu ID de usuario.',
-    });
-  }
-
   // Resolver productor: crear si es nuevo, actualizar si cambió algún dato
   if (productorSeleccionado.value) {
     const prod = productorSeleccionado.value;
 
-    if (!prod.id) {
+    if (!prod.id && !(prod as unknown as Record<string, unknown>)['_localId']) {
       // Productor nuevo (viene de MBA3 sin alta local, o fue iniciado manualmente)
       const localList = props.listaProductores ?? [];
       // Intentar encontrar coincidencia por RFC o nombre antes de crear
@@ -950,10 +983,26 @@ async function onSubmit() {
           productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };
           emit('refresh-productores');
         } catch {
-          return $q.notify({
-            type: 'negative',
-            message: 'No se pudo registrar el productor en el sistema local.',
-          });
+          if (!window.navigator.onLine) {
+            // Sin red: guardar productor en cola offline y continuar el registro
+            const localId = 'LOCAL_PROD_' + Date.now();
+            offlineStore.agregarProductor({
+              nombre: camposProductor.nombre,
+              telefono: camposProductor.telefono || '',
+              tipo_persona: camposProductor.tipo_persona as 'Fisica' | 'Moral',
+              atiende: camposProductor.tipo_persona === 'Moral' ? camposProductor.atiende || null : null,
+              _localId: localId,
+              _syncStatus: 'pending',
+            });
+            form.productor_id = null;
+            // Inyectar _localId en el objeto seleccionado para que onSubmit lo propague
+            (productorSeleccionado.value as unknown as Record<string, unknown>)['_localId'] = localId;
+          } else {
+            return $q.notify({
+              type: 'negative',
+              message: 'No se pudo registrar el productor en el sistema local.',
+            });
+          }
         }
       }
     } else if (camposCambiaron()) {
@@ -1000,6 +1049,8 @@ async function onSubmit() {
     boleta_numero: null,
     // AQUÍ ESTÁ LA MAGIA: Mandamos el número (3), no el UUID
     usuario_registro_id: usuarioDbId.value,
+    _productor_nombre: productorSeleccionado.value?.nombre ?? '',
+    _productor_localId: (productorSeleccionado.value as unknown as Record<string, unknown>)?.['_localId'] as string | undefined ?? undefined,
   };
 
   emit('save', registroParaGuardar);

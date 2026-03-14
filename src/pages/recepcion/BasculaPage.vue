@@ -110,6 +110,16 @@
       </div>
     </q-card>
 
+    <q-banner v-if="basculaPendientes > 0 && !isOnline" class="bg-orange-1 text-orange-9 q-mb-md" rounded>
+      <template #avatar><q-icon name="wifi_off" color="orange" /></template>
+      {{ basculaPendientes }} registro(s) guardados sin conexión. Se sincronizarán al recuperar red.
+    </q-banner>
+
+    <q-banner v-if="basculaErrores > 0" class="bg-red-1 text-red-9 q-mb-md" rounded>
+      <template #avatar><q-icon name="error" color="red" /></template>
+      {{ basculaErrores }} registro(s) no pudieron sincronizarse. Revisa los marcados en rojo.
+    </q-banner>
+
     <!-- Con rowsPerPage : 0 quita la paginación -->
     <q-card bordered flat class="shadow-1 border-grey">
       <q-table
@@ -119,10 +129,25 @@
         flat
         :pagination="{ rowsPerPage: 0 }"
         :loading="loading"
+        :row-class="(row: any) => {
+          if (row._esOffline && row._syncStatus === 'error') return 'bg-red-1'
+          if (row._esOffline) return 'bg-orange-1'
+          return ''
+        }"
       >
         <template v-slot:body-cell-idx="props">
           <q-td :props="props" class="text-grey-7">
             {{ props.rowIndex + 1 }}
+          </q-td>
+        </template>
+
+        <template v-slot:body-cell-ticket="props">
+          <q-td :props="props">
+            {{ props.value }}
+            <q-badge v-if="props.row._esOffline && props.row._syncStatus === 'pending'"
+              color="orange" label="OFFLINE" class="q-ml-xs" />
+            <q-badge v-if="props.row._esOffline && props.row._syncStatus === 'error'"
+              color="red" label="ERROR" class="q-ml-xs" />
           </q-td>
         </template>
 
@@ -173,6 +198,7 @@
         :listaProductores="listaProductores"
         :ultimoGranoId="ultimoGranoId"
         :campos-config="camposBasculaConfig"
+        :isOnline="isOnline"
         @save="handleGuardarRegistro"
         @close="showFormulario = false"
         @refresh-productores="cargarProductores"
@@ -182,28 +208,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, reactive, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify, useQuasar, exportFile } from 'quasar';
 import type { QTableProps } from 'quasar';
 import BasculaFormulario from './BasculaFormulario.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { precargarMba3Productores, MBA3_LS_KEY } from 'src/services/mba3ProductoresPreload';
+import { useOfflineStore } from 'src/stores/offlineStore';
+import type { RegistroBasculaPendiente } from 'src/stores/offlineStore';
 
 const $q = useQuasar();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
 
 // --- INTERFACES ---
 interface RegistroBascula {
-  id?: number;
-  ticket: number;
+  id?: number | string;
+  ticket: number | string;
+  ticket_numero?: number | string;
   status: string; // 'PENDIENTE', 'ANALIZADO', etc.
-  boleta?: string;
+  boleta?: string | null;
   fecha: string;
+  fecha_hora?: string;
   origen_nombre: string;
   productor: string;
   comprador: string;
   pesoNeto?: number;
   pesoBruto: number;
+  peso_bruto_kg?: number;
   datos_adicionales?: string;
   humedad?: number;
   impurezas?: number;
@@ -212,7 +245,17 @@ interface RegistroBascula {
   r2_manchado?: number;
   r2_quebrado?: number;
   calibre?: string;
-  usuario_registro_id?: number;
+  usuario_registro_id?: number | null;
+  productor_id?: number | null;
+  grano_id?: number | null;
+  origen_id?: number | null;
+  comprador_id?: string | null;
+  chofer?: string;
+  placas?: string;
+  // Campos offline metadata (opcionales)
+  _esOffline?: boolean;
+  _syncStatus?: 'pending' | 'error';
+  _syncError?: string;
 }
 
 interface DatosCalidad {
@@ -315,8 +358,43 @@ const filtros = reactive({
 
 // --- PROPIEDADES COMPUTADAS ---
 
+// Mapear registros offline al shape de la tabla del servidor
+const registrosOfflineMapeados = computed(() =>
+  offlineStore.colaBascula
+    .filter(r => r.sede_id === authStore.sedeActivaId)
+    .map(r => ({
+      id: r._localId,
+      ticket: r.ticket_numero,
+      fecha: r.fecha_hora,
+      productor: r._productor_nombre,
+      comprador: r._comprador_nombre,
+      origen_nombre: r._origen_nombre,
+      grano: r._grano_nombre,
+      pesoBruto: r.peso_bruto_kg,
+      pesoNeto: 0,
+      status: r.status,
+      boleta: null,
+      _esOffline: true,
+      _syncStatus: r._syncStatus,
+      _syncError: r._syncError,
+    }))
+);
+
+// Unir: offline primero (al tope), luego del servidor
+const registrosCombinados = computed(() => [
+  ...registrosOfflineMapeados.value,
+  ...registrosBascula.value,
+]);
+
+const basculaPendientes = computed(() =>
+  offlineStore.colaBascula.filter(r => r.sede_id === authStore.sedeActivaId && r._syncStatus === 'pending').length
+);
+const basculaErrores = computed(() =>
+  offlineStore.colaBascula.filter(r => r.sede_id === authStore.sedeActivaId && r._syncStatus === 'error').length
+);
+
 const registrosFiltrados = computed(() => {
-  let lista = registrosBascula.value;
+  let lista = registrosCombinados.value;
 
   if (filtros.buscar) {
     const busqueda = filtros.buscar.toLowerCase();
@@ -407,6 +485,7 @@ const columns: QTableProps['columns'] = [
 // --- MÉTODOS ---
 
 const cargarDatos = async () => {
+  if (!isOnline.value) return;
   loading.value = true;
   try {
     const [resRegistros, resGranos, resTicket, resChoferes, resUltimoGrano] = await Promise.all([
@@ -428,11 +507,25 @@ const cargarDatos = async () => {
   }
 };
 
+const _onlineHandler = () => {
+  isOnline.value = true;
+  // Recargar datos del servidor al recuperar red
+  void cargarDatos();
+};
+const _offlineHandler = () => { isOnline.value = false; };
+
 onMounted(async () => {
+  window.addEventListener('online', _onlineHandler);
+  window.addEventListener('offline', _offlineHandler);
   await cargarDatos();
   await cargarCatalogosPrincipales();
   await cargarCamposConfig();
   await cargarProductores();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _onlineHandler);
+  window.removeEventListener('offline', _offlineHandler);
 });
 
 // Watcher para recargar datos cuando cambia la sede activa (multisede)
@@ -453,7 +546,40 @@ watch(
   },
 );
 
-async function handleGuardarRegistro(nuevoRegistro: RegistroBascula) {
+async function handleGuardarRegistro(nuevoRegistro: RegistroBascula & { _productor_nombre?: string; _productor_localId?: string }) {
+  if (!window.navigator.onLine) {
+    // Ticket temporal con prefijo OFL- — el sync lo reemplaza con el número real del servidor
+    const ticketTemporal = 'OFL-' + Date.now();
+    const pendiente: RegistroBasculaPendiente = {
+      ticket_numero: ticketTemporal,
+      fecha_hora: nuevoRegistro.fecha_hora ?? new Date().toISOString(),
+      productor_id: nuevoRegistro.productor_id ?? null,
+      chofer: nuevoRegistro.chofer ?? '',
+      placas: nuevoRegistro.placas ?? '',
+      peso_bruto_kg: nuevoRegistro.pesoBruto ?? nuevoRegistro.peso_bruto_kg ?? 0,
+      grano_id: nuevoRegistro.grano_id ?? null,
+      origen_id: nuevoRegistro.origen_id ?? null,
+      comprador_id: nuevoRegistro.comprador_id ?? null,
+      status: nuevoRegistro.status ?? 'PENDIENTE',
+      datos_adicionales: nuevoRegistro.datos_adicionales ?? '',
+      boleta_numero: null,
+      usuario_registro_id: nuevoRegistro.usuario_registro_id ?? null,
+      sede_id: authStore.sedeActivaId ?? 0,
+      _localId: 'LOCAL_BASC_' + Date.now(),
+      _syncStatus: 'pending',
+      _fechaLocal: new Date().toISOString(),
+      ...(nuevoRegistro._productor_localId ? { _productor_localId: nuevoRegistro._productor_localId } : {}),
+      _productor_nombre: nuevoRegistro._productor_nombre ?? '',
+      _origen_nombre: (catalogoOrigenes.value as { id: number; municipio: string }[]).find(o => o.id === nuevoRegistro.origen_id)?.municipio ?? '',
+      _comprador_nombre: (catalogoCompradores.value as { id: string; nombre: string }[]).find(c => c.id === nuevoRegistro.comprador_id)?.nombre ?? '',
+      _grano_nombre: (catalogoGranos.value as { id: number; nombre: string }[]).find(g => g.id === nuevoRegistro.grano_id)?.nombre ?? '',
+    };
+    offlineStore.agregarBascula(pendiente);
+    showFormulario.value = false;
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: `Guardado sin red — ID temporal: ${ticketTemporal}` });
+    return;
+  }
+
   $q.loading.show({ message: 'Procesando registro...' });
   try {
     await api.post('/api/bascula/guardar', nuevoRegistro);

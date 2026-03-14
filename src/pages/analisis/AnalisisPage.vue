@@ -36,9 +36,9 @@
             />
             <q-btn
               unelevated
-              color="primary"
-              icon="search"
-              label="Buscar"
+              color="grey-7"
+              icon="refresh"
+              label="Actualizar"
               @click="cargarPendientes"
             />
           </div>
@@ -371,6 +371,7 @@ import { api } from 'src/boot/axios';
 import TablaAnalisisDesplegable from './TablaAnalisisDesplegable.vue';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 
 interface CampoAnalisisConfig {
   id: number;
@@ -454,9 +455,12 @@ const emit = defineEmits<{
 
 // --- Estado ---
 const $q = useQuasar();
+const offlineStore = useOfflineStore();
 const loading = ref(false);
 const currentIndex = ref(0);
-const listaPendientes = ref<RegistroBascula[]>([]);
+// listaTodos: cache completo del servidor — nunca se filtra directamente
+const listaTodos = ref<RegistroBascula[]>([]);
+// listaPendientes: computed client-side sobre listaTodos según los filtros activos
 const listaCalibres = ref<{ id: number; nombre: string }[]>([]);
 const uploadedPhotos = ref<string[]>([]);
 const frijolData = ref<FrijolRow[]>([]);
@@ -513,11 +517,41 @@ const opcionesEstatus = [
   { label: 'Todos', value: 'TODOS' },
 ];
 
+// listaPendientes: filtrado client-side — no toca el servidor
+const listaPendientes = computed(() => {
+  let lista = listaTodos.value;
+
+  if (filtroEstatus.value && filtroEstatus.value !== 'TODOS') {
+    if (filtroEstatus.value === 'NO_PENDIENTE') {
+      lista = lista.filter(r => r.status !== 'PENDIENTE');
+    } else {
+      lista = lista.filter(r => r.status === filtroEstatus.value);
+    }
+  }
+
+  if (filtroFechaInicio.value) {
+    const inicio = new Date(filtroFechaInicio.value);
+    lista = lista.filter(r => new Date(r.fecha) >= inicio);
+  }
+
+  if (filtroFechaFin.value) {
+    const fin = new Date(filtroFechaFin.value + 'T23:59:59');
+    lista = lista.filter(r => new Date(r.fecha) <= fin);
+  }
+
+  return lista;
+});
+
+// Resetear índice al cambiar los filtros para no quedar fuera de rango
+watch([filtroEstatus, filtroFechaInicio, filtroFechaFin], () => {
+  currentIndex.value = 0;
+});
+
 function limpiarFiltros() {
   filtroEstatus.value = 'TODOS';
   filtroFechaInicio.value = '';
   filtroFechaFin.value = '';
-  void cargarPendientes();
+  // No llama al servidor — el computed se recalcula solo
 }
 
 const analisisData = reactive<AnalisisData>({
@@ -562,22 +596,20 @@ async function cargarCalibres(granoId?: number) {
 }
 
 // --- Lógica de Carga API ---
+// Carga TODOS los registros del servidor (sin filtros) — el filtrado es client-side
 async function cargarPendientes() {
+  if (!window.navigator.onLine) return; // Sin red, trabajar con lo que hay en memoria
   loading.value = true;
   try {
-    const params: Record<string, string> = {};
-    if (filtroEstatus.value) params.estatus = filtroEstatus.value;
-    if (filtroFechaInicio.value) params.fechaInicio = filtroFechaInicio.value;
-    if (filtroFechaFin.value) params.fechaFin = filtroFechaFin.value;
-
-    const response = await api.get('/api/analisis/pendientes-analisis', { params });
-    listaPendientes.value = response.data;
-    // Resetear al primer registro si hay datos
-    if (listaPendientes.value.length > 0) {
-      currentIndex.value = 0;
-    }
+    const response = await api.get('/api/analisis/pendientes-analisis', {
+      params: { estatus: 'TODOS' },
+    });
+    listaTodos.value = response.data;
+    currentIndex.value = 0;
   } catch {
-    $q.notify({ type: 'negative', message: 'Error al cargar tickets pendientes' });
+    if (window.navigator.onLine) {
+      $q.notify({ type: 'negative', message: 'Error al cargar tickets pendientes' });
+    }
   } finally {
     loading.value = false;
   }
@@ -781,6 +813,19 @@ function nextRegistro() {
 
 // --- Cámara con getUserMedia ---
 async function abrirCamara() {
+  // navigator.mediaDevices solo existe en contextos seguros (HTTPS o localhost).
+  // Al acceder por IP en HTTP, el navegador lo deja como undefined.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $q.dialog({
+      title: 'Cámara no disponible',
+      message:
+        'El navegador bloquea el acceso a la cámara en conexiones HTTP por IP. ' +
+        'Usa "Subir Foto" para adjuntar imágenes, o accede al sistema por HTTPS.',
+      ok: { label: 'Entendido', color: 'primary', flat: true },
+    });
+    return;
+  }
+
   try {
     cameraDialog.value = true;
     stream.value = await navigator.mediaDevices.getUserMedia({
@@ -792,7 +837,7 @@ async function abrirCamara() {
     }
   } catch (err) {
     console.error('Error al acceder a la cámara:', err);
-    $q.notify({ type: 'negative', message: 'No se pudo acceder a la cámara.' });
+    $q.notify({ type: 'negative', message: 'No se pudo acceder a la cámara. Usa "Subir Foto".' });
     cameraDialog.value = false;
   }
 }
@@ -856,55 +901,66 @@ async function guardar() {
   const r = registroActual.value;
   if (!r) return;
 
+  const yaExisteAnalisis = !!r.calibre || !!r.datos_adicionales;
+
+  const payload = {
+    bascula_id: r.id,
+    calibre: analisisData.calibre,
+    humedad: num(analisisData.humedad),
+    impurezas: num(analisisData.impurezas),
+    r1_danado_insecto: num(analisisData.r1),
+    r2_quebrado: num(analisisData.quebMxc),
+    r2_manchado: num(analisisData.manchados),
+    r2_arrugado: num(analisisData.r2),
+    analista_usuario_id: 1,
+    grano_id: r.grano_id || null,
+    observaciones: `Análisis para ticket ${r.ticket_numero}`,
+    datos_adicionales: JSON.stringify({
+      exportacion: analisisData.exportacion,
+      cafes_lisos: num(analisisData.cafesLisos),
+      helados: num(analisisData.helados),
+      alimonados: num(analisisData.alimonados),
+      revolcados: num(analisisData.revolcados),
+      fotos: uploadedPhotos.value,
+      ...(r.grano_id === 1 && frijolData.value.length > 0
+        ? { frijol_datos: frijolData.value }
+        : {}),
+      ...datosPersonalizados.value,
+    }),
+  };
+
+  // ── OFFLINE PATH ──────────────────────────────────────────────────────────────
+  if (!window.navigator.onLine) {
+    offlineStore.agregarAnalisis({
+      ...payload,
+      _localId: 'LOCAL_ANAL_' + Date.now(),
+      _syncStatus: 'pending',
+      _esActualizacion: yaExisteAnalisis,
+      _ticketNumero: r.ticket_numero,
+    });
+    $q.notify({
+      type: 'warning',
+      icon: 'cloud_off',
+      message: `Sin conexión — análisis del ticket ${r.ticket_numero} guardado localmente. Se sincronizará al volver la red.`,
+      timeout: 4000,
+    });
+    return;
+  }
+
+  // ── ONLINE PATH ───────────────────────────────────────────────────────────────
   $q.loading.show({ message: 'Procesando análisis...' });
 
   try {
-    const payload = {
-      bascula_id: r.id,
-      calibre: analisisData.calibre,
-      humedad: num(analisisData.humedad),
-      impurezas: num(analisisData.impurezas),
-      r1_danado_insecto: num(analisisData.r1),
-      r2_quebrado: num(analisisData.quebMxc),
-      r2_manchado: num(analisisData.manchados),
-      r2_arrugado: num(analisisData.r2),
-      analista_usuario_id: 1,
-      grano_id: r.grano_id || null,
-      observaciones: `Análisis para ticket ${r.ticket_numero}`,
-      datos_adicionales: JSON.stringify({
-        exportacion: analisisData.exportacion,
-        cafes_lisos: num(analisisData.cafesLisos),
-        helados: num(analisisData.helados),
-        alimonados: num(analisisData.alimonados),
-        revolcados: num(analisisData.revolcados),
-        fotos: uploadedPhotos.value,
-        ...(r.grano_id === 1 && frijolData.value.length > 0
-          ? { frijol_datos: frijolData.value }
-          : {}),
-        ...datosPersonalizados.value,
-      }),
-    };
-
-    // DETERMINAR SI ES ACTUALIZACIÓN O INSERCIÓN
-    // Si r.calibre o r.humedad ya tienen valor, significa que ya existe un análisis
-    const yaExisteAnalisis = !!r.calibre || !!r.datos_adicionales;
-
     if (yaExisteAnalisis) {
-      // Usamos PUT para actualizar el registro existente vinculado a bascula_id
       await api.put(`/api/analisis/actualizar/${r.id}`, payload);
-      $q.notify({
-        type: 'positive',
-        message: `Análisis del ticket ${r.ticket_numero} actualizado.`,
-      });
+      $q.notify({ type: 'positive', message: `Análisis del ticket ${r.ticket_numero} actualizado.` });
     } else {
-      // Usamos POST para crear uno nuevo
       await api.post('/api/analisis/guardar', payload);
       $q.notify({ type: 'positive', message: `Ticket ${r.ticket_numero} guardado con éxito.` });
     }
 
     emit('refresh');
     await cargarPendientes();
-    // No limpiamos el formulario inmediatamente para que el usuario vea sus cambios reflejados
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message: string }>;
     $q.notify({
