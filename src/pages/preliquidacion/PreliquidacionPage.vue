@@ -1,5 +1,9 @@
 <template>
   <q-page padding class="bg-grey-2">
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — los datos se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
     <!-- ==================== VISTA LISTA ==================== -->
     <template v-if="!showDetail">
       <!-- Header -->
@@ -1238,10 +1242,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify, useQuasar, exportFile } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 import type { QTableColumn } from 'quasar';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
 
@@ -1410,6 +1415,9 @@ const opcionesRT = ['Riego', 'Temporal'];
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 
 // --- ESTADO ---
 const registros = ref<RegistroPreliq[]>([]);
@@ -2137,35 +2145,49 @@ async function handleGuardarPreliquidacion() {
     return;
   }
 
+  // 2. Preparación del Payload
+  const precio = detalle.value?.precio || 0;
+  preliquidacionDto.value = {
+    boletaId: detalle.value?.boletaId || 0,
+    pesoTara: parseFloat(pesoTara.value.toString().replace(/,/g, '')) || 0,
+    pesoNeto: parseFloat(pesoNeto.value.toString().replace(/,/g, '')) || 0,
+    descuento: parseFloat(descuento.value.toString().replace(/,/g, '')) || 0,
+    kgALiquidar: parseFloat(kgALiquidar.value.toString().replace(/,/g, '')) || 0,
+    importeTotal: parseFloat(aLiquidar.value.toString().replace(/,/g, '')) || 0,
+    observaciones: observaciones.value || '',
+    rt: rt.value || '',
+    tipoSiembra: rt.value || '',
+  };
+
+  const payload = {
+    ...preliquidacionDto.value,
+    divisiones: divisionConfirmada.value
+      ? divisionConfirmada.value.map((p) => ({
+          productorId: p.productorId,
+          nombre: p.nombre,
+          kgAsignados: Number(p.kgAsignados),
+          importeTotal: Number(p.kgAsignados) * precio,
+        }))
+      : null,
+  };
+
+  // ── OFFLINE PATH ──────────────────────────────────────────────────────────
+  if (!window.navigator.onLine) {
+    offlineStore.agregarPreliquidacion({
+      tipo: 'guardar',
+      ...payload,
+      divisiones: payload.divisiones,
+      _localId: 'LOCAL_PRELIQ_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Pre-liquidación boleta #${payload.boletaId}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — pre-liquidación guardada localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    return;
+  }
+
   $q.loading.show({ message: 'Guardando pre-liquidación...' });
 
   try {
-    // 2. Preparación del Payload (Coincidiendo con PreliquidacionDto.cs)
-    const precio = detalle.value?.precio || 0;
-    preliquidacionDto.value = {
-      boletaId: detalle.value?.boletaId || 0,
-      pesoTara: parseFloat(pesoTara.value.toString().replace(/,/g, '')) || 0,
-      pesoNeto: parseFloat(pesoNeto.value.toString().replace(/,/g, '')) || 0,
-      descuento: parseFloat(descuento.value.toString().replace(/,/g, '')) || 0,
-      kgALiquidar: parseFloat(kgALiquidar.value.toString().replace(/,/g, '')) || 0,
-      importeTotal: parseFloat(aLiquidar.value.toString().replace(/,/g, '')) || 0,
-      observaciones: observaciones.value || '',
-      rt: rt.value || '',
-      tipoSiembra: rt.value || '',
-    };
-
-    const payload = {
-      ...preliquidacionDto.value,
-      divisiones: divisionConfirmada.value
-        ? divisionConfirmada.value.map((p) => ({
-            productorId: p.productorId,
-            nombre: p.nombre,
-            kgAsignados: Number(p.kgAsignados),
-            importeTotal: Number(p.kgAsignados) * precio,
-          }))
-        : null,
-    };
-
     // 3. Envío al servidor
     await api.post('/api/preliquidacion/guardar', payload);
 
@@ -2228,13 +2250,27 @@ interface AxiosErrorResponse {
 async function handleGuardarDocumentacion() {
   if (!selectedRegistro.value || uploadedPhotos.value.length === 0) return;
 
+  if (!window.navigator.onLine) {
+    offlineStore.agregarPreliquidacion({
+      tipo: 'guardar-foto',
+      boletaId: selectedRegistro.value.boletaId,
+      ...(uploadedPhotos.value[0] !== undefined ? { foto: uploadedPhotos.value[0] } : {}),
+      _localId: 'LOCAL_PRELIQ_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Documentación boleta #${selectedRegistro.value.boletaId}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — documentación guardada localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    documentacionFinalizada.value = true;
+    return;
+  }
+
   try {
     guardandoDocumento.value = true;
     $q.loading.show({ message: 'Subiendo documento al servidor...' });
 
     const payload = {
       boletaId: selectedRegistro.value.boletaId,
-      foto: uploadedPhotos.value[0], // Aquí va el Base64 (sea foto o PDF)
+      foto: uploadedPhotos.value[0],
     };
 
     await api.post('/api/preliquidacion/guardar-foto', payload);
@@ -2521,6 +2557,8 @@ function exportarExcel() {
 
 // --- LIFECYCLE ---
 onMounted(async () => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
   await Promise.all([
     cargarFactorImpurezas(),
     cargarIPRM(),
@@ -2528,6 +2566,11 @@ onMounted(async () => {
     cargarResumen(),
     cargarConfigCampos(),
   ]);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _syncOnline);
+  window.removeEventListener('offline', _syncOnline);
 });
 
 watch(

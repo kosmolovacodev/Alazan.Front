@@ -1,5 +1,9 @@
 <template>
   <q-page padding class="bg-grey-2">
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — las confirmaciones se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
     <!-- Header -->
     <div class="row items-center justify-between q-mb-md">
       <div class="text-h5 text-grey-8 text-weight-bold">
@@ -563,15 +567,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify, useQuasar, exportFile } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 import type { QTableColumn } from 'quasar';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 
 interface Boleta {
   id: number;
@@ -935,6 +943,23 @@ function verFoto(url: string) {
 async function confirmarPrecio(acepta: boolean) {
   if (!boletaSeleccionada.value) return;
 
+  // ── OFFLINE PATH ──────────────────────────────────────────────────────────
+  if (!window.navigator.onLine) {
+    const sedeId = authStore.sedeActivaId || 0;
+    offlineStore.agregarBoleta({
+      boletaId: boletaSeleccionada.value.id,
+      acepta,
+      sedeId,
+      _localId: 'LOCAL_BOL_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `${acepta ? 'Aceptar' : 'Rechazar'} precio boleta #${boletaSeleccionada.value.id}`,
+      ...(acepta ? {} : { motivoRechazo: 'Rechazado por el productor' }),
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: `Sin conexión — confirmación guardada localmente. Se sincronizará al volver la red.`, timeout: 4000 });
+    cerrarModal();
+    return;
+  }
+
   if (!acepta) {
     // Rechazo directo sin ventana de confirmación intermedia
     void (async () => {
@@ -945,7 +970,7 @@ async function confirmarPrecio(acepta: boolean) {
           {
             boletaId: boletaSeleccionada.value?.id,
             acepta: false,
-            motivoRechazo: 'Rechazado por el productor', // Agregamos un motivo por defecto
+            motivoRechazo: 'Rechazado por el productor',
           },
           { params: { sedeId: authStore.sedeActivaId || 0 } },
         );
@@ -1045,7 +1070,14 @@ function exportarExcel() {
 
 // Lifecycle
 onMounted(async () => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
   await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos()]);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _syncOnline);
+  window.removeEventListener('offline', _syncOnline);
 });
 
 // Watcher para cambio de sede

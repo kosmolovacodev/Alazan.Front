@@ -10,12 +10,44 @@ declare module '@vue/runtime-core' {
   }
 }
 
-const API_URL = process.env.DEV ? 'http://localhost:5183' : 'https://alazan-app.consul-tek.com/api';
+// En DEV: baseURL vacío → las peticiones van a /api/... relativo al host actual
+// Vite proxy intercepta /api → http://localhost:5183 (funciona desde cualquier dispositivo en la red)
+// En PROD: URL absoluta del servidor desplegado
+const API_URL = process.env.DEV ? '' : 'https://alazan-app.consul-tek.com/api';
 
 const api = axios.create({ baseURL: API_URL });
 
 // Bandera para evitar múltiples notificaciones y redirecciones simultáneas
 let isRedirecting = false;
+
+/**
+ * Decodifica el claim `exp` del JWT sin librerías externas.
+ * Retorna true si el token ya venció (o si no se puede decodificar, false para no bloquear).
+ */
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] ?? ''));
+    if (typeof payload.exp !== 'number') return false;
+    // Margen de 10 segundos para absorber diferencias de reloj
+    return Date.now() >= (payload.exp - 10) * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function handleSessionExpired() {
+  if (isRedirecting) return;
+  isRedirecting = true;
+  const authStore = useAuthStore();
+  Notify.create({
+    type: 'warning',
+    message: 'Su sesión ha caducado. Por favor, ingrese de nuevo.',
+    position: 'top',
+    timeout: 2500,
+  });
+  authStore.logout();
+  setTimeout(() => { isRedirecting = false; }, 5000);
+}
 
 // --- INTERCEPTOR DE PETICIÓN (Request) ---
 api.interceptors.request.use(
@@ -23,7 +55,13 @@ api.interceptors.request.use(
     // 1. Obtener el token del LocalStorage
     const token = localStorage.getItem('jwt');
 
-    // 2. Si existe el token, añadirlo a los headers
+    // 2. Verificar expiración ANTES de enviar — evita el round-trip inútil
+    if (token && isJwtExpired(token)) {
+      handleSessionExpired();
+      return Promise.reject(new Error('jwt_expired'));
+    }
+
+    // 3. Si existe el token, añadirlo a los headers
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -62,29 +100,7 @@ api.interceptors.response.use(
   async (error) => {
     // Si el servidor responde con 401 (Token caducado o inválido)
     if (error.response && error.response.status === 401) {
-      // Solo ejecutamos la lógica de redirección si no hay una en curso
-      if (!isRedirecting) {
-        isRedirecting = true;
-
-        const authStore = useAuthStore();
-
-        // 1. Notificamos al usuario
-        Notify.create({
-          type: 'warning',
-          message: 'Su sesión ha caducado. Por favor, ingrese de nuevo.',
-          position: 'top',
-          timeout: 2500,
-        });
-
-        // 2. Limpiar sesión y redirigir
-        // Usamos la acción logout del store que ya configuramos anteriormente
-        authStore.logout();
-
-        // Reseteamos la bandera después de un tiempo prudente
-        setTimeout(() => {
-          isRedirecting = false;
-        }, 5000);
-      }
+      handleSessionExpired();
     }
 
     return Promise.reject(error instanceof Error ? error : new Error(String(error)));

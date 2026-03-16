@@ -755,7 +755,7 @@ async function cargarDatos() {
       api.get('/pagos/tope-diario'),
     ])
 
-    pagos.value          = solicitudesRes.data
+    pagos.value          = Array.isArray(solicitudesRes.data) ? solicitudesRes.data : []
     bancosOptions.value  = configRes.data.bancos   ?? []
     formasPagoOptions.value = configRes.data.formasPago ?? []
     topeDiario.value       = topeRes.data.topeDiario ?? 0

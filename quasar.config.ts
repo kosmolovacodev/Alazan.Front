@@ -80,6 +80,7 @@ export default defineConfig((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
+      host: '0.0.0.0',  // Escuchar en todas las interfaces → accesible desde la red local
       port: 9200,
       open: true,
       // 1. Ponemos el host exacto en un array (como pidió el error de TS)
@@ -89,6 +90,11 @@ export default defineConfig((/* ctx */) => {
 
       proxy: {
         '/api': {
+          target: 'http://localhost:5183',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/auth': {
           target: 'http://localhost:5183',
           changeOrigin: true,
           secure: false,

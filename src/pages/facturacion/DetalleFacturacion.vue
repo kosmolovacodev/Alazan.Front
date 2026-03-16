@@ -349,7 +349,7 @@
                     :revolcados="0"
                     :suma-r2="detalle.sumaR2 || 0"
                     :total-danos-num="detalleTotalDanos"
-                    :exportacion="0"
+                    :exportacion="detalle.exportacion || 0"
                     :calibre="detalle.calibre || ''"
                     :read-only="true"
                     :frijol-data-inicial="frijolDataInicial"
@@ -1184,6 +1184,7 @@ interface DetalleData {
   tieneFacturaXML: boolean;
   granoId?: number;
   analisisDatosAdicionales?: string;
+  exportacion?: number;
   sedeId?: number;
   tiene_factura_xml?: number;
   tiene_documentos?: number;

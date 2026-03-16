@@ -73,9 +73,11 @@ import { useQuasar } from 'quasar';
 // Importamos el tipo QTableColumn por separado si el linter marca error
 import type { QTableColumn } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useUsuariosStore } from 'src/stores/usuariosStore';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const usuariosStore = useUsuariosStore();
 
 // --- INTERFACES TYPESCRIPT ---
 // Definimos la estructura de los objetos para evitar errores de "never"
@@ -130,6 +132,8 @@ async function cargarRoles() {
   try {
     const { data } = await api.get<Rol[]>('/api/roles');
     roles.value = data;
+    // Sincronizar con el store global para que otros componentes reaccionen
+    usuariosStore.listaRoles = data;
   } catch (error) {
     console.error(error);
   }

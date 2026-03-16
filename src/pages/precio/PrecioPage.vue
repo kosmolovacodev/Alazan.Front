@@ -1,5 +1,9 @@
 <template>
   <q-page>
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — las autorizaciones se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
     <PrecioScreen
       :boletas-precios="boletasPrecios"
       :tick-tiempo="tickTiempo"
@@ -33,6 +37,7 @@ import ModalAutorizacionPrecio from 'src/components/precio/ModalAutorizacionPrec
 import type { BoletaPrecio } from 'src/types/precio';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
+import { useOfflineStore } from 'src/stores/offlineStore';
 
 // Tipos para los catálogos
 interface CalibreDescuento {
@@ -59,6 +64,8 @@ interface DescuentoPrecio {
 }
 
 // Estado
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
 const boletasPrecios = ref<BoletaPrecio[]>([]);
 const tickTiempo = ref(0);
 const loading = ref(false);
@@ -268,6 +275,23 @@ const autorizarPrecio = async (precioCustom?: number) => {
       }
     }
 
+    if (!window.navigator.onLine) {
+      offlineStore.agregarPrecio({
+        tipo: 'autorizar',
+        boletaPrecioId: boletaSeleccionada.value.id ?? 0,
+        precioAutorizado: precioValor,
+        observaciones: justificacion.value || '',
+        tipoAutorizacion: tipoAutorizacion,
+        _localId: 'LOCAL_PREC_' + Date.now(),
+        _syncStatus: 'pending',
+        _descripcion: `Autorizar precio boleta #${boletaSeleccionada.value.id}`,
+      });
+      Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — autorización guardada localmente. Se sincronizará al volver la red.', timeout: 4000 });
+      cerrarModal();
+      loading.value = false;
+      return;
+    }
+
     await api.post('/api/precio/autorizar', {
       boletaPrecioId: boletaSeleccionada.value.id,
       precioAutorizado: precioValor,
@@ -297,6 +321,22 @@ const rechazarPrecio = async () => {
 
   try {
     loading.value = true;
+
+    if (!window.navigator.onLine) {
+      offlineStore.agregarPrecio({
+        tipo: 'rechazar',
+        boletaPrecioId: boletaSeleccionada.value.id ?? 0,
+        motivoRechazo: justificacion.value || 'Rechazado por el productor',
+        _localId: 'LOCAL_PREC_' + Date.now(),
+        _syncStatus: 'pending',
+        _descripcion: `Rechazar precio boleta #${boletaSeleccionada.value.id}`,
+      });
+      Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — rechazo guardado localmente. Se sincronizará al volver la red.', timeout: 4000 });
+      cerrarModal();
+      loading.value = false;
+      return;
+    }
+
     await api.post('/api/precio/rechazar', {
       boletaPrecioId: boletaSeleccionada.value.id,
       motivoRechazo: justificacion.value || 'Rechazado por el productor',
@@ -335,8 +375,13 @@ const iniciarTimer = () => {
   }, 60000); // Cada 60 segundos
 };
 
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
+
 // Lifecycle hooks
 onMounted(async () => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
+
   await cargarConfiguracion();
   await cargarCatalogos();
   await cargarBoletas();
@@ -349,6 +394,8 @@ onMounted(async () => {
 
   // Limpiar interval al desmontar
   onUnmounted(() => {
+    window.removeEventListener('online', _syncOnline);
+    window.removeEventListener('offline', _syncOnline);
     if (timerInterval) clearInterval(timerInterval);
     clearInterval(reloadInterval);
   });

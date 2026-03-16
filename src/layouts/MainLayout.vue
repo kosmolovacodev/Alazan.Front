@@ -110,6 +110,11 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Báscula</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="basculaPendientesTotal > 0" color="orange" floating>
+                  {{ basculaPendientesTotal }}
+                </q-badge>
+              </q-item-section>
             </q-item>
             <q-item
               v-if="authStore.tienePermiso('Recepción de Granos - Análisis')"
@@ -119,6 +124,11 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Análisis</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="analisisPendientesTotal > 0" color="orange" floating>
+                  {{ analisisPendientesTotal }}
+                </q-badge>
+              </q-item-section>
             </q-item>
             <q-item
               v-if="authStore.tienePermiso('Recepción de Granos - Precio')"
@@ -128,6 +138,9 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Precio</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="precioPendientesTotal > 0" color="orange" floating>{{ precioPendientesTotal }}</q-badge>
+              </q-item-section>
             </q-item>
             <q-item
               v-if="authStore.tienePermiso('Recepción de Granos - Boleta')"
@@ -137,6 +150,9 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Boleta</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="boletaPendientesTotal > 0" color="orange" floating>{{ boletaPendientesTotal }}</q-badge>
+              </q-item-section>
             </q-item>
             <q-item
               v-if="authStore.tienePermiso('Recepción de Granos - Volcado')"
@@ -146,6 +162,9 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Volcado</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="volcadoPendientesTotal > 0" color="orange" floating>{{ volcadoPendientesTotal }}</q-badge>
+              </q-item-section>
             </q-item>
             <q-item
               v-if="authStore.tienePermiso('Recepción de Granos - Pre-liquidación')"
@@ -155,6 +174,9 @@
               class="text-menu-inactive sub-menu-item"
             >
               <q-item-section>Pre-liquidación</q-item-section>
+              <q-item-section side>
+                <q-badge v-if="preliqPendientesTotal > 0" color="orange" floating>{{ preliqPendientesTotal }}</q-badge>
+              </q-item-section>
             </q-item>
           </q-list>
         </q-expansion-item>
@@ -167,6 +189,9 @@
         >
           <q-item-section avatar><q-icon name="receipt_long" /></q-item-section>
           <q-item-section>Recepción de Facturas</q-item-section>
+          <q-item-section side>
+            <q-badge v-if="facturacionPendientesTotal > 0" color="orange" floating>{{ facturacionPendientesTotal }}</q-badge>
+          </q-item-section>
         </q-item>
 
         <q-expansion-item
@@ -201,7 +226,7 @@
         <q-expansion-item
           v-if="authStore.tienePermiso('Producción')"
           icon="precision_manufacturing"
-          label="Producción"
+          :label="produccionPendientesTotal > 0 ? `Producción (${produccionPendientesTotal})` : 'Producción'"
           header-class="text-menu-inactive"
           expand-icon-class="text-white"
           to="/produccion"
@@ -230,7 +255,18 @@
     <q-footer v-if="!isOnline" class="bg-red-10 text-white">
       <q-toolbar dense>
         <q-icon name="cloud_off" class="q-mr-sm" />
-        <div class="text-weight-bold">MODO SIN CONEXIÓN - Los cambios se guardarán localmente</div>
+        <div class="text-weight-bold text-caption">
+          MODO SIN CONEXIÓN
+          <template v-if="basculaPendientesTotal > 0"> · {{ basculaPendientesTotal }} báscula</template>
+          <template v-if="analisisPendientesTotal > 0"> · {{ analisisPendientesTotal }} análisis</template>
+          <template v-if="precioPendientesTotal > 0"> · {{ precioPendientesTotal }} precio</template>
+          <template v-if="boletaPendientesTotal > 0"> · {{ boletaPendientesTotal }} boleta</template>
+          <template v-if="volcadoPendientesTotal > 0"> · {{ volcadoPendientesTotal }} volcado</template>
+          <template v-if="preliqPendientesTotal > 0"> · {{ preliqPendientesTotal }} preliq.</template>
+          <template v-if="facturacionPendientesTotal > 0"> · {{ facturacionPendientesTotal }} facturas</template>
+          <template v-if="produccionPendientesTotal > 0"> · {{ produccionPendientesTotal }} producción</template>
+          <span v-if="basculaPendientesTotal + analisisPendientesTotal + precioPendientesTotal + boletaPendientesTotal + volcadoPendientesTotal + preliqPendientesTotal + facturacionPendientesTotal + produccionPendientesTotal === 0"> — Sin pendientes</span>
+        </div>
       </q-toolbar>
     </q-footer>
   </q-layout>
@@ -240,10 +276,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import { api } from 'src/boot/axios';
-import { Notify } from 'quasar';
+import { Notify, useQuasar } from 'quasar';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 
+const $q = useQuasar();
 const offlineStore = useOfflineStore();
 const router = useRouter();
 const route = useRoute();
@@ -268,6 +305,32 @@ const verRecepcion = computed(() =>
 
 const verPagos = computed(
   () => authStore.tienePermiso('Pagos - Productores') || authStore.tienePermiso('Pagos - Pagos'),
+);
+
+const basculaPendientesTotal = computed(() =>
+  offlineStore.colaBascula.filter(r => r._syncStatus === 'pending').length
+);
+
+const analisisPendientesTotal = computed(() =>
+  offlineStore.colaAnalisis.filter(a => a._syncStatus === 'pending').length
+);
+const precioPendientesTotal = computed(() =>
+  offlineStore.colaPrecio.filter(p => p._syncStatus === 'pending').length
+);
+const boletaPendientesTotal = computed(() =>
+  offlineStore.colaBoleta.filter(b => b._syncStatus === 'pending').length
+);
+const volcadoPendientesTotal = computed(() =>
+  offlineStore.colaVolcado.filter(v => v._syncStatus === 'pending').length
+);
+const preliqPendientesTotal = computed(() =>
+  offlineStore.colaPreliquidacion.filter(p => p._syncStatus === 'pending').length
+);
+const facturacionPendientesTotal = computed(() =>
+  offlineStore.colaFacturacion.filter(f => f._syncStatus === 'pending').length
+);
+const produccionPendientesTotal = computed(() =>
+  offlineStore.colaProduccion.filter(p => p._syncStatus === 'pending').length
 );
 
 // --- LÓGICA DE SEDES ---
@@ -325,6 +388,305 @@ const updateStatus = async () => {
       timeout: 2500,
     });
   }
+
+  // ── SYNC BÁSCULA ──────────────────────────────────────────────────────────────
+  if (isOnline.value && offlineStore.colaBascula.length > 0) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    if (!window.navigator.onLine) return;
+
+    // PASO 1: Sync productores pendientes primero (son dependencias de báscula)
+    if (offlineStore.colaProductores.length > 0) {
+      Notify.create({ type: 'info', icon: 'sync', message: 'Sincronizando productores nuevos...' });
+      const productoresPendientes = [...offlineStore.colaProductores];
+
+      for (const prod of productoresPendientes) {
+        try {
+          const res = await api.post('/api/catalogos/productores', {
+            nombre: prod.nombre,
+            telefono: prod.telefono,
+            tipo_persona: prod.tipo_persona,
+            atiende: prod.atiende,
+          });
+          // Actualizar referencias en colaBascula antes de remover
+          offlineStore.resolverProductorLocalId(prod._localId, res.data.id);
+          offlineStore.removerProductor(prod._localId);
+        } catch (err: unknown) {
+          const axiosErr = err as { response?: { data?: { message?: string } } };
+          const isNetworkError = !axiosErr.response;
+          if (isNetworkError) break;
+          offlineStore.marcarProductorError(prod._localId, axiosErr.response?.data?.message ?? 'Error al registrar productor');
+        }
+      }
+    }
+
+    // PASO 2: Sync entradas de báscula
+    const basculaPendientesArr = offlineStore.colaBascula.filter(r => r._syncStatus === 'pending');
+
+    if (basculaPendientesArr.length > 0) {
+      Notify.create({ type: 'info', icon: 'sync', message: `Sincronizando ${basculaPendientesArr.length} registro(s) de báscula...` });
+      let exitosos = 0;
+      let errores = 0;
+
+      /**
+       * Obtiene el siguiente número de ticket disponible en el servidor.
+       * Se llama justo antes de cada POST para evitar colisiones entre operadores.
+       */
+      async function obtenerSiguienteTicket(): Promise<number> {
+        const res = await api.get('/api/bascula/ultimo-ticket');
+        return Number(res.data) + 1;
+      }
+
+      for (const registro of basculaPendientesArr) {
+        // Si su productor está en error, saltar este registro
+        if (registro._productor_localId) {
+          const prodPendiente = offlineStore.colaProductores.find(p => p._localId === registro._productor_localId);
+          if (prodPendiente?._syncStatus === 'error') continue;
+          if (!registro.productor_id) continue; // productor aún no resuelto
+        }
+
+        // Resolver el número de ticket:
+        // Si es un OFL- (guardado offline), obtener el siguiente número real del servidor.
+        // Si ya tiene un número real (poco probable pero defensivo), usarlo tal cual.
+        let ticketNumero: string = registro.ticket_numero;
+        if (ticketNumero.startsWith('OFL-')) {
+          try {
+            ticketNumero = String(await obtenerSiguienteTicket());
+          } catch {
+            // Sin red para obtener el ticket → detener sync
+            break;
+          }
+        }
+
+        // Construir payload limpio (sin campos _*)
+        const payload = {
+          ticket_numero: ticketNumero,
+          fecha_hora: registro.fecha_hora,
+          productor_id: registro.productor_id,
+          chofer: registro.chofer,
+          placas: registro.placas,
+          peso_bruto_kg: registro.peso_bruto_kg,
+          grano_id: registro.grano_id,
+          origen_id: registro.origen_id,
+          comprador_id: registro.comprador_id,
+          status: registro.status,
+          datos_adicionales: registro.datos_adicionales,
+          boleta_numero: null,
+          usuario_registro_id: registro.usuario_registro_id,
+        };
+
+        try {
+          await api.post('/api/bascula/guardar', payload);
+          offlineStore.removerBascula(registro._localId);
+          exitosos++;
+        } catch (err: unknown) {
+          const axiosErr = err as { response?: { status?: number; data?: { message?: string } } };
+          const isNetworkError = !axiosErr.response;
+          if (isNetworkError) break;
+
+          // 409: colisión de ticket — el número ya fue tomado mientras sincronizábamos.
+          // Reintentar UNA vez con el siguiente número disponible.
+          if (axiosErr.response?.status === 409 && ticketNumero && !ticketNumero.startsWith('OFL-')) {
+            try {
+              const ticketReintento = String(await obtenerSiguienteTicket());
+              await api.post('/api/bascula/guardar', { ...payload, ticket_numero: ticketReintento });
+              offlineStore.removerBascula(registro._localId);
+              exitosos++;
+            } catch {
+              offlineStore.marcarBasculaError(registro._localId, 'Colisión de ticket — no se pudo asignar número');
+              errores++;
+            }
+          } else {
+            offlineStore.marcarBasculaError(registro._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar');
+            errores++;
+          }
+        }
+      }
+
+      if (exitosos > 0)
+        Notify.create({ type: 'positive', icon: 'done_all', message: `Báscula: ${exitosos} registro(s) sincronizados` });
+      if (errores > 0)
+        Notify.create({ type: 'warning', icon: 'warning', message: `Báscula: ${errores} registro(s) con error — revisa los marcados en rojo` });
+    }
+  }
+
+  // ── SYNC ANÁLISIS ──────────────────────────────────────────────────────────────
+  if (isOnline.value && offlineStore.colaAnalisis.length > 0) {
+    const analisisPendientes = offlineStore.colaAnalisis.filter(a => a._syncStatus === 'pending');
+
+    if (analisisPendientes.length > 0) {
+      Notify.create({ type: 'info', icon: 'sync', message: `Sincronizando ${analisisPendientes.length} análisis pendiente(s)...` });
+      let exitososAnal = 0;
+      let erroresAnal = 0;
+
+      for (const analisis of analisisPendientes) {
+        // Construir payload limpio (sin campos _*)
+        const payloadAnal = {
+          bascula_id: analisis.bascula_id,
+          calibre: analisis.calibre,
+          humedad: analisis.humedad,
+          impurezas: analisis.impurezas,
+          r1_danado_insecto: analisis.r1_danado_insecto,
+          r2_quebrado: analisis.r2_quebrado,
+          r2_manchado: analisis.r2_manchado,
+          r2_arrugado: analisis.r2_arrugado,
+          analista_usuario_id: analisis.analista_usuario_id,
+          grano_id: analisis.grano_id,
+          observaciones: analisis.observaciones,
+          datos_adicionales: analisis.datos_adicionales,
+        };
+
+        try {
+          if (analisis._esActualizacion) {
+            await api.put(`/api/analisis/actualizar/${analisis.bascula_id}`, payloadAnal);
+          } else {
+            await api.post('/api/analisis/guardar', payloadAnal);
+          }
+          offlineStore.removerAnalisis(analisis._localId);
+          exitososAnal++;
+        } catch (err: unknown) {
+          const axiosErr = err as { response?: { data?: { message?: string } } };
+          const isNetworkError = !axiosErr.response;
+          if (isNetworkError) break;
+          offlineStore.marcarAnalisisError(analisis._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar análisis');
+          erroresAnal++;
+        }
+      }
+
+      if (exitososAnal > 0)
+        Notify.create({ type: 'positive', icon: 'done_all', message: `Análisis: ${exitososAnal} registro(s) sincronizados` });
+      if (erroresAnal > 0)
+        Notify.create({ type: 'warning', icon: 'warning', message: `Análisis: ${erroresAnal} registro(s) con error — revisa la cola offline` });
+    }
+  }
+
+  // ── SYNC PRECIO ────────────────────────────────────────────────────────────────
+  const preciosPendientes = offlineStore.colaPrecio.filter(p => p._syncStatus === 'pending');
+  for (const p of preciosPendientes) {
+    try {
+      if (p.tipo === 'autorizar') {
+        await api.post('/api/precio/autorizar', {
+          boletaPrecioId: p.boletaPrecioId,
+          precioAutorizado: p.precioAutorizado,
+          observaciones: p.observaciones ?? '',
+          tipoAutorizacion: p.tipoAutorizacion,
+        });
+      } else {
+        await api.post('/api/precio/rechazar', {
+          boletaPrecioId: p.boletaPrecioId,
+          motivoRechazo: p.motivoRechazo ?? 'Rechazado por el productor',
+        });
+      }
+      offlineStore.removerPrecio(p._localId);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      if (!axiosErr.response) break;
+      offlineStore.marcarPrecioError(p._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar precio');
+    }
+  }
+
+  // ── SYNC BOLETA ────────────────────────────────────────────────────────────────
+  const boletasPendientes = offlineStore.colaBoleta.filter(b => b._syncStatus === 'pending');
+  for (const b of boletasPendientes) {
+    try {
+      await api.post('/api/boleta/confirmar-productor',
+        { boletaId: b.boletaId, acepta: b.acepta, ...(b.motivoRechazo ? { motivoRechazo: b.motivoRechazo } : {}) },
+        { params: { sedeId: b.sedeId } }
+      );
+      offlineStore.removerBoleta(b._localId);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      if (!axiosErr.response) break;
+      offlineStore.marcarBoletaError(b._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar boleta');
+    }
+  }
+
+  // ── SYNC VOLCADO ───────────────────────────────────────────────────────────────
+  const volcadosPendientes = offlineStore.colaVolcado.filter(v => v._syncStatus === 'pending');
+  for (const v of volcadosPendientes) {
+    try {
+      if (v.tipo === 'asignar-silo') {
+        await api.post('/api/volcado/asignar-silo',
+          { boletaId: v.boletaId, siloId: v.siloId ?? null, siloCalibreId: v.siloCalibreId ?? null, siloPulmonId: v.siloPulmonId ?? null, bodegaId: v.bodegaId ?? null },
+          { params: { sedeId: v.sedeId } }
+        );
+      } else {
+        await api.post('/api/volcado/rechazar',
+          { boletaId: v.boletaId, motivos: v.motivos ?? '', evidencia: v.evidencia ?? null },
+          { params: { sedeId: v.sedeId } }
+        );
+      }
+      offlineStore.removerVolcado(v._localId);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      if (!axiosErr.response) break;
+      offlineStore.marcarVolcadoError(v._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar volcado');
+    }
+  }
+
+  // ── SYNC PRE-LIQUIDACIÓN ───────────────────────────────────────────────────────
+  const preliqPendientes = offlineStore.colaPreliquidacion.filter(p => p._syncStatus === 'pending');
+  for (const p of preliqPendientes) {
+    try {
+      if (p.tipo === 'guardar') {
+        await api.post('/api/preliquidacion/guardar', {
+          boletaId: p.boletaId, pesoTara: p.pesoTara, pesoNeto: p.pesoNeto,
+          descuento: p.descuento, kgALiquidar: p.kgALiquidar, importeTotal: p.importeTotal,
+          observaciones: p.observaciones ?? '', rt: p.rt ?? '', tipoSiembra: p.tipoSiembra ?? '',
+          divisiones: p.divisiones ?? null,
+        });
+      } else {
+        await api.post('/api/preliquidacion/guardar-foto', { boletaId: p.boletaId, foto: p.foto });
+      }
+      offlineStore.removerPreliquidacion(p._localId);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      if (!axiosErr.response) break;
+      offlineStore.marcarPreliquidacionError(p._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar pre-liquidación');
+    }
+  }
+
+  // ── SYNC FACTURACIÓN ───────────────────────────────────────────────────────────
+  const facturacionPendientes = offlineStore.colaFacturacion.filter(f => f._syncStatus === 'pending');
+  for (const f of facturacionPendientes) {
+    try {
+      if (f.tipo === 'actualizar-rfc') {
+        await api.put('/api/facturacion/actualizar-rfc', { tickets: f.tickets, nuevoRfc: f.nuevoRfc, sedeId: f.sedeId });
+      } else {
+        await api.put('/api/facturacion/actualizar-documentos-status', { tickets: f.tickets, tieneDocumentos: f.tieneDocumentos, tieneFacturaXml: f.tieneFacturaXml, sedeId: f.sedeId });
+      }
+      offlineStore.removerFacturacion(f._localId);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      if (!axiosErr.response) break;
+      offlineStore.marcarFacturacionError(f._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar facturación');
+    }
+  }
+
+  // ── SYNC PRODUCCIÓN ────────────────────────────────────────────────────────────
+  const produccionPendientes = offlineStore.colaProduccion.filter(p => p._syncStatus === 'pending');
+  if (produccionPendientes.length > 0) {
+    let exitosProd = 0; let errorsProd = 0;
+    for (const p of produccionPendientes) {
+      try {
+        if (p.tipo === 'crear-orden') {
+          await api.post('/api/produccion/ordenes', p.ordenPayload, { params: { sedeId: p.sedeId } });
+        } else if (p.tipo === 'actualizar-orden') {
+          await api.put(`/api/produccion/ordenes/${p.ordenId}`, p.ordenPayload, { params: { sedeId: p.sedeId } });
+        } else {
+          await api.post('/api/produccion/resultado', p.resultadoPayload);
+        }
+        offlineStore.removerProduccion(p._localId);
+        exitosProd++;
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        if (!axiosErr.response) break;
+        offlineStore.marcarProduccionError(p._localId, axiosErr.response?.data?.message ?? 'Error al sincronizar producción');
+        errorsProd++;
+      }
+    }
+    if (exitosProd > 0) Notify.create({ type: 'positive', icon: 'done_all', message: `Producción: ${exitosProd} registro(s) sincronizados` });
+    if (errorsProd > 0) Notify.create({ type: 'warning', icon: 'warning', message: `Producción: ${errorsProd} registro(s) con error` });
+  }
 };
 
 watch(isOnline, (nuevoEstado) => {
@@ -357,6 +719,29 @@ function toggleLeftDrawer() {
 }
 
 async function handleLogout() {
+  const totalPendientes = offlineStore.colaBascula.filter(r => r._syncStatus === 'pending').length
+    + offlineStore.colaProductores.filter(p => p._syncStatus === 'pending').length
+    + offlineStore.colaAnalisis.filter(a => a._syncStatus === 'pending').length
+    + offlineStore.colaPrecio.filter(p => p._syncStatus === 'pending').length
+    + offlineStore.colaBoleta.filter(b => b._syncStatus === 'pending').length
+    + offlineStore.colaVolcado.filter(v => v._syncStatus === 'pending').length
+    + offlineStore.colaPreliquidacion.filter(p => p._syncStatus === 'pending').length
+    + offlineStore.colaFacturacion.filter(f => f._syncStatus === 'pending').length
+    + offlineStore.colaProduccion.filter(p => p._syncStatus === 'pending').length;
+
+  if (totalPendientes > 0) {
+    $q.dialog({
+      title: 'Registros sin sincronizar',
+      message: `Tienes ${totalPendientes} registro(s) guardados sin conexión. Si cierras sesión se perderán. ¿Deseas continuar?`,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Cerrar sesión de todas formas', color: 'negative' },
+    }).onOk(() => {
+      offlineStore.$reset();
+      authStore.logout();
+      void router.push('/login');
+    });
+    return;
+  }
   authStore.logout();
   await router.push('/login');
 }

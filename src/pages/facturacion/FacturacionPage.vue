@@ -16,6 +16,10 @@
        HISTORIAL (Lista principal)
        ========================= -->
   <q-page v-else class="q-pa-lg bg-grey-2">
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — los cambios se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
 
     <!-- Header -->
     <div class="row items-center q-gutter-md q-mb-lg">
@@ -232,15 +236,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 import DetalleFacturacion from './DetalleFacturacion.vue';
 import type { QTableColumn } from 'quasar';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 
 /* =========================
    Interfaces
@@ -525,13 +533,29 @@ async function handleBackFromDetalle() {
 }
 
 async function handleUpdateRfc(tickets: string[], nuevoRfc: string) {
+  if (!window.navigator.onLine) {
+    offlineStore.agregarFacturacion({
+      tipo: 'actualizar-rfc',
+      tickets,
+      nuevoRfc,
+      sedeId: authStore.sedeActivaId || 0,
+      _localId: 'LOCAL_FACT_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Actualizar RFC ${nuevoRfc} (${tickets.length} ticket(s))`,
+    });
+    // Actualizar localmente para reflejar en UI
+    for (const rec of recepciones.value) {
+      if (tickets.includes(rec.ticket)) rec.rfc = nuevoRfc;
+    }
+    notifyOk('Sin conexión — RFC guardado localmente. Se sincronizará al volver la red.');
+    return;
+  }
   try {
     await api.put('/api/facturacion/actualizar-rfc', {
       tickets,
       nuevoRfc,
       sedeId: authStore.sedeActivaId || 0
     });
-    // Actualizar localmente
     for (const rec of recepciones.value) {
       if (tickets.includes(rec.ticket)) rec.rfc = nuevoRfc;
     }
@@ -543,6 +567,26 @@ async function handleUpdateRfc(tickets: string[], nuevoRfc: string) {
 }
 
 async function handleUpdateDocsStatus(tickets: string[], tieneDocumentos: boolean, tieneFacturaXML: boolean) {
+  if (!window.navigator.onLine) {
+    offlineStore.agregarFacturacion({
+      tipo: 'actualizar-documentos-status',
+      tickets,
+      tieneDocumentos,
+      tieneFacturaXml: tieneFacturaXML,
+      sedeId: authStore.sedeActivaId || 0,
+      _localId: 'LOCAL_FACT_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Actualizar docs status (${tickets.length} ticket(s))`,
+    });
+    for (const rec of recepciones.value) {
+      if (tickets.includes(rec.ticket)) {
+        rec.tieneDocumentos = tieneDocumentos;
+        rec.tieneFacturaXML = tieneFacturaXML;
+      }
+    }
+    notifyOk('Sin conexión — estado de documentos guardado localmente. Se sincronizará al volver la red.');
+    return;
+  }
   try {
     await api.put('/api/facturacion/actualizar-documentos-status', {
       tickets,
@@ -550,7 +594,6 @@ async function handleUpdateDocsStatus(tickets: string[], tieneDocumentos: boolea
       tieneFacturaXml: tieneFacturaXML,
       sedeId: authStore.sedeActivaId || 0
     });
-    // Actualizar localmente
     for (const rec of recepciones.value) {
       if (tickets.includes(rec.ticket)) {
         rec.tieneDocumentos = tieneDocumentos;
@@ -602,6 +645,13 @@ function notifyWarn(message: string) {
    Init
 ========================= */
 onMounted(() => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
   void cargarRecepciones();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _syncOnline);
+  window.removeEventListener('offline', _syncOnline);
 });
 </script>

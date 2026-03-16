@@ -137,15 +137,32 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { api } from 'boot/axios';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useUsuariosStore } from 'src/stores/usuariosStore';
 
 const authStore = useAuthStore();
+const usuariosStore = useUsuariosStore();
+
+// Cuando cambia la sede, recargar todo
 watch(
   () => authStore.sedeActivaId,
   () => {
-    console.log(authStore.sedeActivaId);
     void cargarRoles();
     void obtenerCatalogoPantallas();
   },
+);
+
+// Cuando GestionRoles agrega/edita/elimina un rol, el store se actualiza
+// y este componente refleja los cambios sin F5
+watch(
+  () => usuariosStore.listaRoles,
+  (nuevosRoles) => {
+    roles.value = nuevosRoles as Rol[];
+    // Si el rol actualmente seleccionado ya no existe, limpiar selección
+    if (rolSeleccionado.value && !nuevosRoles.find(r => r.id === rolSeleccionado.value)) {
+      rolSeleccionado.value = null;
+    }
+  },
+  { deep: true },
 );
 
 // --- INTERFACES TYPESCRIPT ---
@@ -195,6 +212,7 @@ async function cargarRoles() {
   try {
     const { data } = await api.get<Rol[]>('/api/roles');
     roles.value = data;
+    usuariosStore.listaRoles = data;
   } catch (error) {
     console.error(error);
   }

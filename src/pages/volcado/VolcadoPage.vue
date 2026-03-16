@@ -1,5 +1,9 @@
 <template>
   <q-page padding class="bg-grey-2">
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — las asignaciones y rechazos se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
     <!-- Header -->
     <div class="row items-center justify-between q-mb-md">
       <div class="text-h5 text-grey-8 text-weight-bold">
@@ -859,10 +863,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify, useQuasar, exportFile } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 import type { QTableColumn } from 'quasar';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
 // --- DEFINIR INTERFACES ---
@@ -951,6 +956,9 @@ interface Bodega {
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 
 // Estado
 const registros = ref<RegistroVolcado[]>([]);
@@ -1229,6 +1237,21 @@ function limpiarFiltros() {
 async function confirmarAsignacion() {
   if (!registroSeleccionado.value || !siloSeleccionado.value) return;
 
+  if (!window.navigator.onLine) {
+    offlineStore.agregarVolcado({
+      tipo: 'asignar-silo',
+      boletaId: registroSeleccionado.value.boletaId,
+      sedeId: authStore.sedeActivaId || 0,
+      siloId: siloSeleccionado.value,
+      _localId: 'LOCAL_VOLC_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Asignar silo boleta #${registroSeleccionado.value.boletaId}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — asignación guardada localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    mostrarModalSilo.value = false;
+    return;
+  }
+
   $q.loading.show({ message: 'Asignando silo...' });
   try {
     await api.post(
@@ -1456,6 +1479,23 @@ async function aceptarVolcado() {
     }
   }
 
+  if (!window.navigator.onLine) {
+    offlineStore.agregarVolcado({
+      tipo: 'asignar-silo',
+      boletaId: registroDetalleSeleccionado.value.boletaId,
+      sedeId: authStore.sedeActivaId || 0,
+      siloCalibreId: esFrijol.value ? null : detalleSiloCalibreSeleccionado.value,
+      siloPulmonId: esFrijol.value ? null : detalleSiloPulmonSeleccionado.value,
+      bodegaId: esFrijol.value ? detalleBodegaSeleccionada.value : null,
+      _localId: 'LOCAL_VOLC_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Asignar silo detalle boleta #${registroDetalleSeleccionado.value.boletaId}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — asignación guardada localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    cerrarDetalle();
+    return;
+  }
+
   $q.loading.show({ message: 'Asignando...' });
   try {
     await api.post(
@@ -1511,15 +1551,32 @@ function abrirModalRechazo() {
 async function confirmarRechazoVolcado() {
   if (!registroDetalleSeleccionado.value) return;
 
+  const motivos: string[] = [];
+  if (rechazoMotivos.plaga) motivos.push('Plaga detectada');
+  if (rechazoMotivos.humedad) motivos.push('Humedad fuera de rango');
+  if (rechazoMotivos.calidad) motivos.push('Calidad insuficiente');
+  if (rechazoMotivos.contaminacion) motivos.push('Contaminación');
+  if (rechazoMotivos.otros) motivos.push(`Otros: ${rechazoMotivos.otros}`);
+
+  if (!window.navigator.onLine) {
+    offlineStore.agregarVolcado({
+      tipo: 'rechazar',
+      boletaId: registroDetalleSeleccionado.value.boletaId,
+      sedeId: authStore.sedeActivaId || 0,
+      motivos: motivos.join(', '),
+      evidencia: rechazoFotoBase64.value,
+      _localId: 'LOCAL_VOLC_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Rechazar volcado boleta #${registroDetalleSeleccionado.value.boletaId}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — rechazo guardado localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    mostrarModalRechazo.value = false;
+    cerrarDetalle();
+    return;
+  }
+
   $q.loading.show({ message: 'Procesando rechazo...' });
   try {
-    const motivos: string[] = [];
-    if (rechazoMotivos.plaga) motivos.push('Plaga detectada');
-    if (rechazoMotivos.humedad) motivos.push('Humedad fuera de rango');
-    if (rechazoMotivos.calidad) motivos.push('Calidad insuficiente');
-    if (rechazoMotivos.contaminacion) motivos.push('Contaminación');
-    if (rechazoMotivos.otros) motivos.push(`Otros: ${rechazoMotivos.otros}`);
-
     await api.post(
       '/api/volcado/rechazar',
       {
@@ -1584,7 +1641,14 @@ function exportarExcel() {
 
 // Lifecycle
 onMounted(async () => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
   await Promise.all([cargarSilos(), cargarSilosCalibre(), cargarSilosPulmon(), cargarBodegas(), cargarRegistros(), cargarResumen(), cargarConfigCampos()]);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _syncOnline);
+  window.removeEventListener('offline', _syncOnline);
 });
 
 // Watcher para cambio de sede

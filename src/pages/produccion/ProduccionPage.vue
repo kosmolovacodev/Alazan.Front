@@ -1,5 +1,9 @@
 <template>
   <q-page padding class="bg-grey-2">
+    <q-banner v-if="!isOnline" class="bg-red-2 text-red-9 q-mb-sm" dense>
+      <template #avatar><q-icon name="cloud_off" color="red-9" /></template>
+      Modo sin conexión — las órdenes y resultados se guardarán localmente y se sincronizarán al volver la red.
+    </q-banner>
 
     <!-- ==================== HISTORIAL ==================== -->
     <template v-if="vista === 'historial'">
@@ -621,15 +625,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from 'src/boot/axios';
 import { Notify, useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useOfflineStore } from 'src/stores/offlineStore';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const offlineStore = useOfflineStore();
+const isOnline = ref(window.navigator.onLine);
+const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 const route = useRoute();
 
 function fechaHoy(): string {
@@ -897,26 +905,43 @@ async function confirmarEdicion() {
 }
 
 async function enviarOrden() {
+  const payload = {
+    noOrden: formOrden.value.noOrden,
+    fechaOrden: fechaHoy(),
+    justificacionEdicion: justificacionEdicion.value || null,
+    trenes: trenes.value.map(t => ({
+      trenId: t.trenId,
+      fecha: t.fecha,
+      maniobra: t.maniobra,
+      tipoprocesoId: t.tipoprocesoId,
+      presentacionId: t.presentacionId,
+      producto: t.producto,
+      granoId: t.granoId,
+      origen: t.origen,
+      totalMpSuministrada: t.totalMp,
+      bloqueInsumos: JSON.stringify(t.insumos),
+    })),
+  };
+  const sedeId = authStore.sedeActivaId ?? 0;
+
+  if (!window.navigator.onLine) {
+    const esEdicion = !!ordenEditandoId.value;
+    offlineStore.agregarProduccion({
+      tipo: esEdicion ? 'actualizar-orden' : 'crear-orden',
+      sedeId,
+      ordenPayload: payload,
+      ...(esEdicion && ordenEditandoId.value ? { ordenId: ordenEditandoId.value } : {}),
+      _localId: 'LOCAL_PROD_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `${esEdicion ? 'Actualizar' : 'Crear'} orden ${payload.noOrden}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: `Sin conexión — orden "${payload.noOrden}" guardada localmente. Se sincronizará al volver la red.`, timeout: 4000 });
+    vista.value = 'historial';
+    return;
+  }
+
   try {
     $q.loading.show({ message: 'Guardando orden...' });
-    const payload = {
-      noOrden: formOrden.value.noOrden,
-      fechaOrden: fechaHoy(),
-      justificacionEdicion: justificacionEdicion.value || null,
-      trenes: trenes.value.map(t => ({
-        trenId: t.trenId,
-        fecha: t.fecha,
-        maniobra: t.maniobra,
-        tipoprocesoId: t.tipoprocesoId,
-        presentacionId: t.presentacionId,
-        producto: t.producto,
-        granoId: t.granoId,
-        origen: t.origen,
-        totalMpSuministrada: t.totalMp,
-        bloqueInsumos: JSON.stringify(t.insumos),
-      })),
-    };
-    const sedeId = authStore.sedeActivaId ?? 0;
     if (ordenEditandoId.value) {
       await api.put(`/api/produccion/ordenes/${ordenEditandoId.value}`, payload, { params: { sedeId } });
       Notify.create({ type: 'positive', message: 'Orden actualizada correctamente' });
@@ -1060,18 +1085,35 @@ async function guardarResultado() {
     Notify.create({ type: 'warning', message: 'Complete fecha y hora de inicio y fin' });
     return;
   }
+
+  const resultadoPayload = {
+    ordenId: ordenActual.value?.id,
+    fechaInicio: resultado.value.fechaInicio,
+    horaInicio:  resultado.value.horaInicio,
+    fechaFin:    resultado.value.fechaFin,
+    horaFin:     resultado.value.horaFin,
+    productoClasificado: JSON.stringify(resultado.value.trenResultados),
+    subproducto: JSON.stringify(resultado.value.subproductos),
+    desecho:     JSON.stringify(resultado.value.desechos),
+  };
+
+  if (!window.navigator.onLine) {
+    offlineStore.agregarProduccion({
+      tipo: 'guardar-resultado',
+      sedeId: authStore.sedeActivaId ?? 0,
+      resultadoPayload,
+      _localId: 'LOCAL_PROD_' + Date.now(),
+      _syncStatus: 'pending',
+      _descripcion: `Resultado orden ${ordenActual.value?.noOrden ?? ''}`,
+    });
+    Notify.create({ type: 'warning', icon: 'cloud_off', message: 'Sin conexión — resultado guardado localmente. Se sincronizará al volver la red.', timeout: 4000 });
+    vista.value = 'historial';
+    return;
+  }
+
   try {
     $q.loading.show({ message: 'Guardando resultado...' });
-    await api.post('/api/produccion/resultado', {
-      ordenId: ordenActual.value?.id,
-      fechaInicio: resultado.value.fechaInicio,
-      horaInicio:  resultado.value.horaInicio,
-      fechaFin:    resultado.value.fechaFin,
-      horaFin:     resultado.value.horaFin,
-      productoClasificado: JSON.stringify(resultado.value.trenResultados),
-      subproducto: JSON.stringify(resultado.value.subproductos),
-      desecho:     JSON.stringify(resultado.value.desechos),
-    });
+    await api.post('/api/produccion/resultado', resultadoPayload);
     Notify.create({ type: 'positive', message: 'Resultado guardado correctamente' });
     vista.value = 'historial';
     await cargarOrdenes();
@@ -1282,11 +1324,18 @@ function fmtNum(val: number | undefined | null): string {
 }
 
 onMounted(async () => {
+  window.addEventListener('online', _syncOnline);
+  window.addEventListener('offline', _syncOnline);
   await cargarCatalogos();
   await cargarOrdenes();
   if (route.query.seccion === 'analisis') {
     await cargarAnalisis();
     vista.value = 'analisis-historial';
   }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', _syncOnline);
+  window.removeEventListener('offline', _syncOnline);
 });
 </script>
