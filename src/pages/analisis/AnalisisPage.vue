@@ -8,11 +8,22 @@
     <!-- Filtros -->
     <q-card flat bordered class="q-mx-md q-mt-sm q-pa-sm">
       <div class="row q-col-gutter-sm items-end">
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
           <q-select
             v-model="filtroEstatus"
             :options="opcionesEstatus"
             label="Estatus"
+            outlined
+            dense
+            emit-value
+            map-options
+          />
+        </div>
+        <div class="col-12 col-md-2">
+          <q-select
+            v-model="filtroGranoId"
+            :options="opcionesGranoFiltro"
+            label="Grano"
             outlined
             dense
             emit-value
@@ -25,7 +36,7 @@
         <div class="col-12 col-md-3">
           <q-input v-model="filtroFechaFin" type="date" label="Fecha Hasta" outlined dense />
         </div>
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
           <div class="row q-gutter-sm">
             <q-btn
               outline
@@ -165,15 +176,18 @@
               </div>
 
               <TablaAnalisisDesplegable
-                :impurezas="num(analisisData.impurezas)"
-                :r1="num(analisisData.r1)"
-                :r2="num(analisisData.r2)"
-                :cafesLisos="num(analisisData.cafesLisos)"
-                :manchados="num(analisisData.manchados)"
-                :quebMxc="num(analisisData.quebMxc)"
-                :helados="num(analisisData.helados)"
-                :alimonados="num(analisisData.alimonados)"
-                :revolcados="num(analisisData.revolcados)"
+                :impurezas="analisisData.impurezas"
+                :r1="analisisData.r1"
+                :r2="analisisData.r2"
+                :cafesLisos="analisisData.cafesLisos"
+                :manchados="analisisData.manchados"
+                :quebMxc="analisisData.quebMxc"
+                :helados="analisisData.helados"
+                :alimonados="analisisData.alimonados"
+                :revolcados="analisisData.revolcados"
+                :germinados="analisisData.germinados"
+                :descuentosExportacion="descuentosExportacion"
+                :camposExtras="camposExtras"
                 :sumaR2="analisisData.sumaR2"
                 :totalDanosNum="analisisData.totalDanosNum"
                 :exportacion="analisisData.exportacion"
@@ -184,31 +198,6 @@
                 @input-change="onTablaInputChange"
                 @frijol-data-change="onFrijolDataChange"
               />
-
-              <!-- Campos personalizados (no predefinidos) -->
-              <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
-                <q-card-section class="q-gutter-sm">
-                  <div
-                    v-for="campo in camposPersonalizadosVisibles"
-                    :key="campo.claveCampo"
-                    class="row items-center justify-between q-col-gutter-md"
-                  >
-                    <div class="col">
-                      <div class="text-body2 text-grey-8 text-weight-medium">{{ campo.nombreMostrar }}</div>
-                    </div>
-                    <div class="col-auto row items-center q-gutter-xs">
-                      <q-input
-                        v-model="datosPersonalizados[campo.claveCampo]"
-                        dense
-                        outlined
-                        :readonly="!esEditable"
-                        input-class="text-right"
-                        style="width: 160px"
-                      />
-                    </div>
-                  </div>
-                </q-card-section>
-              </q-card>
 
               <div class="row q-col-gutter-md q-mt-md">
                 <div v-if="campoPantallaVisible('calibre')" class="col-12 col-md-6">
@@ -380,6 +369,8 @@ interface CampoAnalisisConfig {
   visible: boolean;
   obligatorio: boolean;
   granoId: number | null;
+  tipoDato?: string;
+  afectaExportacion?: boolean;
 }
 
 interface RegistroBascula {
@@ -434,6 +425,7 @@ interface AnalisisData {
   helados: string;
   alimonados: string;
   revolcados: string;
+  germinados: string;
   sumaR2: number;
   totalDanosNum: number;
   exportacion: number;
@@ -481,20 +473,88 @@ function campoPantallaVisible(clave: string): boolean {
   return !cfg || cfg.visible;
 }
 
-// Claves manejadas por la UI fija (no se renderizan como campos personalizados)
-const CAMPOS_PREDEFINIDOS = new Set([
-  'calibre', 'humedad', 'impurezas', 'r1', 'r2', 'cafesLisos', 'manchados',
-  'quebMxc', 'helados', 'alimonados', 'revolcados', 'exportacion',
+// Claves que gestiona la UI fija (TablaAnalisisDesplegable + calibre/humedad independientes).
+// Se incluyen variantes en camelCase, snake_case y singular/plural para tolerar
+// distintos nombres que el usuario pudo haber configurado en BD.
+const CAMPOS_PREDEFINIDOS_SET = new Set([
+  // Campos del formulario de análisis estándar
+  'calibre',
+  'humedad',
+  'impurezas', 'impureza',
+  'r1',
+  'r2', 'rezaga', 'rezagas',
+  'cafeslisos', 'cafes_lisos', 'cafes_y_lisos', 'cafesylisos',
+  'manchados', 'manchado',
+  'quebmxc', 'queb_mxc', 'queb_mxg_mitd_cam', 'quebmxgmitdcam',
+  'helados', 'helado',
+  'alimonados', 'alimonado',
+  'revolcados', 'revolcado',
+  'germinados', 'germinado',
+  'exportacion',
+  'sumar2', 'suma_r2', 'suma_rezagas', 'sumarezagas',
+  'totaldanos', 'total_danos', 'total_danos_num', 'totaldanosnum',
+  // Campos frijol
   'frijol_impurezas', 'frijol_piedras', 'frijol_mitades', 'frijol_oscuros',
   'frijol_arrugados', 'frijol_manchados', 'frijol_verdes', 'frijol_tierra',
   'frijol_otras_variedades', 'frijol_granos_pequenos', 'frijol_danos_campo',
   'frijol_plaga_viva', 'frijol_plaga_muerta',
 ]);
 
-// Campos personalizados visibles (los que el usuario agregó y no son predefinidos)
-const camposPersonalizadosVisibles = computed(() =>
-  camposConfigActual.value.filter(c => c.visible && !CAMPOS_PREDEFINIDOS.has(c.claveCampo))
+// Comprobación case-insensitive para tolerar cualquier capitalización
+function esCampoPredefinido(clave: string): boolean {
+  return CAMPOS_PREDEFINIDOS_SET.has(clave.toLowerCase().replace(/\s+/g, '_'));
+}
+
+// Campos que descuentan del % de exportación — solo los NO predefinidos (predefined ya están en totalDanosNum)
+// Aparecen entre "Total Daños" y "Exportación" (ej: C#-1%, C#-2%)
+const descuentosExportacion = computed(() =>
+  camposConfigActual.value
+    .filter(c => c.visible && c.afectaExportacion && !esCampoPredefinido(c.claveCampo))
+    .map(c => ({
+      clave: c.claveCampo,
+      label: c.nombreMostrar,
+      valor: datosPersonalizados.value[c.claveCampo] ?? '',
+    }))
 );
+
+// Campos extra: los que no son predefinidos, no afectan exportación y no son porcentaje de análisis.
+// También incluye campos guardados históricamente que ya no están en la configuración actual.
+const camposExtras = computed(() => {
+  // 1. Desde la configuración activa
+  const fromConfig = camposConfigActual.value
+    .filter(
+      c => c.visible &&
+      !esCampoPredefinido(c.claveCampo) &&
+      !c.afectaExportacion &&
+      c.tipoDato !== 'porcentaje',
+    )
+    .map(c => ({
+      clave: c.claveCampo,
+      label: c.nombreMostrar,
+      valor: datosPersonalizados.value[c.claveCampo] ?? '',
+    }));
+
+  // Claves ya mostradas (config + descuentos) para evitar duplicados
+  const yaVistas = new Set([
+    ...fromConfig.map(c => c.clave),
+    ...descuentosExportacion.value.map(d => d.clave),
+  ]);
+
+  // 2. Campos históricos guardados en datos_adicionales que ya no están en config actual
+  const fromSaved = Object.entries(datosPersonalizados.value)
+    .filter(([clave, valor]) =>
+      valor !== '' &&
+      !esCampoPredefinido(clave) &&
+      !yaVistas.has(clave),
+    )
+    .map(([clave, valor]) => ({
+      clave,
+      label: clave.toUpperCase().replace(/_/g, ' '),
+      valor: String(valor),
+    }));
+
+  return [...fromConfig, ...fromSaved];
+});
 
 // Valores de campos personalizados (guardados en datos_adicionales)
 const datosPersonalizados = ref<Record<string, string>>({});
@@ -510,12 +570,25 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const filtroEstatus = ref('TODOS');
 const filtroFechaInicio = ref('');
 const filtroFechaFin = ref('');
+const filtroGranoId = ref<number | null>(null);
 
 const opcionesEstatus = [
   { label: 'Pendientes', value: 'PENDIENTE' },
   { label: 'Analizados', value: 'NO_PENDIENTE' },
   { label: 'Todos', value: 'TODOS' },
 ];
+
+// Granos únicos presentes en la lista cargada
+const opcionesGranoFiltro = computed(() => {
+  const mapa = new Map<number, string>();
+  for (const r of listaTodos.value) {
+    if (r.grano_id != null && r.grano) mapa.set(r.grano_id, r.grano);
+  }
+  return [
+    { label: 'Todos los granos', value: null as number | null },
+    ...[...mapa.entries()].map(([id, nombre]) => ({ label: nombre, value: id })),
+  ];
+});
 
 // listaPendientes: filtrado client-side — no toca el servidor
 const listaPendientes = computed(() => {
@@ -527,6 +600,10 @@ const listaPendientes = computed(() => {
     } else {
       lista = lista.filter(r => r.status === filtroEstatus.value);
     }
+  }
+
+  if (filtroGranoId.value !== null) {
+    lista = lista.filter(r => r.grano_id === filtroGranoId.value);
   }
 
   if (filtroFechaInicio.value) {
@@ -543,7 +620,7 @@ const listaPendientes = computed(() => {
 });
 
 // Resetear índice al cambiar los filtros para no quedar fuera de rango
-watch([filtroEstatus, filtroFechaInicio, filtroFechaFin], () => {
+watch([filtroEstatus, filtroFechaInicio, filtroFechaFin, filtroGranoId], () => {
   currentIndex.value = 0;
 });
 
@@ -551,6 +628,7 @@ function limpiarFiltros() {
   filtroEstatus.value = 'TODOS';
   filtroFechaInicio.value = '';
   filtroFechaFin.value = '';
+  filtroGranoId.value = null;
   // No llama al servidor — el computed se recalcula solo
 }
 
@@ -570,6 +648,7 @@ const analisisData = reactive<AnalisisData>({
   helados: '',
   alimonados: '',
   revolcados: '',
+  germinados: '',
   sumaR2: 0,
   totalDanosNum: 0,
   exportacion: 0,
@@ -623,7 +702,7 @@ async function cargarConfigCampos() {
     });
     camposAnalisisConfig.value = (data.campos ?? [])
       .filter(c => (c as unknown as { pantalla: string }).pantalla === 'ANALISIS')
-      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+      .map(c => ({ ...c, visible: !!c.visible, obligatorio: !!c.obligatorio, afectaExportacion: !!c.afectaExportacion, granoId: c.granoId ?? null }));
   } catch {
     // Si falla la carga de config, la pantalla sigue funcionando con todos los campos visibles
   }
@@ -703,14 +782,15 @@ watch(
         analisisData.helados = extra.helados?.toString() || '';
         analisisData.alimonados = extra.alimonados?.toString() || '';
         analisisData.revolcados = extra.revolcados?.toString() || '';
+        analisisData.germinados = extra.germinados?.toString() || '';
 
         uploadedPhotos.value = Array.isArray(extra.fotos) ? [...extra.fotos] : [];
 
         // Cargar datos de frijol si existen
         frijolData.value = Array.isArray(extra.frijol_datos) ? extra.frijol_datos : [];
 
-        // Cargar campos personalizados (cualquier clave que no sea de las reservadas)
-        const reservadas = new Set(['exportacion', 'cafes_lisos', 'helados', 'alimonados', 'revolcados', 'fotos', 'frijol_datos']);
+        // Cargar campos personalizados (cualquier clave que no sea de las reservadas del núcleo)
+        const reservadas = new Set(['exportacion', 'cafes_lisos', 'helados', 'alimonados', 'revolcados', 'fotos', 'frijol_datos', 'germinados']);
         datosPersonalizados.value = {};
         for (const key of Object.keys(extra)) {
           if (!reservadas.has(key)) datosPersonalizados.value[key] = String(extra[key] ?? '');
@@ -727,6 +807,7 @@ watch(
       analisisData.helados = '';
       analisisData.alimonados = '';
       analisisData.revolcados = '';
+      analisisData.germinados = '';
       uploadedPhotos.value = [];
       frijolData.value = [];
       datosPersonalizados.value = {};
@@ -744,18 +825,26 @@ watchEffect(() => {
     num(analisisData.quebMxc) +
     num(analisisData.helados) +
     num(analisisData.alimonados) +
-    num(analisisData.revolcados);
+    num(analisisData.revolcados) +
+    num(analisisData.germinados);
   analisisData.sumaR2 = round2(suma);
 });
 
 watchEffect(() => {
+  // Total de Daños = Rezaga (sumaR2) + Impurezas
+  // R1 (Dañado Insecto) es informativo pero no suma al total de daños
   analisisData.totalDanosNum = round2(
-    num(analisisData.impurezas) + num(analisisData.r1) + analisisData.sumaR2,
+    num(analisisData.impurezas) + analisisData.sumaR2,
   );
 });
 
 watchEffect(() => {
-  analisisData.exportacion = Math.round(Math.max(0, 100 - analisisData.totalDanosNum));
+  // EXPORTACIÓN = 100 - Total de Daños - suma de campos con afectaExportacion
+  const sumaDescuentos = descuentosExportacion.value.reduce(
+    (s, d) => s + (parseFloat(d.valor) || 0),
+    0,
+  );
+  analisisData.exportacion = round2(Math.max(0, 100 - analisisData.totalDanosNum - sumaDescuentos));
 });
 
 // --- Funciones Auxiliares ---
@@ -779,6 +868,7 @@ function limpiarFormulario() {
   analisisData.helados = '';
   analisisData.alimonados = '';
   analisisData.revolcados = '';
+  analisisData.germinados = '';
 
   // Limpiar el array de fotos, datos de frijol y campos personalizados
   uploadedPhotos.value = [];
@@ -789,6 +879,9 @@ function limpiarFormulario() {
 function onTablaInputChange(campo: string, valor: string) {
   if (campo in analisisData) {
     (analisisData[campo as keyof AnalisisData] as unknown) = valor;
+  } else {
+    // Campos personalizados (ej: cal_1, cal_2) se guardan en datosPersonalizados
+    datosPersonalizados.value[campo] = valor;
   }
 }
 
@@ -888,13 +981,49 @@ function removePhoto(index: number) {
 
 // --- Guardar ---
 async function guardar() {
-  if (!analisisData.humedad || !analisisData.calibre) {
-    $q.notify({ type: 'warning', message: 'Humedad y Calibre son obligatorios.' });
-    return;
+  const esFrijol = registroActual.value?.grano_id === 1;
+
+  // Acumular todos los campos faltantes para mostrarlos juntos
+  const faltantes: string[] = [];
+
+  if (!analisisData.humedad) faltantes.push('HUMEDAD');
+  if (!analisisData.calibre) faltantes.push('CALIBRE');
+  // IMPUREZA tiene * fijo en la tabla normal (granos que no son frijol)
+  if (!esFrijol && analisisData.impurezas === '') faltantes.push('IMPUREZA');
+  if (uploadedPhotos.value.length === 0) faltantes.push('EVIDENCIA FOTOGRÁFICA');
+
+  // Campos adicionales obligatorios según configuración
+  const campoADato: Record<string, string> = {
+    impurezas: analisisData.impurezas,
+    r1: analisisData.r1,
+    r2: analisisData.r2,
+    cafesLisos: analisisData.cafesLisos,
+    manchados: analisisData.manchados,
+    quebMxc: analisisData.quebMxc,
+    helados: analisisData.helados,
+    alimonados: analisisData.alimonados,
+    revolcados: analisisData.revolcados,
+    germinados: analisisData.germinados,
+    humedad: analisisData.humedad,
+    calibre: analisisData.calibre,
+  };
+
+  for (const campo of camposConfigActual.value) {
+    if (!campo.obligatorio || !campo.visible) continue;
+    if (['humedad', 'calibre', 'impurezas'].includes(campo.claveCampo)) continue;
+    const valor = esCampoPredefinido(campo.claveCampo)
+      ? (campoADato[campo.claveCampo] ?? '')
+      : (datosPersonalizados.value[campo.claveCampo] ?? '');
+    if (valor === '') faltantes.push(campo.nombreMostrar);
   }
 
-  if (uploadedPhotos.value.length === 0) {
-    $q.notify({ type: 'warning', message: 'Debe subir al menos una foto.' });
+  if (faltantes.length > 0) {
+    $q.notify({
+      type: 'warning',
+      message: `Te faltan los siguientes campos obligatorios:\n• ${faltantes.join('\n• ')}`,
+      multiLine: true,
+      timeout: 5000,
+    });
     return;
   }
 
@@ -921,6 +1050,7 @@ async function guardar() {
       helados: num(analisisData.helados),
       alimonados: num(analisisData.alimonados),
       revolcados: num(analisisData.revolcados),
+      germinados: num(analisisData.germinados),
       fotos: uploadedPhotos.value,
       ...(r.grano_id === 1 && frijolData.value.length > 0
         ? { frijol_datos: frijolData.value }

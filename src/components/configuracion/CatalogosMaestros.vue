@@ -156,6 +156,9 @@
               <div class="col">
                 <q-input v-model="form.descripcion" dense outlined label="Descripción" />
               </div>
+              <div class="col-auto" style="min-width:130px">
+                <q-input v-model="form.codigo" dense outlined label="Código MBA3" hint="Ej: SM1, BM1" />
+              </div>
             </template>
 
             <template v-else-if="tab === 'silos-pulmon'">
@@ -183,6 +186,9 @@
               <div class="col">
                 <q-input v-model="form.descripcion" dense outlined label="Descripción" />
               </div>
+              <div class="col-auto" style="min-width:130px">
+                <q-input v-model="form.codigo" dense outlined label="Código MBA3" hint="Ej: SO3, SN1" />
+              </div>
             </template>
 
             <template v-else-if="tab === 'bodegas'">
@@ -202,6 +208,9 @@
                   label="Tipo de Grano"
                   clearable
                 />
+              </div>
+              <div class="col-auto" style="min-width:130px">
+                <q-input v-model="form.codigo" dense outlined label="Código MBA3" hint="Ej: BM1, BM2" />
               </div>
             </template>
 
@@ -229,6 +238,9 @@
                   label="Tope Diario"
                   type="number"
                 />
+              </div>
+              <div class="col-auto" style="min-width:130px">
+                <q-input v-model="form.codigo" dense outlined label="Código MBA3" hint="Ej: GML, PRI" />
               </div>
             </template>
 
@@ -530,6 +542,7 @@ const columnas = computed<QTableColumn[]>(() => {
           align: 'right',
         },
         { name: 'descripcion', label: 'Descripción', field: 'descripcion', align: 'left' },
+        { name: 'codigo', label: 'Cód. MBA3', field: 'codigo', align: 'center' },
         ...baseActions,
       ];
     case 'silos-pulmon':
@@ -543,18 +556,14 @@ const columnas = computed<QTableColumn[]>(() => {
         },
         { name: 'tipo', label: 'Tipo', field: 'tipo', align: 'center' },
         { name: 'descripcion', label: 'Descripción', field: 'descripcion', align: 'left' },
+        { name: 'codigo', label: 'Cód. MBA3', field: 'codigo', align: 'center' },
         ...baseActions,
       ];
     case 'bodegas':
       return [
         { name: 'nombre', label: 'Nombre Almacén', field: 'nombre', align: 'left', sortable: true },
-        {
-          name: 'granoNombre',
-          label: 'Tipo de Grano',
-          field: 'granoNombre',
-          align: 'left',
-          sortable: true,
-        },
+        { name: 'granoNombre', label: 'Tipo de Grano', field: 'granoNombre', align: 'left', sortable: true },
+        { name: 'codigo', label: 'Cód. MBA3', field: 'codigo', align: 'center' },
         ...baseActions,
       ];
     case 'trenes':
@@ -568,6 +577,7 @@ const columnas = computed<QTableColumn[]>(() => {
         { name: 'ciudad', label: 'Ciudad', field: 'ciudad', align: 'left' },
         { name: 'estado', label: 'Estado', field: 'estado', align: 'left' },
         { name: 'tope_diario', label: 'Tope Diario', field: 'tope_diario', align: 'right' },
+        { name: 'codigo', label: 'Cód. MBA3', field: 'codigo', align: 'center' },
         ...baseActions,
       ];
     default:

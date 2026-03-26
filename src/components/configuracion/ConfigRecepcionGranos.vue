@@ -406,19 +406,40 @@
       <q-dialog v-model="showDialogEditarCampo" persistent>
         <q-card style="min-width: 350px">
           <q-card-section class="row items-center">
-            <div class="text-h6">Editar Nombre del Campo</div>
+            <div class="text-h6">Editar Campo</div>
             <q-space />
             <q-btn icon="close" flat round dense v-close-popup />
           </q-card-section>
           <q-card-section class="q-pt-none">
-            <q-input
-              v-model="campoEditando.nombreMostrar"
-              label="Nombre a mostrar en pantalla"
-              outlined
-              dense
-              autofocus
-              @keyup.enter="confirmarEdicion"
-            />
+            <div class="column q-gutter-md">
+              <q-input
+                v-model="campoEditando.nombreMostrar"
+                label="Nombre a mostrar en pantalla"
+                outlined
+                dense
+                autofocus
+                @keyup.enter="confirmarEdicion"
+              />
+              <q-select
+                v-model="campoEditando.tipoDato"
+                :options="opcionesTipoDato"
+                emit-value
+                map-options
+                label="Tipo de dato"
+                outlined dense
+              />
+              <q-banner
+                v-if="campoEditando.tipoDato === 'porcentaje'"
+                rounded
+                class="bg-blue-1 text-blue-9 q-pa-sm"
+              >
+                <q-checkbox
+                  v-model="campoEditando.afectaExportacion"
+                  label="Descuenta del % de Exportación"
+                  color="blue-8"
+                />
+              </q-banner>
+            </div>
           </q-card-section>
           <q-card-actions align="right" class="text-primary">
             <q-btn flat label="Cancelar" v-close-popup />
@@ -468,6 +489,30 @@
                 label="Tipo de grano"
                 outlined dense
               />
+
+              <q-select
+                v-model="nuevoCampo.tipoDato"
+                :options="opcionesTipoDato"
+                emit-value
+                map-options
+                label="Tipo de dato"
+                outlined dense
+              />
+
+              <q-banner
+                v-if="nuevoCampo.tipoDato === 'porcentaje'"
+                rounded
+                class="bg-blue-1 text-blue-9 q-pa-sm"
+              >
+                <q-checkbox
+                  v-model="nuevoCampo.afectaExportacion"
+                  label="Descuenta del % de Exportación"
+                  color="blue-8"
+                />
+                <div class="text-caption q-mt-xs">
+                  Si está activo, el valor de este campo se restará del porcentaje de Exportación calculado.
+                </div>
+              </q-banner>
 
               <div class="row q-gutter-md">
                 <q-checkbox v-model="nuevoCampo.visible" label="Visible" />
@@ -532,6 +577,8 @@ interface CampoConfig {
   esSistema: boolean;
   descripcion?: string;
   granoId?: number | null;
+  tipoDato: string;
+  afectaExportacion: boolean;
 }
 
 const columnsCampos: QTableColumn[] = [
@@ -616,7 +663,7 @@ const camposPreliquidacion = ref<CampoConfig[]>([])
 
 const showDialogNuevoCampo = ref(false)
 const showDialogEditarCampo = ref(false)
-const campoEditando = ref<{ id: number; nombreMostrar: string }>({ id: 0, nombreMostrar: '' })
+const campoEditando = ref<{ id: number; nombreMostrar: string; tipoDato: string; afectaExportacion: boolean }>({ id: 0, nombreMostrar: '', tipoDato: 'texto', afectaExportacion: false })
 const tabActual = ref('BASCULA')
 
 // --- ANÁLISIS: selector de grano ---
@@ -643,6 +690,12 @@ const cargarGranos = async () => {
   }
 }
 
+const opcionesTipoDato = [
+  { label: 'Texto', value: 'texto' },
+  { label: 'Número', value: 'numero' },
+  { label: 'Porcentaje (%)', value: 'porcentaje' },
+]
+
 const nuevoCampo = ref<{
   pantalla: string;
   nombreMostrar: string;
@@ -651,6 +704,8 @@ const nuevoCampo = ref<{
   visible: boolean;
   esSistema: boolean;
   granoId: number | null;
+  tipoDato: string;
+  afectaExportacion: boolean;
 }>({
   pantalla: 'BASCULA',
   nombreMostrar: '',
@@ -658,11 +713,18 @@ const nuevoCampo = ref<{
   obligatorio: false,
   visible: true,
   esSistema: false,
-  granoId: null
+  granoId: null,
+  tipoDato: 'texto',
+  afectaExportacion: false,
 })
 
 const abrirEdicion = (campo: CampoConfig) => {
-  campoEditando.value = { id: campo.id, nombreMostrar: campo.nombreMostrar }
+  campoEditando.value = {
+    id: campo.id,
+    nombreMostrar: campo.nombreMostrar,
+    tipoDato: campo.tipoDato ?? 'texto',
+    afectaExportacion: campo.afectaExportacion ?? false,
+  }
   showDialogEditarCampo.value = true
 }
 
@@ -672,6 +734,8 @@ const confirmarEdicion = () => {
     const idx = lista.value.findIndex(c => c.id === campoEditando.value.id)
     if (idx >= 0) {
       lista.value[idx]!.nombreMostrar = campoEditando.value.nombreMostrar
+      lista.value[idx]!.tipoDato = campoEditando.value.tipoDato
+      lista.value[idx]!.afectaExportacion = campoEditando.value.afectaExportacion
       break
     }
   }
@@ -713,7 +777,9 @@ const abrirDialogoNuevoCampo = () => {
     obligatorio: false,
     visible: true,
     esSistema: false,
-    granoId: tabActual.value === 'ANALISIS' ? granoFiltroAnalisis.value : null
+    granoId: tabActual.value === 'ANALISIS' ? granoFiltroAnalisis.value : null,
+    tipoDato: 'texto',
+    afectaExportacion: false,
   }
   showDialogNuevoCampo.value = true
 }
@@ -791,7 +857,9 @@ const cargarConfiguracion = async () => {
         visible: !!c.visible,
         obligatorio: !!c.obligatorio,
         esSistema: !!c.esSistema,
-        granoId: c.granoId ?? null
+        granoId: c.granoId ?? null,
+        tipoDato: c.tipoDato ?? 'texto',
+        afectaExportacion: !!c.afectaExportacion,
       }))
 
       camposBascula.value = camposLimpios.filter(c => c.pantalla === 'BASCULA')
@@ -832,7 +900,9 @@ const guardarConfiguracionCompleta = async () => {
       visible: campo.visible,
       obligatorio: campo.obligatorio,
       esSistema: campo.esSistema,
-      granoId: campo.granoId ?? null
+      granoId: campo.granoId ?? null,
+      tipoDato: campo.tipoDato ?? 'texto',
+      afectaExportacion: campo.afectaExportacion ?? false,
     }));
 
     // 3. Solo actualizamos campos si hay campos para actualizar

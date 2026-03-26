@@ -73,6 +73,11 @@ const routes: RouteRecordRaw[] = [
         path: 'prueba-mba3',
         component: () => import('pages/prueba/ClientesMBA3Page.vue'),
       },
+      // Prueba de recepción de inventario MBA3
+      {
+        path: 'pruebaInventario',
+        component: () => import('pages/prueba/PruebaInventarioPage.vue'),
+      },
     ],
   },
   {

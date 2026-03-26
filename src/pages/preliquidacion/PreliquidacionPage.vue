@@ -672,7 +672,7 @@
           <div class="text-subtitle1 text-weight-bold text-uppercase text-grey-8 q-mb-xs">
             Observaciones
           </div>
-          <div class="text-body1">{{ detalle.observaciones }}</div>
+          <div class="text-body1" style="white-space: pre-wrap">{{ observaciones }}</div>
         </div>
 
         <!-- Documentación requerida -->
@@ -1384,6 +1384,7 @@ interface DetalleData {
   divisionesJson?: string;
   rfc?: string;
   atiende?: string;
+  razonSocial?: string;
 }
 
 interface ProductorDivision {
@@ -1712,6 +1713,33 @@ async function cargarConfigCampos() {
   }
 }
 
+// Plantilla cruda de observaciones (sin interpolar); se usa para re-generar cuando cambia el monto
+const plantillaObs = ref('');
+
+// Sustituye variables {monto}, {tipo_productor}, {fecha}, {razon_social}, {atiende}, {productor}
+// con los valores reales del detalle y campos calculados.
+function interpolarPlantilla(plantilla: string): string {
+  const montoRaw = parseFloat((aLiquidar.value || '0').toString().replace(/,/g, '')) || 0;
+  const montoFinal = parseFloat((aLiquidarIPRM.value || '0').toString().replace(/,/g, '')) || montoRaw;
+  const vars: Record<string, string> = {
+    monto:          fmtNum(montoFinal),
+    monto_bruto:    fmtNum(montoRaw),
+    tipo_productor: detalle.value.tProductor || '',
+    fecha:          new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+    razon_social:   detalle.value.razonSocial || detalle.value.productor || '',
+    productor:      detalle.value.productor || '',
+    atiende:        detalle.value.atiende || '',
+    calibre:        detalle.value.calibre || '',
+    kg_liquidar:    fmtNum(parseFloat((kgALiquidar.value || '0').toString().replace(/,/g, ''))),
+  };
+  return plantilla.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? `{${key}}`);
+}
+
+// Re-interpolar automáticamente cuando cambia el monto a liquidar
+watch(aLiquidar, () => {
+  if (plantillaObs.value) observaciones.value = interpolarPlantilla(plantillaObs.value);
+});
+
 // --- FUNCIONES UTILITARIAS ---
 function fmtNum(val: number | string | undefined | null): string {
   const num = Number(val);
@@ -1858,14 +1886,15 @@ async function verDetalle(registro: RegistroPreliq) {
 
     // 6. Datos adicionales
     rt.value = data.tipoSiembra || data.rt || 'Riego';
-    observaciones.value = data.observaciones || '';
 
-    const tProd = data.tProductor || registro.tProductor || '';
-    if (!observaciones.value) {
-      observaciones.value =
-        tProd === 'Ejidal'
-          ? 'Productor Ejidal - Revisar documentación correspondiente.'
-          : 'Pequeña Propiedad - Aplicar retenciones de ley.';
+    if (yaEstaFinalizado) {
+      // Preliquidación ya guardada: mostrar las observaciones tal como se guardaron (ya interpoladas)
+      plantillaObs.value = '';
+      observaciones.value = data.observaciones || '';
+    } else {
+      // Nueva preliquidación: guardar la plantilla cruda e interpolar con los valores actuales
+      plantillaObs.value = data.observaciones || '';
+      observaciones.value = interpolarPlantilla(plantillaObs.value);
     }
 
     modoManual.value = false;

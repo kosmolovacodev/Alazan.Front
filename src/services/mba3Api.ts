@@ -64,6 +64,8 @@ export interface Mba3RequestConfig {
   pwd: string;
   /** Body en formato x-www-form-urlencoded (clave: valor) */
   formData?: Record<string, string>;
+  /** Body en formato multipart/form-data (axios detecta boundary automáticamente) */
+  multipartData?: FormData;
   /** Body en formato JSON (para otros endpoints) */
   jsonData?: unknown;
   /** Headers adicionales */
@@ -90,7 +92,11 @@ export async function mba3Request<T = unknown>(config: Mba3RequestConfig): Promi
   let requestData: unknown;
   let contentType: string | undefined;
 
-  if (config.formData) {
+  if (config.multipartData) {
+    // multipart/form-data: axios detecta el boundary automáticamente — NO poner Content-Type manual
+    requestData = config.multipartData;
+    contentType = undefined;
+  } else if (config.formData) {
     requestData = new URLSearchParams(config.formData).toString();
     contentType = 'application/x-www-form-urlencoded';
   } else if (config.jsonData !== undefined) {

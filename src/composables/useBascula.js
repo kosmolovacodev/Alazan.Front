@@ -15,7 +15,7 @@ import { ref, computed, onUnmounted } from 'vue';
 // Regex para extraer el valor numérico de la trama de la báscula.
 // Ejemplo de trama: "ST,GS,+  125.50kg" o "ST,GS,+000125.50 kg"
 // Captura: uno o más dígitos, punto decimal opcional, más dígitos opcionales
-const REGEX_PESO = /[+-]?\s*(\d+\.?\d*)\s*kg/i;
+const REGEX_PESO = /[+-]?\s*(\d+\.?\d*)/;
 
 // Umbral de estabilidad: si el peso no cambia más de este valor en 2 segundos, se considera estable
 const UMBRAL_ESTABILIDAD_KG = 0.02;
@@ -105,43 +105,36 @@ export function useBascula() {
    * Acumula fragmentos de texto hasta encontrar un salto de línea para
    * procesar tramas completas sin bloquear la UI.
    */
-  async function iniciarLecturaStream() {
-    // TextDecoderStream convierte los bytes del puerto a texto UTF-8 de forma eficiente
-    const decoderStream = new TextDecoderStream();
-    readableStreamClosed = port.readable.pipeTo(decoderStream.writable);
+async function iniciarLecturaStream() {
+  const decoderStream = new TextDecoderStream();
+  readableStreamClosed = port.readable.pipeTo(decoderStream.writable);
+  reader = decoderStream.readable.getReader();
+  let buffer = '';
 
-    reader = decoderStream.readable.getReader();
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-    let buffer = '';
+      buffer += value;
+      // DEBUG: Descomenta la siguiente línea para ver en consola qué llega exactamente
+      // console.log("DATA RAW:", JSON.stringify(value));
 
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-
-        if (done) break; // El stream se cerró limpiamente
-
-        buffer += value;
-
-        // Procesar todas las tramas completas (separadas por \n o \r\n)
-        const lineas = buffer.split(/\r?\n/);
-
-        // La última parte puede ser una trama incompleta; la guardamos en el buffer
+      const lineas = buffer.split(/[\r\n]+/);
+      
+      // Si solo hay un elemento, significa que no hubo separador aún
+      if (lineas.length > 1) {
         buffer = lineas.pop() ?? '';
-
         for (const linea of lineas) {
-          const tramaTrimmed = linea.trim();
-          if (!tramaTrimmed) continue;
-
-          pesoTextoRaw.value = tramaTrimmed;
-
-          const nuevoPeso = parsearTrama(tramaTrimmed);
-          if (nuevoPeso !== null) {
-            peso.value = nuevoPeso;
-            actualizarEstabilidad(nuevoPeso);
-          }
+          procesarLinea(linea);
         }
+      } else if (buffer.length > 20) { 
+        // Salvaguarda: si el buffer crece mucho sin saltos de línea, procesamos lo que hay
+        procesarLinea(buffer);
+        buffer = '';
       }
-    } catch (err) {
+    }
+  } catch (err) {
       // Si el error es por cancelación manual, no es un error real
       if (err.name !== 'AbortError' && err.name !== 'NetworkError') {
         // Desconexión repentina del cable USB/Serial
@@ -155,6 +148,19 @@ export function useBascula() {
       }
     }
   }
+
+  function procesarLinea(linea) {
+  const tramaTrimmed = linea.trim();
+  if (!tramaTrimmed) return;
+
+  pesoTextoRaw.value = tramaTrimmed;
+  const nuevoPeso = parsearTrama(tramaTrimmed);
+  
+  if (nuevoPeso !== null) {
+    peso.value = nuevoPeso;
+    actualizarEstabilidad(nuevoPeso);
+  }
+}
 
   // ─── Conexión ─────────────────────────────────────────────────────────────
 
@@ -185,6 +191,9 @@ export function useBascula() {
         parity: 'none',
         flowControl: 'none',
       });
+
+      // FORZAR SEÑALES (Crítico para adaptadores Prolific/RS232)
+      await port.setSignals({ dataTerminalReady: true, requestToSend: true });
 
       conectado.value = true;
       isStable.value = false;

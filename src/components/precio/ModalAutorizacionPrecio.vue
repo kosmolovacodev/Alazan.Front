@@ -287,95 +287,211 @@
               </q-card-section>
 
               <q-card-section class="q-pa-md scroll" style="max-height: 500px; overflow-y: auto">
-                <q-list bordered separator class="rounded-borders">
-                  <q-item
-                    v-for="precio in precioOptions"
-                    :key="precio.codigo"
-                    :clickable="!yaAutorizado && !esCalibreManual(precio.codigo)"
-                    v-ripple
-                    :active="selectedPrecioModel === precio.codigo"
-                    active-class="bg-orange-7 text-white"
-                    :disable="yaAutorizado"
-                    :class="{
-                      'bg-green-1':
-                        precio.codigo === selectedBoleta?.precioSugeridoCodigo &&
-                        selectedPrecioModel !== precio.codigo,
-                      'bg-blue-1':
-                        !esCalibreManual(precio.codigo) &&
-                        esPrecioSuperior(precio.codigo) && selectedPrecioModel !== precio.codigo,
-                      'bg-red-1':
-                        !esCalibreManual(precio.codigo) &&
-                        esPrecioInferior(precio.codigo) && selectedPrecioModel !== precio.codigo,
-                      'bg-amber-1':
-                        esCalibreManual(precio.codigo) && selectedPrecioModel !== precio.codigo,
-                    }"
-                    @click="!yaAutorizado && !esCalibreManual(precio.codigo) && handlePrecioClick(precio.codigo)"
-                  >
-                    <q-item-section>
-                      <q-item-label class="text-weight-bold">
-                        {{ precio.codigo }}
-                        <q-badge
-                          v-if="precio.codigo === selectedBoleta?.precioSugeridoCodigo"
-                          color="green"
-                          class="q-ml-sm"
-                          label="Sugerido"
-                        />
-                        <q-badge
-                          v-else-if="esCalibreManual(precio.codigo)"
-                          color="amber-8"
-                          class="q-ml-sm"
-                          label="Ingrese precio"
-                        />
-                        <q-badge
-                          v-else-if="esPrecioSuperior(precio.codigo)"
-                          color="blue"
-                          class="q-ml-sm"
-                          label="Requiere justificacion"
-                        />
-                        <q-badge
-                          v-else-if="esPrecioInferior(precio.codigo)"
-                          color="red"
-                          class="q-ml-sm"
-                          label="Precio inferior, doble click para seleccionar"
-                        />
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <!-- Calibre > 96: input para precio manual -->
-                      <template v-if="esCalibreManual(precio.codigo)">
-                        <q-input
-                          v-model.number="precioCustom96"
-                          dense
-                          outlined
-                          type="number"
-                          step="0.01"
-                          placeholder="$ Precio"
-                          input-class="text-right text-weight-bold"
-                          style="width: 120px"
-                          :disable="yaAutorizado"
-                          @update:model-value="() => { selectedPrecioModel = precio.codigo; }"
-                        >
-                          <template #prepend>
-                            <span class="text-weight-bold">$</span>
-                          </template>
-                        </q-input>
-                      </template>
-                      <q-item-label v-else class="text-weight-bold">
-                        {{ formatPrecioMiles(precio.valor) }}
-                      </q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
+
+                <!-- GARBANZO: precio/descuento editables -->
+                <template v-if="esGarbanzo">
+                  <!-- Modificar Precio -->
+                  <div class="q-mb-md">
+                    <div class="row items-center q-mb-xs">
+                      <q-icon name="receipt" size="xs" color="blue-8" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Modificar Precio (opcional)</span>
+                    </div>
+                    <div class="row items-center q-gutter-sm">
+                      <div class="text-h6 text-grey-7">$</div>
+                      <q-input
+                        v-model.number="precioManual"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        outlined
+                        dense
+                        class="col"
+                        input-class="text-right text-h5 text-weight-bold"
+                        :readonly="yaAutorizado"
+                      />
+                      <div class="text-body2 text-grey-6">/kg</div>
+                    </div>
+                    <div class="text-caption text-grey-6 q-mt-xs">
+                      Precio calculado automáticamente: ${{ formatPrecio(selectedBoleta?.precioSugerido) }}/kg
+                    </div>
+                  </div>
+
+                  <!-- Modificar Descuento -->
+                  <div class="q-mb-md">
+                    <div class="row items-center q-mb-xs">
+                      <q-icon name="money_off" size="xs" color="orange-8" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Modificar Descuento (opcional)</span>
+                    </div>
+                    <div class="row items-center q-gutter-sm">
+                      <q-input
+                        v-model.number="descuentoManual"
+                        type="number"
+                        min="0"
+                        outlined
+                        dense
+                        class="col"
+                        input-class="text-right text-h5 text-weight-bold"
+                        :readonly="yaAutorizado"
+                      />
+                      <div class="text-body2 text-grey-6">KG</div>
+                    </div>
+                    <div class="text-caption text-grey-6 q-mt-xs">
+                      Descuento calculado automáticamente: {{ formatNumber(Math.round(selectedBoleta?.descuento || 0)) }}.00 KG
+                    </div>
+                  </div>
+
+                  <!-- Tip -->
+                  <q-banner dense rounded class="bg-yellow-1 text-orange-9 q-mb-md text-caption">
+                    <template #avatar>
+                      <q-icon name="lightbulb" color="orange-8" size="xs" />
+                    </template>
+                    Si subes el precio para beneficiar al productor, puedes aumentar el descuento para compensar el costo total.
+                  </q-banner>
+
+                  <!-- Justificación -->
+                  <div v-if="!yaAutorizado" class="q-mb-md">
+                    <div class="row items-center q-mb-xs">
+                      <q-icon name="edit_note" size="xs" color="grey-8" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Justificación</span>
+                    </div>
+                    <q-input
+                      v-model="justificacionModel"
+                      type="textarea"
+                      outlined
+                      dense
+                      placeholder="Explica el motivo del cambio de precio o descuento..."
+                      :rows="3"
+                      bg-color="white"
+                    />
+                  </div>
+
+                  <!-- Autorizar -->
+                  <div v-if="!yaAutorizado" class="text-center q-mt-sm">
+                    <q-btn
+                      color="orange-7"
+                      unelevated
+                      size="lg"
+                      label="Autorizar"
+                      class="text-weight-bold full-width"
+                      @click="autorizar"
+                    />
+                  </div>
+                </template>
+
+                <!-- FRIJOL / OTROS: lista de precios P1-P27 / calibres -->
+                <template v-else>
+                  <q-list bordered separator class="rounded-borders">
+                    <q-item
+                      v-for="precio in precioOptions"
+                      :key="precio.codigo"
+                      :clickable="!yaAutorizado && !esCalibreManual(precio.codigo)"
+                      v-ripple
+                      :active="selectedPrecioModel === precio.codigo"
+                      active-class="bg-orange-7 text-white"
+                      :disable="yaAutorizado"
+                      :class="{
+                        'bg-green-1':
+                          precio.codigo === selectedBoleta?.precioSugeridoCodigo &&
+                          selectedPrecioModel !== precio.codigo,
+                        'bg-blue-1':
+                          !esCalibreManual(precio.codigo) &&
+                          esPrecioSuperior(precio.codigo) && selectedPrecioModel !== precio.codigo,
+                        'bg-red-1':
+                          !esCalibreManual(precio.codigo) &&
+                          esPrecioInferior(precio.codigo) && selectedPrecioModel !== precio.codigo,
+                        'bg-amber-1':
+                          esCalibreManual(precio.codigo) && selectedPrecioModel !== precio.codigo,
+                      }"
+                      @click="!yaAutorizado && !esCalibreManual(precio.codigo) && handlePrecioClick(precio.codigo)"
+                    >
+                      <q-item-section>
+                        <q-item-label class="text-weight-bold">
+                          {{ precio.codigo }}
+                          <q-badge
+                            v-if="precio.codigo === selectedBoleta?.precioSugeridoCodigo"
+                            color="green"
+                            class="q-ml-sm"
+                            label="Sugerido"
+                          />
+                          <q-badge
+                            v-else-if="esCalibreManual(precio.codigo)"
+                            color="amber-8"
+                            class="q-ml-sm"
+                            label="Ingrese precio"
+                          />
+                          <q-badge
+                            v-else-if="esPrecioSuperior(precio.codigo)"
+                            color="blue"
+                            class="q-ml-sm"
+                            label="Requiere justificacion"
+                          />
+                          <q-badge
+                            v-else-if="esPrecioInferior(precio.codigo)"
+                            color="red"
+                            class="q-ml-sm"
+                            label="Precio inferior, doble click para seleccionar"
+                          />
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <template v-if="esCalibreManual(precio.codigo)">
+                          <q-input
+                            v-model.number="precioCustom96"
+                            dense
+                            outlined
+                            type="number"
+                            step="0.01"
+                            placeholder="$ Precio"
+                            input-class="text-right text-weight-bold"
+                            style="width: 120px"
+                            :disable="yaAutorizado"
+                            @update:model-value="() => { selectedPrecioModel = precio.codigo; }"
+                          >
+                            <template #prepend>
+                              <span class="text-weight-bold">$</span>
+                            </template>
+                          </q-input>
+                        </template>
+                        <q-item-label v-else class="text-weight-bold">
+                          {{ formatPrecioMiles(precio.valor) }}
+                        </q-item-label>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </template>
+
               </q-card-section>
             </q-card>
           </div>
         </div>
+
+        <!-- DESGLOSE PRECIO POR CLASIFICACIÓN — ancho completo dentro del scroll, visible al llegar abajo -->
+        <q-card v-if="esGarbanzo && desglosePrecio.length > 0" flat bordered class="bg-blue-1 q-mt-md">
+          <q-card-section class="q-pa-sm q-px-md">
+            <div class="row items-center q-mb-xs">
+              <q-icon name="table_chart" size="sm" color="blue-8" class="q-mr-sm" />
+              <span class="text-subtitle2 text-weight-bold text-blue-9">DESGLOSE DEL PRECIO POR CLASIFICACIÓN</span>
+            </div>
+            <div class="row q-col-gutter-lg items-center">
+              <div v-for="d in desglosePrecio" :key="d.label" class="col-auto">
+                <span class="text-grey-8 text-body2">{{ d.label }} (${{ d.precio.toFixed(2) }}/kg) × {{ d.pct.toFixed(2) }}%:</span>
+                <span class="text-weight-bold text-blue-9 q-ml-xs">${{ ((d.pct / 100) * d.precio).toFixed(2) }}/kg</span>
+              </div>
+              <q-separator vertical inset />
+              <div class="col-auto">
+                <span class="text-body2 text-weight-bold">PRECIO TOTAL:</span>
+                <span class="text-h6 text-weight-bold text-blue-9 q-ml-xs">${{ precioTotalDesglose.toFixed(2) }}/kg</span>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+
       </q-card-section>
 
       <q-separator />
 
-      <!-- Justificación (solo visible cuando se selecciona un precio MAYOR al sugerido) -->
-      <q-card-section v-if="requiereJustificacion" class="q-pa-md bg-orange-1">
+      <!-- Justificación (solo visible para frijol/otros cuando se selecciona un precio MAYOR al sugerido) -->
+      <q-card-section v-if="!esGarbanzo && requiereJustificacion" class="q-pa-md bg-orange-1">
         <div class="text-caption text-weight-bold q-mb-sm text-orange-9">
           <q-icon name="warning" size="xs" class="q-mr-xs" />
           JUSTIFICACION REQUERIDA
@@ -405,8 +521,8 @@
 
       <q-separator />
 
-      <!-- Acciones (solo si no está ya autorizado) -->
-      <q-card-actions v-if="!yaAutorizado" class="q-pa-md bg-grey-2" align="center">
+      <!-- Acciones (solo frijol/otros — garbanzo tiene el botón dentro del panel derecho) -->
+      <q-card-actions v-if="!esGarbanzo && !yaAutorizado" class="q-pa-md bg-grey-2" align="center">
         <q-btn
           v-if="props.modo === 'renegociar'"
           color="negative"
@@ -476,13 +592,56 @@ const emit = defineEmits<{
   (e: 'update:selectedPrecio', v: string): void;
   (e: 'update:justificacion', v: string): void;
   (e: 'close'): void;
-  (e: 'autorizar', precioCustom?: number): void;
+  (e: 'autorizar', precioCustom?: number, descuentoCustom?: number): void;
   (e: 'rechazar'): void;
 }>();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
 const fotoAmpliadaUrl = ref('');
+
+const GARBANZO_ID = 4;
+const esGarbanzo = computed(() => (props.selectedBoleta?.granoId ?? 0) === GARBANZO_ID);
+
+interface ClasificacionPrecio {
+  codigo: string;
+  nombre: string;
+  precioKg: number;
+}
+
+const clasificacionesPrecios = ref<ClasificacionPrecio[]>([]);
+const precioManual = ref<number | string>('');
+const descuentoManual = ref<number | string>('');
+
+async function cargarClasificaciones() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get('/api/precios-clasificacion', {
+      params: { sedeId, granoId: GARBANZO_ID },
+    });
+    clasificacionesPrecios.value = Array.isArray(data) ? data : [];
+  } catch {
+    // silently fail
+  }
+}
+
+const desglosePrecio = computed(() => {
+  if (!esGarbanzo.value || clasificacionesPrecios.value.length === 0) return [];
+  const datos = datosPersonalizados.value;
+  const expPct  = parseFloat(String(datos.exportacion ?? '0')) || 0;
+  const cal1Pct = parseFloat(String(datos.cal_1 ?? '0')) || 0;
+  const cal2Pct = parseFloat(String(datos.cal_2 ?? '0')) || 0;
+  const map = new Map(clasificacionesPrecios.value.map(c => [c.codigo, c.precioKg]));
+  return [
+    { label: 'CAL. EXP', precio: map.get('CAL_EXP') ?? 0, pct: expPct },
+    { label: 'CAL 1',    precio: map.get('CAL_1') ?? 0,   pct: cal1Pct },
+    { label: 'CAL 2',    precio: map.get('CAL_2') ?? 0,   pct: cal2Pct },
+  ];
+});
+
+const precioTotalDesglose = computed(() =>
+  desglosePrecio.value.reduce((sum, d) => sum + (d.pct / 100) * d.precio, 0),
+);
 
 const camposAnalisisConfig = ref<CampoConfig[]>([]);
 
@@ -543,6 +702,14 @@ onMounted(() => {
 watch(() => authStore.sedeActivaId, () => {
   void cargarConfigCampos();
 });
+
+// Inicializar precio/descuento manuales y cargar clasificaciones cuando cambia la boleta
+watch(() => props.selectedBoleta, (b) => {
+  if (!b) return;
+  precioManual.value = b.precioSugerido ?? '';
+  descuentoManual.value = Math.round(b.descuento || 0);
+  if ((b.granoId ?? 0) === GARBANZO_ID) void cargarClasificaciones();
+}, { immediate: true });
 const precioInferiorClickPendiente = ref<string | null>(null);
 const precioInferiorTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const precioCustom96 = ref<number | string>('');
@@ -779,6 +946,14 @@ function emitClose(): void {
 }
 
 function autorizar(): void {
+  // Garbanzo: emitir precio/descuento manuales directamente
+  if (esGarbanzo.value) {
+    const precio = Number(precioManual.value) || 0;
+    const descuento = Number(descuentoManual.value) || undefined;
+    emit('autorizar', precio, descuento);
+    return;
+  }
+
   // Validar calibre > 96: debe tener precio ingresado
   if (esFrijol.value && esCalibreManual(selectedPrecioModel.value)) {
     const val = Number(precioCustom96.value);

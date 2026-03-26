@@ -24,6 +24,7 @@
       >
         <q-tab name="general" label="Parámetros Generales" icon="tune" />
         <q-tab name="precios" label="Reglas de Precio" icon="payments" />
+        <q-tab name="precios-clasificacion" label="Precios por Clasificación" icon="grade" />
         <q-tab name="granos" label="Recepción de Granos" icon="grass" />
         <q-tab name="facturas" label="Recepción de Facturas" icon="description" />
         <q-tab name="pagos" label="Pagos" icon="account_balance_wallet" />
@@ -111,9 +112,15 @@
           </q-scroll-area>
         </q-tab-panel>
 
+        <q-tab-panel name="precios-clasificacion" class="q-pa-none">
+          <q-scroll-area style="height: calc(100vh - 280px);">
+            <ConfigPreciosClasificacion />
+          </q-scroll-area>
+        </q-tab-panel>
+
         <q-tab-panel name="granos">
           <ConfigRecepcionGranos />
-          </q-tab-panel>
+        </q-tab-panel>
 
         <q-tab-panel name="facturas">
           <div class="text-h6">Recepción de Facturas</div>
@@ -163,6 +170,9 @@ import ReglasPrecio from 'src/components/configuracion/ReglasPrecio.vue';
 
 //Importación de Configuración Recepción de Granos
 import ConfigRecepcionGranos from 'src/components/configuracion/ConfigRecepcionGranos.vue';
+
+// Importación de Precios por Clasificación (Garbanzo)
+import ConfigPreciosClasificacion from 'src/components/configuracion/ConfigPreciosClasificacion.vue';
 
 // Importación de Configuración de Facturación
 import ConfiguracionFacturacion from 'src/components/configuracion/ConfiguracionFacturacion.vue';

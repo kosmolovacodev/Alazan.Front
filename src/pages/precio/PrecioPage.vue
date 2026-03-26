@@ -24,7 +24,7 @@
       :tabla-calibre="tablaCalibre"
       :modo="modoModal"
       @close="cerrarModal"
-      @autorizar="(pc?: number) => autorizarPrecio(pc)"
+      @autorizar="(pc?: number, dc?: number) => autorizarPrecio(pc, dc)"
       @rechazar="rechazarPrecio"
     />
   </q-page>
@@ -142,6 +142,8 @@ const cargarBoletas = async () => {
 // Calcular precios disponibles con formula acumulativa:
 // P1 = precio base, P2 = P1 - descuento_P2, P3 = P2 - descuento_P3, etc.
 
+const GARBANZO_ID = 4;
+
 const calcularPreciosDisponibles = () => {
   if (!boletaSeleccionada.value) return [];
 
@@ -155,7 +157,12 @@ const calcularPreciosDisponibles = () => {
       .reverse();
   }
 
-  // --- GARBANZO / otros: flujo normal con niveles de exportación ---
+  // --- GARBANZO: precio único calculado por clasificación (CLASIF) ---
+  if (boletaSeleccionada.value.granoId === GARBANZO_ID) {
+    return [{ codigo: 'CLASIF', valor: boletaSeleccionada.value.precioSugerido ?? 0 }];
+  }
+
+  // --- Otros granos: flujo normal con niveles de exportación ---
   const niveles = nivelesExportacion.value;
   if (!niveles || niveles.length === 0) return [];
 
@@ -229,7 +236,7 @@ function getNivelFromCodigo(codigo: string | null | undefined): number {
 }
 
 // Autorizar precio
-const autorizarPrecio = async (precioCustom?: number) => {
+const autorizarPrecio = async (precioCustom?: number, descuentoCustom?: number) => {
   if (!boletaSeleccionada.value) return;
 
   try {
@@ -254,6 +261,8 @@ const autorizarPrecio = async (precioCustom?: number) => {
     // Determinar tipo de autorización
     let tipoAutorizacion: string;
 
+    const esGarbanzoBoleta = boletaSeleccionada.value.granoId === GARBANZO_ID;
+
     if (esFrijolBoleta) {
       // Para frijol: comparar por valor de precio
       const codigoSugerido = boletaSeleccionada.value.precioSugeridoCodigo;
@@ -263,8 +272,11 @@ const autorizarPrecio = async (precioCustom?: number) => {
       } else {
         tipoAutorizacion = 'NORMAL';
       }
+    } else if (esGarbanzoBoleta) {
+      // Para garbanzo: precio único CLASIF, siempre NORMAL
+      tipoAutorizacion = 'NORMAL';
     } else {
-      // Para garbanzo: comparar por nivel P
+      // Para otros granos: comparar por nivel P
       const codigoSugerido = boletaSeleccionada.value.precioSugeridoCodigo;
       const nivelSugerido = getNivelFromCodigo(codigoSugerido);
       const nivelSeleccionado = getNivelFromCodigo(selectedPrecio.value);
@@ -297,6 +309,7 @@ const autorizarPrecio = async (precioCustom?: number) => {
       precioAutorizado: precioValor,
       observaciones: justificacion.value || '',
       tipoAutorizacion: tipoAutorizacion,
+      ...(descuentoCustom !== undefined ? { descuentoKg: descuentoCustom } : {}),
     });
 
     const mensajes: Record<string, string> = {

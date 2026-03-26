@@ -132,41 +132,20 @@
 
     <!-- ===================== TABLA NORMAL (otros granos) ===================== -->
     <template v-else>
-      <!-- TOTAL DE DAÑOS - Desplegable -->
       <q-card bordered class="bg-white">
-        <q-item clickable v-ripple @click="expandidoTotalDanos = !expandidoTotalDanos">
-          <q-item-section avatar>
-            <q-icon :name="expandidoTotalDanos ? 'expand_more' : 'chevron_right'" size="sm" />
-          </q-item-section>
+        <q-list separator>
 
-          <q-item-section>
-            <q-item-label class="text-weight-medium text-grey-9">TOTAL DE DAÑOS</q-item-label>
-          </q-item-section>
-
-          <q-item-section side>
-            <div class="text-weight-bold text-subtitle1 text-grey-9">
-              {{ Math.round(totalDanosNum) }}%
-            </div>
-          </q-item-section>
-        </q-item>
-
-        <q-separator />
-
-        <q-slide-transition>
-          <div v-show="expandidoTotalDanos" class="q-pa-md bg-grey-1 q-gutter-md">
-            <!-- Impurezas -->
-            <div v-if="campoVisible('impurezas')" class="row items-center justify-between q-col-gutter-md">
-              <div class="col">
-                <div class="text-body2 text-grey-8 text-weight-medium">
-                  {{ campoLabel('impurezas', 'Impurezas') }} <span class="text-negative">*</span>
-                </div>
-              </div>
-              <div class="col-auto row items-center q-gutter-xs">
+          <!-- IMPUREZAS -->
+          <q-item v-if="campoVisible('impurezas')" class="q-py-xs">
+            <q-item-section>
+              <q-item-label class="text-body2 text-grey-8 text-weight-medium text-uppercase">
+                {{ campoLabel('impurezas', 'Impureza') }} <span class="text-negative">*</span>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row items-center q-gutter-xs">
                 <q-input
-                  dense
-                  outlined
-                  type="number"
-                  step="0.01"
+                  dense outlined type="number" step="0.01"
                   :model-value="displayNumber(impurezas)"
                   @update:model-value="(v) => emitInput('impurezas', v)"
                   :readonly="readOnly"
@@ -174,21 +153,22 @@
                   style="width: 110px"
                   placeholder="0.00"
                 />
-                <div class="text-caption text-grey-7" style="width: 14px">%</div>
+                <span class="text-caption text-grey-7" style="width: 14px">%</span>
               </div>
-            </div>
+            </q-item-section>
+          </q-item>
 
-            <!-- R1 -->
-            <div v-if="campoVisible('r1')" class="row items-center justify-between q-col-gutter-md">
-              <div class="col">
-                <div class="text-body2 text-grey-8 text-weight-medium">{{ campoLabel('r1', 'R1') }}</div>
-              </div>
-              <div class="col-auto row items-center q-gutter-xs">
+          <!-- R1 -->
+          <q-item v-if="campoVisible('r1')" class="q-py-xs">
+            <q-item-section>
+              <q-item-label class="text-body2 text-grey-8 text-weight-medium text-uppercase">
+                {{ campoLabel('r1', 'R1') }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row items-center q-gutter-xs">
                 <q-input
-                  dense
-                  outlined
-                  type="number"
-                  step="0.01"
+                  dense outlined type="number" step="0.01"
                   :model-value="displayNumber(r1)"
                   @update:model-value="(v) => emitInput('r1', v)"
                   :readonly="readOnly"
@@ -196,109 +176,154 @@
                   style="width: 110px"
                   placeholder="0.00"
                 />
-                <div class="text-caption text-grey-7" style="width: 14px">%</div>
+                <span class="text-caption text-grey-7" style="width: 14px">%</span>
               </div>
-            </div>
+            </q-item-section>
+          </q-item>
 
-            <q-card bordered class="bg-white">
-              <q-item
-                clickable
-                v-ripple
-                @click="expandidoSumaR2 = !expandidoSumaR2"
-                class="q-py-xs bg-grey-1"
-              >
-                <q-item-section avatar>
-                  <q-icon :name="expandidoSumaR2 ? 'expand_more' : 'chevron_right'" size="xs" />
-                </q-item-section>
+          <!-- REZAGAS (R2 + subfields) -->
+          <q-item
+            v-for="campo in [
+              { key: 'r2',         label: 'Rezaga'           },
+              { key: 'cafesLisos', label: 'Cafés / Lisos'    },
+              { key: 'manchados',  label: 'Manchados'        },
+              { key: 'quebMxc',    label: 'Queb/Mxg/Mitd/Cam' },
+              { key: 'helados',    label: 'Helados'          },
+              { key: 'alimonados', label: 'Alimonados'       },
+              { key: 'revolcados', label: 'Revolcados'       },
+              { key: 'germinados', label: 'Germinados'       },
+            ].filter(c => campoVisible(c.key))"
+            :key="campo.key"
+            class="q-py-xs"
+          >
+            <q-item-section>
+              <q-item-label class="text-body2 text-grey-8 text-weight-medium text-uppercase">
+                {{ campoLabel(campo.key, campo.label) }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row items-center q-gutter-xs">
+                <q-input
+                  dense outlined type="number" step="0.01"
+                  style="width: 110px"
+                  input-class="text-right"
+                  :model-value="displayNumber((props as any)[campo.key])"
+                  @update:model-value="(v) => emitInput(campo.key, v)"
+                  :readonly="readOnly"
+                  placeholder="0.00"
+                />
+                <span class="text-caption text-grey-7" style="width: 14px">%</span>
+              </div>
+            </q-item-section>
+          </q-item>
 
-                <q-item-section>
-                  <q-item-label class="text-body2 text-weight-medium text-grey-9">
-                    Suma de R2
-                  </q-item-label>
-                </q-item-section>
+          <!-- SUMA DE REZAGAS (total calculado) -->
+          <q-item class="q-py-sm bg-blue-1">
+            <q-item-section>
+              <q-item-label class="text-body2 text-weight-bold text-blue-9 text-uppercase">
+                Suma de Rezagas
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <span class="text-body1 text-weight-bold text-blue-9">{{ sumaR2.toFixed(2) }}%</span>
+            </q-item-section>
+          </q-item>
 
-                <q-item-section side>
-                  <div class="text-body2 text-weight-bold text-primary">
-                    {{ sumaR2.toFixed(2) }}%
-                  </div>
-                </q-item-section>
-              </q-item>
+          <!-- TOTAL DE DAÑOS (total calculado) -->
+          <q-item class="q-py-sm bg-amber-1">
+            <q-item-section>
+              <q-item-label class="text-body2 text-weight-bold text-amber-10 text-uppercase">
+                Total de Daños (RZG + IMP)
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <span class="text-body1 text-weight-bold text-amber-10">{{ totalDanosNum.toFixed(2) }}%</span>
+            </q-item-section>
+          </q-item>
 
-              <q-separator />
+          <!-- Descuentos de exportación -->
+          <q-item
+            v-for="descuento in descuentosExportacion"
+            :key="descuento.clave"
+            class="q-py-xs"
+          >
+            <q-item-section>
+              <q-item-label class="text-body2 text-grey-8 text-weight-medium text-uppercase">
+                {{ descuento.label }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row items-center q-gutter-xs">
+                <q-input
+                  dense outlined type="number" step="0.01"
+                  :model-value="displayNumber(descuento.valor)"
+                  @update:model-value="(v) => emitInput(descuento.clave, v)"
+                  :readonly="readOnly"
+                  input-class="text-right"
+                  style="width: 110px"
+                  placeholder="0.00"
+                />
+                <span class="text-caption text-grey-7" style="width: 14px">%</span>
+              </div>
+            </q-item-section>
+          </q-item>
 
-              <q-slide-transition>
-                <div v-show="expandidoSumaR2">
-                  <q-list separator class="bg-white">
-                    <q-item
-                      v-for="campo in [
-                        { key: 'r2', label: 'R2' },
-                        { key: 'cafesLisos', label: 'Cafés y Lisos' },
-                        { key: 'manchados', label: 'Manchados' },
-                        { key: 'quebMxc', label: 'Queb/Mxc' },
-                        { key: 'helados', label: 'Helados' },
-                        { key: 'alimonados', label: 'Alimonados' },
-                        { key: 'revolcados', label: 'Revolcados' },
-                      ].filter(c => campoVisible(c.key))"
-                      :key="campo.key"
-                      class="q-py-xs"
-                    >
-                      <q-item-section>
-                        <q-item-label
-                          class="text-grey-8 text-caption text-uppercase text-weight-medium"
-                        >
-                          {{ campoLabel(campo.key, campo.label) }}
-                        </q-item-label>
-                      </q-item-section>
+          <!-- EXPORTACIÓN (calculado) -->
+          <q-item v-if="campoVisible('exportacion')" class="q-py-sm bg-green-1">
+            <q-item-section>
+              <q-item-label class="text-body2 text-weight-bold text-green-10 text-uppercase">
+                {{ campoLabel('exportacion', 'Exportación') }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <span class="text-h6 text-weight-bold text-green-9">{{ exportacion.toFixed(2) }}%</span>
+            </q-item-section>
+          </q-item>
 
-                      <q-item-section side>
-                        <q-input
-                          dense
-                          outlined
-                          type="number"
-                          step="0.01"
-                          style="width: 110px"
-                          input-class="text-right"
-                          :model-value="displayNumber((props as any)[campo.key])"
-                          @update:model-value="(v) => emitInput(campo.key, v)"
-                          :readonly="readOnly"
-                        >
-                          <template v-slot:append>
-                            <span class="text-caption text-grey-6">%</span>
-                          </template>
-                        </q-input>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </div>
-              </q-slide-transition>
-            </q-card>
-          </div>
-        </q-slide-transition>
-      </q-card>
+          <!-- CALIBRE (solo si está disponible) -->
+          <q-item v-if="calibre && campoVisible('calibre')" class="q-py-sm bg-blue-1">
+            <q-item-section>
+              <q-item-label class="text-body2 text-weight-bold text-blue-10 text-uppercase">
+                {{ campoLabel('calibre', 'Calibre en 30 gr.') }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <span class="text-body1 text-weight-bold text-blue-9">{{ calibre }}</span>
+            </q-item-section>
+          </q-item>
 
-      <!-- EXPORTACIÓN (Solo Lectura - Calculado) -->
-      <q-card v-if="campoVisible('exportacion')" bordered class="bg-green-1" style="border-width: 2px">
-        <q-card-section class="row items-center justify-between q-pa-sm">
-          <div class="text-subtitle2 text-green-10 text-weight-bold">{{ campoLabel('exportacion', 'EXPORTACIÓN') }}</div>
-          <div class="text-h5 text-green-9 text-weight-bold">{{ exportacion.toFixed(2) }}%</div>
-        </q-card-section>
-      </q-card>
+          <!-- CAMPOS EXTRA (texto/número, no duplicados del análisis estándar) -->
+          <q-item
+            v-for="extra in camposExtras"
+            :key="extra.clave"
+            class="q-py-xs"
+          >
+            <q-item-section>
+              <q-item-label class="text-body2 text-grey-8 text-weight-medium text-uppercase">
+                {{ extra.label }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-input
+                dense outlined
+                style="width: 160px"
+                input-class="text-right"
+                :model-value="extra.valor"
+                @update:model-value="(v) => emitInput(extra.clave, v)"
+                :readonly="readOnly"
+                placeholder="—"
+              />
+            </q-item-section>
+          </q-item>
 
-      <!-- CALIBRE (Opcional - Solo si se proporciona) -->
-      <q-card v-if="calibre && campoVisible('calibre')" bordered class="bg-blue-1" style="border-width: 2px">
-        <q-card-section class="row items-center justify-between q-pa-sm">
-          <div class="text-subtitle2 text-blue-10 text-weight-bold">{{ campoLabel('calibre', 'CALIBRE') }}</div>
-          <div class="text-subtitle1 text-blue-9 text-weight-bold">
-            {{ calibre }}
-          </div>
-        </q-card-section>
+        </q-list>
       </q-card>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 interface FrijolRow {
   clave?: string;
@@ -326,6 +351,9 @@ interface Props {
   helados: string | number;
   alimonados: string | number;
   revolcados: string | number;
+  germinados?: string | number;
+  descuentosExportacion?: { clave: string; label: string; valor: string }[];
+  camposExtras?: { clave: string; label: string; valor: string }[];
   sumaR2: number;
   totalDanosNum: number;
   exportacion: number;
@@ -341,6 +369,9 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   tipoGranoId: 2,
   camposConfig: () => [],
+  germinados: '',
+  descuentosExportacion: () => [],
+  camposExtras: () => [],
 });
 
 // Helper: true si el campo es visible según config (si no hay config, muestra todo)
@@ -361,9 +392,6 @@ const emit = defineEmits<{
   (e: 'input-change', campo: string, valor: string): void;
   (e: 'frijol-data-change', data: FrijolRow[]): void;
 }>();
-
-const expandidoTotalDanos = ref(true);
-const expandidoSumaR2 = ref(true);
 
 // --- Opciones de color para Frijol ---
 const opcionesColor = [
