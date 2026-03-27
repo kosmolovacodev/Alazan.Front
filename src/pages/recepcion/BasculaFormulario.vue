@@ -220,6 +220,20 @@
                 "
               />
             </div>
+            <div class="col-12 col-md-4" v-if="campoVisible('has')">
+              <q-input
+                v-model.number="form.has"
+                type="number"
+                step="0.01"
+                :label="campoLabel('has', 'HAS')"
+                outlined
+                dense
+                bg-color="white"
+                :rules="
+                  campoObligatorio('has') ? [(v: unknown) => !!v || 'Campo requerido'] : []
+                "
+              />
+            </div>
             <div class="col-12" v-if="campoVisible('observaciones')">
               <q-input
                 v-model="form.observaciones"
@@ -509,6 +523,7 @@ const form = reactive({
   chofer: '',
   placas: '',
   ton_aprox: 0,
+  has: null as number | null,
   peso_bruto_kg: 0,
   status: 'PENDIENTE',
   observaciones: '',
@@ -1044,6 +1059,7 @@ async function onSubmit() {
       celular: camposProductor.telefono,
       telefono2: form.telefono2,
       atiende: camposProductor.tipo_persona === 'Moral' ? camposProductor.atiende : '',
+      ...(form.has !== null ? { has: form.has } : {}),
       ...valoresCamposPersonalizados,
     }),
     boleta_numero: null,

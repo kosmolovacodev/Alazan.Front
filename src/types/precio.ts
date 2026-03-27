@@ -9,6 +9,7 @@ export interface BoletaPrecio {
   descuento: number;
   precioSugerido: number;
   precioSugeridoCodigo: string;
+  precioAutorizado?: number;
   estatus: string;
   ticket: string;
   productor?: string;

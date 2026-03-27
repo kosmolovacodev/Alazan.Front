@@ -299,10 +299,8 @@
                     <div class="row items-center q-gutter-sm">
                       <div class="text-h6 text-grey-7">$</div>
                       <q-input
-                        v-model.number="precioManual"
-                        type="number"
-                        step="0.01"
-                        min="0"
+                        v-model="precioManual"
+                        inputmode="decimal"
                         outlined
                         dense
                         class="col"
@@ -324,9 +322,8 @@
                     </div>
                     <div class="row items-center q-gutter-sm">
                       <q-input
-                        v-model.number="descuentoManual"
-                        type="number"
-                        min="0"
+                        v-model="descuentoManual"
+                        inputmode="decimal"
                         outlined
                         dense
                         class="col"
@@ -706,8 +703,8 @@ watch(() => authStore.sedeActivaId, () => {
 // Inicializar precio/descuento manuales y cargar clasificaciones cuando cambia la boleta
 watch(() => props.selectedBoleta, (b) => {
   if (!b) return;
-  precioManual.value = b.precioSugerido ?? '';
-  descuentoManual.value = Math.round(b.descuento || 0);
+  precioManual.value = Number(b.precioAutorizado || b.precioSugerido || 0).toFixed(2);
+  descuentoManual.value = Number(b.descuento || 0).toFixed(2);
   if ((b.granoId ?? 0) === GARBANZO_ID) void cargarClasificaciones();
 }, { immediate: true });
 const precioInferiorClickPendiente = ref<string | null>(null);

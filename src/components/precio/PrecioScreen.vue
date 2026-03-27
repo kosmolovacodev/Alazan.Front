@@ -262,7 +262,11 @@
                   <q-badge color="orange-2" text-color="orange-10">
                     {{ props.row.precioSugeridoCodigo || 'N/A' }}
                   </q-badge>
-                  <span class="text-weight-bold">
+                  <span v-if="props.row.precioAutorizado && props.row.precioAutorizado !== props.row.precioSugerido" class="text-weight-bold text-green-8">
+                    ${{ formatearPrecio(props.row.precioAutorizado) }}
+                    <span class="text-caption text-grey-5 q-ml-xs">(sug. ${{ formatearPrecio(props.row.precioSugerido) }})</span>
+                  </span>
+                  <span v-else class="text-weight-bold">
                     ${{ formatearPrecio(props.row.precioSugerido) }}
                   </span>
                 </div>
