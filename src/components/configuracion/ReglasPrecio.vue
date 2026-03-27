@@ -118,6 +118,29 @@
               hide-pagination
               :pagination="{ rowsPerPage: 0 }"
             >
+              <template #body-cell-calibre="p">
+                <q-td :props="p">
+                  <div v-if="editandoCalibreNombre === p.row.id">
+                    <q-input
+                      v-model="p.row.calibre"
+                      dense
+                      outlined
+                      autofocus
+                      @blur="guardarEdicionCalibre(p.row); editandoCalibreNombre = null"
+                      @keyup.enter="guardarEdicionCalibre(p.row); editandoCalibreNombre = null"
+                      @keyup.escape="editandoCalibreNombre = null"
+                    />
+                  </div>
+                  <div
+                    v-else
+                    @click="editandoCalibreNombre = p.row.id"
+                    class="cursor-pointer text-grey-9"
+                  >
+                    {{ p.row.calibre }}
+                    <q-tooltip>Clic para editar nombre</q-tooltip>
+                  </div>
+                </q-td>
+              </template>
               <template #body-cell-descuento="p">
                 <q-td :props="p">
                   <div v-if="editandoCalibre === p.row.id">
@@ -404,6 +427,7 @@ interface NivelExport {
 // --- Estado ---
 const loading = ref(false);
 const editandoCalibre = ref<number | null>(null);
+const editandoCalibreNombre = ref<number | null>(null);
 const editandoPrecio = ref<number | null>(null);
 const calibreSimulacion = ref<number | null>(null);
 const nombreUsuarioReal = ref('Cargando...');

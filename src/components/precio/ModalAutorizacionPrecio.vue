@@ -764,7 +764,7 @@ const esFrijol = computed(() => {
 
 // Verificar si un calibre requiere precio manual (> 96 para frijol)
 function esCalibreManual(codigo: string): boolean {
-  return esFrijol.value && codigo.includes('> 96');
+  return esFrijol.value && (codigo.includes('> 96') || codigo.includes('>96') || codigo.toLowerCase().includes('mayor 96'));
 }
 
 // Obtener el número de nivel del código del precio sugerido (P1 = 1, P2 = 2, etc.)
@@ -946,10 +946,25 @@ function emitClose(): void {
 }
 
 function autorizar(): void {
-  // Garbanzo: emitir precio/descuento manuales directamente
+  // Garbanzo: validar justificación si precio o descuento es mayor al original
   if (esGarbanzo.value) {
     const precio = Number(precioManual.value) || 0;
     const descuento = Number(descuentoManual.value) || undefined;
+    const precioOriginal = Number(props.selectedBoleta?.precioSugerido) || 0;
+    const descuentoOriginal = Math.round(Number(props.selectedBoleta?.descuento) || 0);
+    const necesitaJustificacion = precio > precioOriginal || (descuento !== undefined && descuento > descuentoOriginal);
+    if (necesitaJustificacion) {
+      const justif = justificacionModel.value?.trim() || '';
+      if (justif.length < 10) {
+        $q.notify({
+          type: 'warning',
+          message: 'Debe justificar el motivo cuando el precio o descuento es mayor al original (mínimo 10 caracteres).',
+          position: 'top',
+          timeout: 4000,
+        });
+        return;
+      }
+    }
     emit('autorizar', precio, descuento);
     return;
   }

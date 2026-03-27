@@ -304,19 +304,28 @@ const autorizarPrecio = async (precioCustom?: number, descuentoCustom?: number) 
       return;
     }
 
-    await api.post('/api/precio/autorizar', {
-      boletaPrecioId: boletaSeleccionada.value.id,
-      precioAutorizado: precioValor,
-      observaciones: justificacion.value || '',
-      tipoAutorizacion: tipoAutorizacion,
-      ...(descuentoCustom !== undefined ? { descuentoKg: descuentoCustom } : {}),
-    });
-
-    const mensajes: Record<string, string> = {
-      CC: 'Precio autorizado CC correctamente',
-      NORMAL: 'Precio autorizado correctamente',
-    };
-    Notify.create({ type: 'positive', message: mensajes[tipoAutorizacion] || 'Precio autorizado' });
+    if (modoModal.value === 'renegociar') {
+      await api.post('/api/precio/renegociar', {
+        boletaPrecioId: boletaSeleccionada.value.id,
+        precioNuevo: precioValor,
+        motivoRenegociacion: justificacion.value || 'Renegociación de precio',
+        ...(descuentoCustom !== undefined ? { descuentoKg: descuentoCustom } : {}),
+      });
+      Notify.create({ type: 'positive', message: 'Precio renegociado y autorizado correctamente' });
+    } else {
+      await api.post('/api/precio/autorizar', {
+        boletaPrecioId: boletaSeleccionada.value.id,
+        precioAutorizado: precioValor,
+        observaciones: justificacion.value || '',
+        tipoAutorizacion: tipoAutorizacion,
+        ...(descuentoCustom !== undefined ? { descuentoKg: descuentoCustom } : {}),
+      });
+      const mensajes: Record<string, string> = {
+        CC: 'Precio autorizado CC correctamente',
+        NORMAL: 'Precio autorizado correctamente',
+      };
+      Notify.create({ type: 'positive', message: mensajes[tipoAutorizacion] || 'Precio autorizado' });
+    }
 
     cerrarModal();
     await cargarBoletas();
