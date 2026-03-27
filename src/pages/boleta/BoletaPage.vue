@@ -292,7 +292,7 @@
                 boletaSeleccionada?.estatus === 'Precio Aceptado' ? 'col-12' : 'col-12 col-md-7'
               "
             >
-              <q-card bordered>
+              <q-card id="boleta-page-print-area" bordered>
                 <q-card-section
                   :class="
                     boletaSeleccionada?.estatus === 'Precio Aceptado'
@@ -314,7 +314,7 @@
                     >
                       Precio aceptado por productor
                     </div>
-                    <div class="row q-gutter-sm">
+                    <div class="row q-gutter-sm no-print">
                       <q-btn flat dense icon="print" label="Imprimir" @click="imprimirBoleta" />
                       <q-btn
                         flat
@@ -1021,8 +1021,36 @@ async function confirmarPrecio(acepta: boolean) {
   }
 }
 
+function abrirVentanaImpresion(elementId: string, zoom = 0.65) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map((l) => `<link rel="stylesheet" href="${(l as HTMLLinkElement).href}">`)
+    .join('');
+  const styleTags = Array.from(document.querySelectorAll('style'))
+    .map((s) => s.outerHTML).join('');
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.documentElement.innerHTML = `<head>
+  <meta charset="utf-8">
+  ${linkTags}
+  ${styleTags}
+  <style>
+    @page { size: A4 portrait; margin: 8mm; }
+    body { margin: 0; background: white; }
+    #${elementId} { max-width: none !important; box-shadow: none !important; border: none !important; zoom: ${zoom}; width: 100%; }
+    .no-print { display: none !important; }
+    .overflow-hidden { overflow: visible !important; }
+    .bg-grey-3 { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    img { display: block !important; max-width: 100% !important; height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
+</head>
+<body>${el.outerHTML}</body>`;
+  setTimeout(() => { win.focus(); win.print(); win.close(); }, 900);
+}
+
 function imprimirBoleta() {
-  Notify.create({ type: 'info', message: 'Funcion de impresion en desarrollo' });
+  abrirVentanaImpresion('boleta-page-print-area', 0.68);
 }
 
 function descargarBoleta() {

@@ -463,7 +463,7 @@
         </div>
 
         <!-- DESGLOSE PRECIO POR CLASIFICACIÓN — ancho completo dentro del scroll, visible al llegar abajo -->
-        <q-card v-if="esGarbanzo && desglosePrecio.length > 0" flat bordered class="bg-blue-1 q-mt-md">
+        <q-card v-if="esGarbanzo && desglosePrecio.length > 0" flat bordered class="q-mt-md">
           <q-card-section class="q-pa-sm q-px-md">
             <div class="row items-center q-mb-xs">
               <q-icon name="table_chart" size="sm" color="blue-8" class="q-mr-sm" />
@@ -474,7 +474,6 @@
                 <span class="text-grey-8 text-body2">{{ d.label }} (${{ d.precio.toFixed(2) }}/kg) × {{ d.pct.toFixed(2) }}%:</span>
                 <span class="text-weight-bold text-blue-9 q-ml-xs">${{ ((d.pct / 100) * d.precio).toFixed(2) }}/kg</span>
               </div>
-              <q-separator vertical inset />
               <div class="col-auto">
                 <span class="text-body2 text-weight-bold">PRECIO TOTAL:</span>
                 <span class="text-h6 text-weight-bold text-blue-9 q-ml-xs">${{ precioTotalDesglose.toFixed(2) }}/kg</span>

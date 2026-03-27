@@ -606,7 +606,7 @@
         </div>
       </div>
 
-      <q-card bordered flat class="q-pa-lg" style="max-width: 900px; margin: 0 auto">
+      <q-card id="preliquidacion-print-area" bordered flat class="q-pa-lg" style="max-width: 900px; margin: 0 auto">
         <!-- Header naranja -->
         <div class="bg-orange-7 text-white text-center q-pa-md rounded-borders q-mb-lg">
           <div class="text-h4 text-weight-bold">Pre-Liquidación</div>
@@ -672,7 +672,7 @@
           <div class="text-subtitle1 text-weight-bold text-uppercase text-grey-8 q-mb-xs">
             Observaciones
           </div>
-          <div class="text-body1" style="white-space: pre-wrap">{{ observaciones }}</div>
+          <div class="text-body1" style="white-space: pre-wrap">{{ docActual?.observaciones || observaciones }}</div>
         </div>
 
         <!-- Documentación requerida -->
@@ -738,7 +738,7 @@
         Precio Aceptado - Boleta Finalizada
       </q-banner>
 
-      <q-card bordered flat style="max-width: 900px; margin: 0 auto">
+      <q-card id="boleta-print-area" bordered flat style="max-width: 900px; margin: 0 auto">
         <!-- Header verde -->
         <q-card-section class="bg-green-7 text-white text-center">
           <div class="text-h5 text-weight-bold">BOLETA</div>
@@ -746,7 +746,7 @@
         </q-card-section>
 
         <!-- Iconos imprimir/descargar -->
-        <div class="row justify-end q-pa-sm q-gutter-sm">
+        <div class="row justify-end q-pa-sm q-gutter-sm no-print">
           <q-btn flat round icon="print" @click="imprimir" />
           <q-btn flat round icon="download" />
         </div>
@@ -1295,9 +1295,39 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const stream = ref<MediaStream | null>(null);
 
-const imprimir = () => {
-  window.print();
-};
+function abrirVentanaImpresion(elementId: string, zoom = 0.65) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  // URLs absolutas de <link> (funcionan en ventana nueva)
+  const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map((l) => `<link rel="stylesheet" href="${(l as HTMLLinkElement).href}">`)
+    .join('');
+  // Estilos inline de Vite dev (contienen Quasar, íconos, etc.)
+  const styleTags = Array.from(document.querySelectorAll('style'))
+    .map((s) => s.outerHTML)
+    .join('');
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.documentElement.innerHTML = `
+<head>
+  <meta charset="utf-8">
+  ${linkTags}
+  ${styleTags}
+  <style>
+    @page { size: A4 portrait; margin: 8mm; }
+    body { margin: 0; background: white; }
+    #${elementId} { max-width: none !important; box-shadow: none !important; border: none !important; zoom: ${zoom}; width: 100%; }
+    .no-print { display: none !important; }
+    .overflow-hidden { overflow: visible !important; }
+    .bg-grey-3 { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    img { display: block !important; max-width: 100% !important; height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
+</head>
+<body>${el.outerHTML}</body>`;
+  setTimeout(() => { win.focus(); win.print(); win.close(); }, 900);
+}
+
+const imprimir = () => abrirVentanaImpresion('boleta-print-area', 0.65);
 
 const preliquidacionDto = ref({
   boletaId: 0,
@@ -1410,6 +1440,8 @@ interface PreliquidacionDoc {
   monto: number;
   montoIPRM: number | null;
   iprmPorcentaje: number | null;
+  descuento: number;
+  observaciones: string;
 }
 
 const opcionesRT = ['Riego', 'Temporal'];
@@ -1630,15 +1662,15 @@ const CAMPO_VALOR_MAP: Record<string, () => string> = {
   riegoTemporal: () => rt.value || '-',
   atiende: () => detalle.value.atiende || '-',
   precio: () => fmtNum(detalle.value.precio || 0),
-  descuento: () => fmtNum(Number(descuento.value) || 0),
-  descuentoKg: () => fmtNum(Number(descuento.value) || 0),
+  descuento: () => fmtNum(docActual.value?.descuento ?? (Number(descuento.value) || 0)),
+  descuentoKg: () => fmtNum(docActual.value?.descuento ?? (Number(descuento.value) || 0)),
   kg_liquidar: () => fmtNum(docActual.value?.kgALiquidar),
   peso_bruto: () => fmtNum(selectedRegistro.value?.pesoBruto),
   tara: () => fmtNum(Number(pesoTara.value) || 0),
   peso_neto: () => fmtNum(Number(pesoNeto.value) || 0),
   pesoNeto: () => fmtNum(detalle.value.pesoNeto),
   totalPagar: () => fmtMoney(docActual.value?.montoIPRM ?? docActual.value?.monto),
-  observaciones: () => detalle.value.observaciones || '-',
+  observaciones: () => docActual.value?.observaciones || detalle.value.observaciones || '-',
 };
 
 function getCampoValor(clave: string): string {
@@ -1718,9 +1750,10 @@ const plantillaObs = ref('');
 
 // Sustituye variables {monto}, {tipo_productor}, {fecha}, {razon_social}, {atiende}, {productor}
 // con los valores reales del detalle y campos calculados.
-function interpolarPlantilla(plantilla: string): string {
-  const montoRaw = parseFloat((aLiquidar.value || '0').toString().replace(/,/g, '')) || 0;
-  const montoFinal = parseFloat((aLiquidarIPRM.value || '0').toString().replace(/,/g, '')) || montoRaw;
+// montoOverride / montoIPRMOverride permiten pasar el monto de un productor específico (divisiones).
+function interpolarPlantilla(plantilla: string, montoOverride?: number, montoIPRMOverride?: number): string {
+  const montoRaw = montoOverride ?? (parseFloat((aLiquidar.value || '0').toString().replace(/,/g, '')) || 0);
+  const montoFinal = montoIPRMOverride ?? montoOverride ?? (parseFloat((aLiquidarIPRM.value || '0').toString().replace(/,/g, '')) || montoRaw);
   const vars: Record<string, string> = {
     monto:          fmtNum(montoFinal),
     monto_bruto:    fmtNum(montoRaw),
@@ -1776,9 +1809,7 @@ async function cargarResumen() {
   }
 }
 
-const imprimirPantalla = () => {
-  window.print();
-};
+const imprimirPantalla = () => abrirVentanaImpresion('preliquidacion-print-area', 0.62);
 
 async function cargarFactorImpurezas() {
   try {
@@ -1866,14 +1897,18 @@ async function verDetalle(registro: RegistroPreliq) {
     documentacionFinalizada.value = uploadedPhotos.value.length > 0;
 
     // 5. Asignación de campos de pesaje e importes
-    // Calcular descuento desde impurezas (kg/ton = %impurezas × factor_impurezas)
+    // Usar el descuento autorizado desde la API (boleta.descuento_kg_ton actualizado en autorización)
+    // Solo calcular desde impurezas si la API no devuelve un descuento
+    const apiDescuento = parseFloat((data.descuento || 0).toString());
     const imp = parseFloat((data.impurezas || 0).toString());
-    descuento.value = !isNaN(imp) && imp > 0 ? (imp * factorImpurezas.value).toString() : '0';
+    const calculatedDescuento = !isNaN(imp) && imp > 0 ? (imp * factorImpurezas.value).toString() : '0';
+    descuento.value = apiDescuento > 0 ? apiDescuento.toString() : calculatedDescuento;
 
     if (yaEstaFinalizado) {
       // Cargamos valores históricos
       pesoTara.value = data.pesoTara?.toString() || '';
       pesoNeto.value = data.pesoNeto?.toString() || '0.00';
+      descuento.value = data.descuento?.toString() || descuento.value;
       kgALiquidar.value = data.kgALiquidar?.toString() || '0.00';
       aLiquidar.value = data.importeTotal?.toString() || '0.00';
     } else {
@@ -1927,14 +1962,19 @@ function calcularPesoNeto(bruto: string, tara: string) {
 }
 
 function calcularDescuento(neto: number) {
-  const imp = parseFloat((detalle.value.impurezas || 0).toString());
-  if (!isNaN(imp) && imp > 0) {
-    // Descuento (kg/ton) = % Impurezas × factor_impurezas (desde configuración)
-    const desc = imp * factorImpurezas.value;
-    descuento.value = desc.toString();
+  // Usar el descuento ya cargado (valor autorizado desde precio).
+  // Solo calcular desde impurezas si no hay descuento establecido.
+  const descActual = parseFloat((descuento.value || '').toString().replace(/,/g, ''));
+  const desc = !isNaN(descActual) && descActual > 0
+    ? descActual
+    : (() => {
+        const imp = parseFloat((detalle.value.impurezas || 0).toString());
+        return !isNaN(imp) && imp > 0 ? imp * factorImpurezas.value : 0;
+      })();
+
+  if (desc > 0) {
     calcularKgALiquidar(neto, desc);
   } else {
-    descuento.value = '';
     kgALiquidar.value = neto.toString();
     calcularALiquidar(neto);
   }
@@ -2048,9 +2088,12 @@ function abrirPreliquidacionGuardada() {
         }))
       : null);
 
+  const descuentoGuardado = parseFloat((detalle.value.descuento || descuento.value || '0').toString()) || 0;
+
   if (divs && divs.length > 1) {
     preliquidacionDocumentos.value = divs.map((prod, i) => {
       const monto = Number(prod.kgAsignados) * precio;
+      const montoIPRM = calcMontoIPRM(monto);
       return {
         productor: prod.nombre,
         tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
@@ -2058,13 +2101,16 @@ function abrirPreliquidacionGuardada() {
         ticket: `${selectedRegistro.value?.ticket}-P${i + 1}`,
         kgALiquidar: Number(prod.kgAsignados),
         monto,
-        montoIPRM: calcMontoIPRM(monto),
+        montoIPRM,
         iprmPorcentaje: iprmPct,
+        descuento: descuentoGuardado,
+        observaciones: detalle.value.observaciones || '',
       };
     });
   } else {
     // Documento único desde datos históricos
     const monto = detalle.value.importeTotal || parseFloat(aLiquidar.value) || 0;
+    const montoIPRM = calcMontoIPRM(monto);
     preliquidacionDocumentos.value = [
       {
         productor: selectedRegistro.value?.productor || '',
@@ -2073,8 +2119,10 @@ function abrirPreliquidacionGuardada() {
         ticket: selectedRegistro.value?.ticket || '',
         kgALiquidar: detalle.value.kgALiquidar || parseFloat(kgALiquidar.value) || 0,
         monto,
-        montoIPRM: calcMontoIPRM(monto),
+        montoIPRM,
         iprmPorcentaje: iprmPct,
+        descuento: descuentoGuardado,
+        observaciones: detalle.value.observaciones || '',
       },
     ];
   }
@@ -2112,10 +2160,13 @@ function handleGenerarPreliquidacion() {
   const calcMontoIPRM = (monto: number): number | null =>
     iprmPct !== null ? monto * (1 - iprmPct / 100) : null;
 
+  const descuentoActual = parseFloat(descuento.value) || 0;
+
   if (divisionConfirmada.value && divisionConfirmada.value.length > 1) {
     // Un documento por productor, boleta/ticket con sufijo -1, -2, etc.
     preliquidacionDocumentos.value = divisionConfirmada.value.map((prod, i) => {
       const monto = Number(prod.kgAsignados) * precio;
+      const montoIPRM = calcMontoIPRM(monto);
       return {
         productor: prod.nombre,
         tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
@@ -2123,13 +2174,16 @@ function handleGenerarPreliquidacion() {
         ticket: `${selectedRegistro.value?.ticket}-P${i + 1}`,
         kgALiquidar: Number(prod.kgAsignados),
         monto,
-        montoIPRM: calcMontoIPRM(monto),
+        montoIPRM,
         iprmPorcentaje: iprmPct,
+        descuento: descuentoActual,
+        observaciones: interpolarPlantilla(plantillaObs.value, monto, montoIPRM ?? undefined),
       };
     });
   } else {
     // Documento único
     const monto = parseFloat(aLiquidar.value) || 0;
+    const montoIPRM = calcMontoIPRM(monto);
     preliquidacionDocumentos.value = [
       {
         productor: selectedRegistro.value?.productor || '',
@@ -2138,8 +2192,10 @@ function handleGenerarPreliquidacion() {
         ticket: selectedRegistro.value?.ticket || '',
         kgALiquidar: parseFloat(kgALiquidar.value) || 0,
         monto,
-        montoIPRM: calcMontoIPRM(monto),
+        montoIPRM,
         iprmPorcentaje: iprmPct,
+        descuento: descuentoActual,
+        observaciones: interpolarPlantilla(plantillaObs.value, monto, montoIPRM ?? undefined),
       },
     ];
   }
