@@ -1592,6 +1592,31 @@ const aLiquidarIPRM = computed(() => {
   return (importe - descuento).toFixed(2);
 });
 
+// Monto con el IPRM del tipo ALTERNATIVO (para interpolar plantillas que muestran el escenario contrario)
+const TIPO_ALTERNATIVO: Record<string, string> = {
+  'ejidal': 'pequeña propiedad',
+  'pequeña propiedad': 'ejidal',
+};
+
+function getAltTipo(tProductor: string): string {
+  return TIPO_ALTERNATIVO[tProductor.toLowerCase()] ?? tProductor.toLowerCase();
+}
+
+const aLiquidarIPRMAlt = computed(() => {
+  const importe = parseFloat(aLiquidar.value) || 0;
+  if (importe <= 0) return '';
+  const tProductor = (
+    detalle.value.tProductor ||
+    selectedRegistro.value?.tProductor ||
+    ''
+  ).toLowerCase();
+  const altTipo = getAltTipo(tProductor);
+  const regla = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === altTipo);
+  if (!regla) return '';
+  const descuento = importe * (Number(regla.porcentaje) / 100);
+  return (importe - descuento).toFixed(2);
+});
+
 const totalKgAsignado = computed(() =>
   divisionProductores.value.reduce((s, p) => s + (Number(p.kgAsignados) || 0), 0),
 );
@@ -1753,7 +1778,8 @@ const plantillaObs = ref('');
 // montoOverride / montoIPRMOverride permiten pasar el monto de un productor específico (divisiones).
 function interpolarPlantilla(plantilla: string, montoOverride?: number, montoIPRMOverride?: number): string {
   const montoRaw = montoOverride ?? (parseFloat((aLiquidar.value || '0').toString().replace(/,/g, '')) || 0);
-  const montoFinal = montoIPRMOverride ?? montoOverride ?? (parseFloat((aLiquidarIPRM.value || '0').toString().replace(/,/g, '')) || montoRaw);
+  // Usa el IPRM del tipo alternativo porque la plantilla describe el escenario contrario al productor actual
+  const montoFinal = montoIPRMOverride ?? montoOverride ?? (parseFloat((aLiquidarIPRMAlt.value || '0').toString().replace(/,/g, '')) || montoRaw);
   const vars: Record<string, string> = {
     monto:          fmtNum(montoFinal),
     monto_bruto:    fmtNum(montoRaw),
@@ -2160,6 +2186,13 @@ function handleGenerarPreliquidacion() {
   const calcMontoIPRM = (monto: number): number | null =>
     iprmPct !== null ? monto * (1 - iprmPct / 100) : null;
 
+  // IPRM del tipo alternativo (la plantilla describe el escenario contrario)
+  const altTipo = getAltTipo(tProductor);
+  const reglaAlt = iprmCatalogo.value.find((r) => r.tipoProductorNombre?.toLowerCase() === altTipo);
+  const iprmPctAlt = reglaAlt ? Number(reglaAlt.porcentaje) : null;
+  const calcMontoIPRMAlt = (monto: number): number | null =>
+    iprmPctAlt !== null ? monto * (1 - iprmPctAlt / 100) : null;
+
   const descuentoActual = parseFloat(descuento.value) || 0;
 
   if (divisionConfirmada.value && divisionConfirmada.value.length > 1) {
@@ -2167,6 +2200,7 @@ function handleGenerarPreliquidacion() {
     preliquidacionDocumentos.value = divisionConfirmada.value.map((prod, i) => {
       const monto = Number(prod.kgAsignados) * precio;
       const montoIPRM = calcMontoIPRM(monto);
+      const montoIPRMAlt = calcMontoIPRMAlt(monto);
       return {
         productor: prod.nombre,
         tProductor: detalle.value.tProductor || selectedRegistro.value?.tProductor || '',
@@ -2177,7 +2211,8 @@ function handleGenerarPreliquidacion() {
         montoIPRM,
         iprmPorcentaje: iprmPct,
         descuento: descuentoActual,
-        observaciones: interpolarPlantilla(plantillaObs.value, monto, montoIPRM ?? undefined),
+        // La plantilla muestra el escenario alternativo → monto con IPRM del tipo contrario
+        observaciones: interpolarPlantilla(plantillaObs.value, monto, montoIPRMAlt ?? undefined),
       };
     });
   } else {
@@ -2195,7 +2230,8 @@ function handleGenerarPreliquidacion() {
         montoIPRM,
         iprmPorcentaje: iprmPct,
         descuento: descuentoActual,
-        observaciones: interpolarPlantilla(plantillaObs.value, monto, montoIPRM ?? undefined),
+        // La plantilla muestra el escenario alternativo → monto con IPRM del tipo contrario
+        observaciones: interpolarPlantilla(plantillaObs.value, monto, calcMontoIPRMAlt(monto) ?? undefined),
       },
     ];
   }
