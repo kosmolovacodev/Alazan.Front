@@ -183,6 +183,9 @@
               <div class="col-6 col-sm-2">
                 <q-input v-model="item.datos_peso_embarque_memo" dense outlined label="Peso/Memo" />
               </div>
+              <div class="col-6 col-sm-2">
+                <q-input v-model="item.datos_estado_calificacion" dense outlined label="Estado/Calificación" />
+              </div>
               <div class="col-auto">
                 <q-btn flat round dense color="negative" icon="delete"
                   :disable="form.detalle.length <= 1"
