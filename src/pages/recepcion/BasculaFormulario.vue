@@ -64,23 +64,8 @@
                       <q-item-label>{{ scope.opt.nombre }}</q-item-label>
                       <q-item-label caption v-if="scope.opt.rfc">{{ scope.opt.rfc }}</q-item-label>
                     </q-item-section>
-                    <q-item-section side>
-                      <q-badge
-                        :color="
-                          scope.opt.origen === 'MBA3+LOCAL'
-                            ? 'deep-purple'
-                            : scope.opt.origen === 'MBA3'
-                              ? 'blue-7'
-                              : 'green-7'
-                        "
-                        :label="
-                          scope.opt.origen === 'MBA3+LOCAL'
-                            ? 'MBA3/INT'
-                            : scope.opt.origen === 'MBA3'
-                              ? 'MBA3'
-                              : 'INT'
-                        "
-                      />
+                    <q-item-section side v-if="scope.opt.origenDb === 'registro'">
+                      <q-badge color="green-7" label="INT" />
                     </q-item-section>
                   </q-item>
                 </template>
@@ -490,6 +475,7 @@ interface Productor {
   rfc?: string;
   correo?: string; // de E_MAIL
   origen: 'LOCAL' | 'MBA3' | 'MBA3+LOCAL';
+  origenDb?: string;
   mba3Raw?: Record<string, unknown>;
 }
 
@@ -911,6 +897,7 @@ async function guardarNuevoProductor() {
       telefono: nuevoProd.telefono,
       tipo_persona: nuevoProd.tipo,
       atiende: nuevoProd.tipo === 'Moral' ? nuevoProd.atiende : null,
+      origen: 'registro',
     });
     const recienCreado: Productor = {
       id: res.data.id,
@@ -993,6 +980,7 @@ async function onSubmit() {
             pais: strOf(raw['COUNTRY']),
             nombre_alterno: strOf(raw['NAME_RAZON_SOCIAL']),
             correo: strOf(raw['E_MAIL']),
+            origen: 'mba3',
           });
           form.productor_id = res.data.id;
           productorSeleccionado.value = { ...prod, id: res.data.id, origen: 'MBA3+LOCAL' };

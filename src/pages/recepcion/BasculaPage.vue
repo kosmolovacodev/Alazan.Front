@@ -278,7 +278,7 @@ const catalogoCompradores = ref([]);
 const catalogoChoferes = ref<{ chofer: string; placas: string }[]>([]);
 const ultimoGranoId = ref<number | null>(null);
 const listaProductores = ref<
-  { id: number; nombre: string; telefono: string; telefono2?: string; atiende?: string; rfc?: string; correo?: string; origen: 'LOCAL' }[]
+  { id: number; nombre: string; telefono: string; telefono2?: string; atiende?: string; rfc?: string; correo?: string; origen: 'LOCAL'; origenDb?: string }[]
 >([]);
 
 // Configuración de campos por pantalla (BASCULA)
@@ -323,6 +323,7 @@ const cargarProductores = async () => {
       ...(p['rfc']       ? { rfc:       p['rfc']       as string } : {}),
       ...(p['correo']    ? { correo:    p['correo']    as string } : {}),
       origen: 'LOCAL' as const,
+      ...(p['origen']    ? { origenDb:  p['origen']   as string } : {}),
     }));
   } catch {
     console.error('Error al cargar lista de productores');
