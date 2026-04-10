@@ -1,194 +1,168 @@
 <template>
-  <div class="q-gutter-y-md">
-    <q-tabs
-      v-model="tab"
-      dense
-      class="text-grey"
-      active-color="primary"
-      indicator-color="primary"
-      align="left"
-      narrow-indicator
-    >
-      <q-tab name="tipo-proceso"   icon="category"       label="Tipo Proceso" />
-      <q-tab name="presentacion"   icon="inventory_2"    label="Presentación" />
-      <q-tab name="bloque-insumos" icon="handyman"       label="Bloque Insumos" />
-      <q-tab name="subproducto"    icon="recycling"      label="Subproductos" />
-      <q-tab name="desecho"        icon="delete_outline" label="Desechos" />
-    </q-tabs>
+  <div class="q-pa-md">
 
-    <q-separator />
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 1 — CALIBRES POR TIPO DE MERCADO
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">CALIBRES POR TIPO DE MERCADO</div>
+    <div class="row q-col-gutter-md q-mb-xl">
+      <div class="col-12 col-md-4">
+        <CatalogCard
+          title="Garbanzo — OZ AM"
+          subtitle="Mercado americano"
+          placeholder="Ej. 50/52"
+          api-base="/api/produccion-catalogos/calibre-oz-am"
+          :get-params="{ sedeId }"
+          :mutate-params="{ sedeId }"
+        />
+      </div>
+      <div class="col-12 col-md-4">
+        <CatalogCard
+          title="Garbanzo — OZ ESP"
+          subtitle="Mercado español / europeo"
+          placeholder="Ej. 50/52"
+          api-base="/api/produccion-catalogos/calibre-oz-esp"
+          :get-params="{ sedeId }"
+          :mutate-params="{ sedeId }"
+        />
+      </div>
+      <div class="col-12 col-md-4">
+        <CatalogCard
+          title="Frijol — Granos / 100g"
+          subtitle="Calibre por conteo de granos"
+          placeholder="Ej. >96"
+          api-base="/api/produccion-catalogos/calibre-frijol"
+          :get-params="{ sedeId }"
+          :mutate-params="{ sedeId }"
+        />
+      </div>
+    </div>
 
-    <q-tab-panels v-model="tab" animated>
-      <q-tab-panel :name="tab" class="q-pa-none">
-        <div class="q-pa-md bg-grey-1 q-mb-md bordered rounded-borders">
-          <div class="row q-col-gutter-sm items-center">
-            <div class="col">
-              <q-input v-model="form.nombre" dense outlined :label="labelNombre" />
-            </div>
-            <div class="col-auto">
-              <q-btn
-                v-if="editandoId"
-                color="green-8"
-                icon="save"
-                label="Guardar Cambios"
-                @click="guardarEdicion"
-              />
-              <q-btn
-                v-if="editandoId"
-                flat
-                color="grey-7"
-                icon="close"
-                label="Cancelar"
-                class="q-ml-sm"
-                @click="cancelarEdicion"
-              />
-              <q-btn
-                v-if="!editandoId"
-                color="orange-9"
-                icon="add"
-                label="Agregar"
-                @click="agregar"
-              />
-            </div>
-          </div>
-        </div>
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 2 — LÍNEAS DE PRODUCCIÓN Y OPERACIONES
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">LÍNEAS DE PRODUCCIÓN Y OPERACIONES</div>
+    <div class="row q-col-gutter-md q-mb-xl">
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Trenes de Limpia / Clasificación"
+          subtitle="Líneas disponibles al crear una orden. Máximo un tren por línea."
+          placeholder="Ej. Tren 4"
+          api-base="/api/catalogos/trenes"
+          put-base="/api/catalogos/editar/trenes"
+          :get-params="{ sede_id: sedeId }"
+          :mutate-params="{ sedeId }"
+        />
+      </div>
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Tipos de Proceso"
+          subtitle="Operación a realizar en la orden (uno por orden)"
+          placeholder="Ej. Clasificado Especial"
+          api-base="/api/produccion-catalogos/tipo-proceso"
+        />
+      </div>
+    </div>
 
-        <q-table
-          :rows="lista"
-          :columns="columnas"
-          row-key="id"
-          flat
-          bordered
-          :loading="loading"
-          dense
-          :rows-per-page-options="[0]"
-        >
-          <template #body-cell-activo="props">
-            <q-td align="center">
-              <q-toggle
-                v-model="props.row.activo"
-                color="green"
-                @update:model-value="toggleActivo(props.row)"
-              />
-            </q-td>
-          </template>
-          <template #body-cell-acciones="props">
-            <q-td align="center">
-              <q-btn flat dense round color="primary" icon="edit" class="q-mr-xs"
-                @click="iniciarEdicion(props.row)" />
-              <q-btn flat dense round color="negative" icon="delete"
-                @click="eliminar(props.row.id)" />
-            </q-td>
-          </template>
-        </q-table>
-      </q-tab-panel>
-    </q-tab-panels>
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 3 — ORIGEN DE MATERIA PRIMA Y ENVASADO
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">ORIGEN DE MATERIA PRIMA Y ENVASADO</div>
+    <div class="row q-col-gutter-md q-mb-xl">
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Silos Disponibles como Origen"
+          subtitle="Silos que puede seleccionar un tren al crear la orden"
+          placeholder="Ej. Silo 7"
+          api-base="/api/produccion-catalogos/silo"
+          :get-params="{ sedeId }"
+          :mutate-params="{ sedeId }"
+        />
+      </div>
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Presentaciones de Envasado"
+          subtitle="Formatos de empaque seleccionables en el encabezado de la orden"
+          placeholder="Ej. 20 kg"
+          api-base="/api/produccion-catalogos/presentacion"
+        />
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 4 — CATÁLOGO DE INSUMOS
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">CATÁLOGO DE INSUMOS</div>
+    <div class="row q-col-gutter-md q-mb-xl">
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Catálogo de Insumos"
+          subtitle="Costales, supersacos, hilos y otros materiales asignables por tren dentro de cada orden"
+          placeholder="Ej. Costal KRAFT 25 KG"
+          api-base="/api/produccion-catalogos/bloque-insumos"
+        />
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 5 — CATÁLOGOS DEL RESULTADO DE PRODUCCIÓN
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">CATÁLOGOS DEL RESULTADO DE PRODUCCIÓN</div>
+    <div class="row q-col-gutter-md q-mb-xl">
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Subproductos / Rezagas"
+          subtitle="Tipos de subproducto que se capturan al registrar el resultado de una orden"
+          placeholder="Ej. Rezaga de Ojo Electrónico"
+          api-base="/api/produccion-catalogos/subproducto"
+        />
+      </div>
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Desechos"
+          subtitle="Tipos de desecho que se capturan al registrar el resultado de una orden"
+          placeholder="Ej. Basura General"
+          api-base="/api/produccion-catalogos/desecho"
+        />
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════
+         SECCIÓN 6 — CALIBRES DE ANÁLISIS DE CALIDAD
+    ═════════════════════════════════════════════════ -->
+    <div class="section-label q-mb-md">CALIBRES DE ANÁLISIS DE CALIDAD</div>
+    <div class="row q-col-gutter-md">
+      <div class="col-12 col-md-6">
+        <CatalogCard
+          title="Calibres (mm)"
+          subtitle="Rangos y valores en mm usados en el análisis detallado de calidad"
+          placeholder="Ej. 7-8 mm"
+          title-color="default"
+          api-base="/api/produccion-catalogos/calibres-analisis"
+        />
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { api } from 'src/boot/axios';
-import { Notify } from 'quasar';
-import type { QTableColumn } from 'quasar';
+import { computed } from 'vue';
+import { useAuthStore } from 'src/stores/auth';
+import CatalogCard from './CatalogCard.vue';
 
-interface Item { id: number; nombre: string; activo: boolean }
-
-const tab = ref('tipo-proceso');
-const loading = ref(false);
-const lista = ref<Item[]>([]);
-const editandoId = ref<number | null>(null);
-const form = ref({ nombre: '' });
-
-const labelNombre = computed(() => {
-  const labels: Record<string, string> = {
-    'tipo-proceso':   'Tipo de Proceso (Ej: Limpia)',
-    'presentacion':   'Presentación (Ej: 25kg)',
-    'bloque-insumos': 'Insumo (Ej: Costales)',
-    'subproducto':    'Subproducto (Ej: Granillo Calibrador)',
-    'desecho':        'Desecho (Ej: Terrón)',
-  };
-  return labels[tab.value] ?? 'Nombre';
-});
-
-const columnas = computed<QTableColumn[]>(() => [
-  { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left', sortable: true },
-  { name: 'activo', label: 'Activo', field: 'activo', align: 'center' },
-  { name: 'acciones', label: 'Acciones', field: 'id', align: 'center' },
-]);
-
-async function cargar() {
-  loading.value = true;
-  try {
-    const { data } = await api.get(`/api/produccion-catalogos/${tab.value}`);
-    lista.value = data as Item[];
-  } catch {
-    Notify.create({ type: 'negative', message: 'Error al cargar datos' });
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function agregar() {
-  if (!form.value.nombre.trim()) {
-    Notify.create({ type: 'warning', message: 'El nombre es requerido' });
-    return;
-  }
-  try {
-    await api.post(`/api/produccion-catalogos/${tab.value}`, { nombre: form.value.nombre });
-    form.value.nombre = '';
-    await cargar();
-    Notify.create({ type: 'positive', message: 'Agregado correctamente' });
-  } catch {
-    Notify.create({ type: 'negative', message: 'Error al guardar' });
-  }
-}
-
-async function toggleActivo(row: Item) {
-  try {
-    await api.put(`/api/produccion-catalogos/${tab.value}/${row.id}`, { nombre: row.nombre, activo: row.activo });
-  } catch {
-    Notify.create({ type: 'negative', message: 'Error al actualizar' });
-    await cargar();
-  }
-}
-
-function iniciarEdicion(row: Item) {
-  editandoId.value = row.id;
-  form.value.nombre = row.nombre;
-}
-
-async function guardarEdicion() {
-  try {
-    await api.put(`/api/produccion-catalogos/${tab.value}/${editandoId.value}`, { nombre: form.value.nombre, activo: true });
-    cancelarEdicion();
-    await cargar();
-    Notify.create({ type: 'positive', message: 'Actualizado correctamente' });
-  } catch {
-    Notify.create({ type: 'negative', message: 'Error al actualizar' });
-  }
-}
-
-function cancelarEdicion() {
-  editandoId.value = null;
-  form.value.nombre = '';
-}
-
-async function eliminar(id: number) {
-  try {
-    await api.delete(`/api/produccion-catalogos/${tab.value}/${id}`);
-    await cargar();
-    Notify.create({ type: 'positive', message: 'Eliminado con éxito' });
-  } catch {
-    Notify.create({ type: 'negative', message: 'Error al eliminar' });
-  }
-}
-
-watch(tab, () => {
-  editandoId.value = null;
-  form.value.nombre = '';
-  void cargar();
-});
-
-onMounted(() => void cargar());
+const authStore = useAuthStore();
+const sedeId = computed(() => authStore.sedeActivaId ?? 0);
 </script>
+
+<style scoped>
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #9e9e9e;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eeeeee;
+}
+</style>
