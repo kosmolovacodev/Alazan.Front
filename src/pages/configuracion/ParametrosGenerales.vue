@@ -29,6 +29,8 @@
         <q-tab name="facturas" label="Recepción de Facturas" icon="description" />
         <q-tab name="pagos" label="Pagos" icon="account_balance_wallet" />
         <q-tab name="produccion" label="Producción" icon="precision_manufacturing" />
+        <q-tab name="bodega" label="Bodega" icon="warehouse" />
+        <q-tab name="embarque" label="Instrucciones de Embarque" icon="local_shipping" />
         <q-tab name="bitacoras" label="Bitácoras" icon="history" />
         <q-tab name="consultas" label="Consultas" icon="manage_search" />
       </q-tabs>
@@ -137,10 +139,22 @@
           <ConfiguracionProduccion />
         </q-tab-panel>
 
+        <q-tab-panel name="bodega">
+          <div class="text-h6 q-mb-md">Configuración — Módulo de Bodega</div>
+          <div class="text-caption text-grey-6 q-mb-md">Catálogos de ubicaciones físicas y tipos de producto manejados en la asignación de bodega</div>
+          <ConfiguracionBodega />
+        </q-tab-panel>
+
+        <q-tab-panel name="embarque">
+          <div class="text-h6 q-mb-md">Configuración — Instrucciones de Embarque</div>
+          <div class="text-caption text-grey-6 q-mb-md">Catálogos de presentaciones, brokers, lugares de embarque y plantillas de condiciones</div>
+          <ConfiguracionInstruccionesEmbarque />
+        </q-tab-panel>
+
         <q-tab-panel name="bitacoras">
-          <div class="text-h6">Configuración de Bitácoras</div>
-          Define qué eventos se registran, nivel de detalle y retención de información.
-          <div class="q-mt-md q-pa-md bg-orange-1 border-orange rounded-borders">⚠️Contenido pendiente de implementar</div>
+          <div class="text-h6 q-mb-md">Configuración — Módulo de Bitácoras</div>
+          <div class="text-caption text-grey-6 q-mb-md">Secciones y bitácoras operativas registradas en el sistema</div>
+          <ConfiguracionBitacoras />
         </q-tab-panel>
 
         <q-tab-panel name="consultas">
@@ -182,6 +196,15 @@ import ConfiguracionPagos from 'src/components/configuracion/ConfiguracionPagos.
 
 // Importación de Configuración de Producción
 import ConfiguracionProduccion from 'src/components/configuracion/ConfiguracionProduccion.vue';
+
+// Importación de Configuración de Bodega
+import ConfiguracionBodega from 'src/components/configuracion/ConfiguracionBodega.vue';
+
+// Importación de Configuración de Instrucciones de Embarque
+import ConfiguracionInstruccionesEmbarque from 'src/components/configuracion/ConfiguracionInstruccionesEmbarque.vue';
+
+// Importación de Configuración de Bitácoras
+import ConfiguracionBitacoras from 'src/components/configuracion/ConfiguracionBitacoras.vue';
 
 // Estado de la pestaña principal
 const mainTab = ref('general');

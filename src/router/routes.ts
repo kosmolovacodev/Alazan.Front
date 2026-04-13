@@ -59,6 +59,21 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/produccion/ProduccionPage.vue'),
       },
       {
+        path: 'bodega',
+        meta: { permiso: 'Bodega' },
+        component: () => import('pages/bodega/BodegaPage.vue'),
+      },
+      {
+        path: 'embarque',
+        meta: { permiso: 'Instrucciones de Embarque' },
+        component: () => import('pages/embarque/InstruccionesEmbarquePage.vue'),
+      },
+      {
+        path: 'bitacoras',
+        meta: { permiso: 'Bitácoras' },
+        component: () => import('pages/bitacoras/BitacorasPage.vue'),
+      },
+      {
         path: 'configuracion',
         meta: { permiso: 'Configuración' },
         component: () => import('pages/configuracion/ParametrosGenerales.vue'),
@@ -77,6 +92,11 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'pruebaInventario',
         component: () => import('pages/prueba/PruebaInventarioPage.vue'),
+      },
+      // Prueba de ordenes produccion MBA3
+      {
+        path: 'pruebaOrdenes',
+        component: () => import('pages/prueba/PruebaOrdenProduccionPage.vue'),
       },
     ],
   },

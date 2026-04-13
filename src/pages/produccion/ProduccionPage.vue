@@ -291,8 +291,22 @@
             <div>
               <div class="text-caption text-uppercase text-grey-5 text-weight-bold q-mb-xs">Rango de Fechas</div>
               <div class="row q-gutter-sm">
-                <q-input v-model="filtros.fechaDesde" outlined dense type="date" class="col" />
-                <q-input v-model="filtros.fechaHasta" outlined dense type="date" class="col" />
+                <q-input v-model="filtros.fechaDesde" outlined dense readonly clearable class="col cursor-pointer" placeholder="dd/mm/aaaa" @click="popupFiltroDesde = true">
+                  <template #append><q-icon name="event" size="xs" class="cursor-pointer" @click.stop="popupFiltroDesde = true" /></template>
+                </q-input>
+                <q-popup-proxy v-model="popupFiltroDesde" cover transition-show="scale" transition-hide="scale">
+                  <q-date v-model="filtros.fechaDesde" mask="YYYY-MM-DD" :locale="localeEsProd" @update:model-value="popupFiltroDesde = false">
+                    <div class="row items-center justify-end"><q-btn v-close-popup label="Cerrar" color="primary" flat /></div>
+                  </q-date>
+                </q-popup-proxy>
+                <q-input v-model="filtros.fechaHasta" outlined dense readonly clearable class="col cursor-pointer" placeholder="dd/mm/aaaa" @click="popupFiltroHasta = true">
+                  <template #append><q-icon name="event" size="xs" class="cursor-pointer" @click.stop="popupFiltroHasta = true" /></template>
+                </q-input>
+                <q-popup-proxy v-model="popupFiltroHasta" cover transition-show="scale" transition-hide="scale">
+                  <q-date v-model="filtros.fechaHasta" mask="YYYY-MM-DD" :locale="localeEsProd" @update:model-value="popupFiltroHasta = false">
+                    <div class="row items-center justify-end"><q-btn v-close-popup label="Cerrar" color="primary" flat /></div>
+                  </q-date>
+                </q-popup-proxy>
               </div>
             </div>
 
@@ -935,23 +949,55 @@
         <!-- Filtro de fecha -->
         <q-card-section class="row items-center q-gutter-md q-pb-sm" style="border-bottom:1px solid #f0f0f0">
           <q-icon name="calendar_today" color="grey-5" />
-          <span class="text-caption text-grey-6 text-weight-bold text-uppercase">Filtrar por fecha</span>
+          <span class="text-caption text-grey-6 text-weight-bold text-uppercase">Filtrar por fechaaaa</span>
+
           <q-input
-            v-model="filtroAnalisisFecha.desde"
-            dense outlined clearable
-            label="Desde" mask="##/##/####" placeholder="dd/mm/aaaa"
-            style="width:150px"
-          >
-            <template #append><q-icon name="event" size="xs" color="grey-5" /></template>
-          </q-input>
-          <q-input
-            v-model="filtroAnalisisFecha.hasta"
-            dense outlined clearable
-            label="Hasta" mask="##/##/####" placeholder="dd/mm/aaaa"
-            style="width:150px"
-          >
-            <template #append><q-icon name="event" size="xs" color="grey-5" /></template>
-          </q-input>
+  v-model="filtroAnalisisFecha.desde"
+  dense outlined clearable readonly
+  label="Desde" placeholder="dd/mm/aaaa"
+  style="width:150px" class="cursor-pointer"
+>
+  <template #append>
+    <q-icon name="event" size="xs" color="grey-5" class="cursor-pointer" />
+  </template>
+
+  <q-popup-proxy v-model="popupAnalisisDesde" cover transition-show="scale" transition-hide="scale">
+    <q-date 
+      v-model="filtroAnalisisFecha.desde" 
+      mask="DD/MM/YYYY" 
+      :locale="localeEsProd" 
+      @update:model-value="popupAnalisisDesde = false"
+    >
+      <div class="row items-center justify-end">
+        <q-btn v-close-popup label="Cerrar" color="primary" flat />
+      </div>
+    </q-date>
+  </q-popup-proxy>
+</q-input>
+
+<q-input
+  v-model="filtroAnalisisFecha.hasta"
+  dense outlined clearable readonly
+  label="Hasta" placeholder="dd/mm/aaaa"
+  style="width:150px" class="cursor-pointer"
+>
+  <template #append>
+    <q-icon name="event" size="xs" color="grey-5" class="cursor-pointer" />
+  </template>
+
+  <q-popup-proxy v-model="popupAnalisisHasta" cover transition-show="scale" transition-hide="scale">
+    <q-date 
+      v-model="filtroAnalisisFecha.hasta" 
+      mask="DD/MM/YYYY" 
+      :locale="localeEsProd" 
+      @update:model-value="popupAnalisisHasta = false"
+    >
+      <div class="row items-center justify-end">
+        <q-btn v-close-popup label="Cerrar" color="primary" flat />
+      </div>
+    </q-date>
+  </q-popup-proxy>
+</q-input>
           <span class="text-caption text-grey-5">{{ listaAnalisisFiltrada.length }} de {{ listaAnalisis.length }}</span>
         </q-card-section>
 
@@ -1435,19 +1481,24 @@ const todosCalibresGarbanzo = computed(() => {
 });
 
 // Extrae el primer calibre individual del string serializado
+// Soporta: "OZ AM:34/36,40/42|OZ ESP:42/44"  y  "QZ AM 44/46"
 function primerCalibre(calibreTipo: string): string {
   if (!calibreTipo) return '';
-  // formato: "OZ AM:34/36,40/42|OZ ESP:42/44"
-  const match = calibreTipo.match(/:([\w/>]+)/);
-  return match?.[1] ?? '';
+  const seg = calibreTipo.split('|')[0] ?? '';
+  // con colon: "OZ AM:34/36" → "34/36"
+  if (seg.includes(':')) return seg.split(':')[1]?.split(',')[0]?.trim() ?? '';
+  // sin colon: "QZ AM 44/46" → "44/46"
+  return (seg.replace(/^[A-Z]{2}\s+[A-Z]{2,3}\s*/i, '').split(',')[0] ?? '').trim();
 }
 
 // Todos los calibres individuales del string serializado
 function calibresDeOrden(calibreTipo: string): string[] {
   if (!calibreTipo) return [];
-  return calibreTipo
-    .split('|')
-    .flatMap(g => g.split(':')[1]?.split(',') ?? []);
+  return calibreTipo.split('|').flatMap(seg => {
+    if (seg.includes(':')) return seg.split(':')[1]?.split(',').map(s => s.trim()) ?? [];
+    // "QZ AM 44/46" → ["44/46"]
+    return [seg.replace(/^[A-Z]{2}\s+[A-Z]{2,3}\s*/i, '').trim()];
+  }).filter(Boolean);
 }
 
 function statusColor(status: string): string {
@@ -2018,6 +2069,17 @@ function dmyToIso(dmy: string): string {
 }
 
 const filtroAnalisisFecha = ref({ desde: '', hasta: '' });
+const popupAnalisisDesde = ref(false);
+const popupAnalisisHasta = ref(false);
+const popupFiltroDesde = ref(false);
+const popupFiltroHasta = ref(false);
+
+const localeEsProd = {
+  days: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  daysShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+  months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+  monthsShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+};
 
 const listaAnalisisFiltrada = computed(() => {
   const desde = dmyToIso(filtroAnalisisFecha.value.desde);

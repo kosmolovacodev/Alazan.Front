@@ -679,7 +679,7 @@ async function cargarDatos() {
     formasPagoOptions.value = configRes.data.FormasPago ?? []
 
     // Enriquecer topes con cálculos de disponibilidad
-    topesSedes.value = (topesRes.data as TopeSede[]).map(t => ({
+    topesSedes.value = (Array.isArray(topesRes.data) ? topesRes.data as TopeSede[] : []).map(t => ({
       ...t,
       disponible: (t.tope_diario ?? 0) - (t.solicitado_hoy ?? 0),
       porcentaje: (t.tope_diario ?? 0) > 0

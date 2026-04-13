@@ -31,10 +31,50 @@
           />
         </div>
         <div class="col-12 col-md-3">
-          <q-input v-model="filtroFechaInicio" type="date" label="Fecha Desde" outlined dense />
+          <q-input
+            v-model="filtroFechaInicio"
+            label="Fecha Desde"
+            outlined
+            dense
+            readonly
+            clearable
+            class="cursor-pointer"
+            @click="popupDesde = true"
+          >
+            <template v-slot:append>
+              <q-icon name="event" class="cursor-pointer" @click.stop="popupDesde = true" />
+            </template>
+          </q-input>
+          <q-popup-proxy v-model="popupDesde" cover transition-show="scale" transition-hide="scale">
+            <q-date v-model="filtroFechaInicio" mask="YYYY-MM-DD" :locale="localeEs" @update:model-value="popupDesde = false">
+              <div class="row items-center justify-end">
+                <q-btn v-close-popup label="Cerrar" color="primary" flat />
+              </div>
+            </q-date>
+          </q-popup-proxy>
         </div>
         <div class="col-12 col-md-3">
-          <q-input v-model="filtroFechaFin" type="date" label="Fecha Hasta" outlined dense />
+          <q-input
+            v-model="filtroFechaFin"
+            label="Fecha Hasta"
+            outlined
+            dense
+            readonly
+            clearable
+            class="cursor-pointer"
+            @click="popupHasta = true"
+          >
+            <template v-slot:append>
+              <q-icon name="event" class="cursor-pointer" @click.stop="popupHasta = true" />
+            </template>
+          </q-input>
+          <q-popup-proxy v-model="popupHasta" cover transition-show="scale" transition-hide="scale">
+            <q-date v-model="filtroFechaFin" mask="YYYY-MM-DD" :locale="localeEs" @update:model-value="popupHasta = false">
+              <div class="row items-center justify-end">
+                <q-btn v-close-popup label="Cerrar" color="primary" flat />
+              </div>
+            </q-date>
+          </q-popup-proxy>
         </div>
         <div class="col-12 col-md-2">
           <div class="row q-gutter-sm">
@@ -571,6 +611,15 @@ const filtroEstatus = ref('TODOS');
 const filtroFechaInicio = ref('');
 const filtroFechaFin = ref('');
 const filtroGranoId = ref<number | null>(null);
+const popupDesde = ref(false);
+const popupHasta = ref(false);
+
+const localeEs = {
+  days: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  daysShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+  months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+  monthsShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+};
 
 const opcionesEstatus = [
   { label: 'Pendientes', value: 'PENDIENTE' },
@@ -607,13 +656,18 @@ const listaPendientes = computed(() => {
   }
 
   if (filtroFechaInicio.value) {
-    const inicio = new Date(filtroFechaInicio.value);
+    const inicio = new Date(filtroFechaInicio.value + 'T00:00:00');
     lista = lista.filter(r => new Date(r.fecha) >= inicio);
   }
 
   if (filtroFechaFin.value) {
     const fin = new Date(filtroFechaFin.value + 'T23:59:59');
     lista = lista.filter(r => new Date(r.fecha) <= fin);
+  } else if (filtroFechaInicio.value) {
+    // Si hay fecha inicio pero no fecha fin, limitar hasta hoy
+    const hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
+    lista = lista.filter(r => new Date(r.fecha) <= hoy);
   }
 
   return lista;

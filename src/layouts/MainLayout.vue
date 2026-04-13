@@ -245,6 +245,39 @@
             </q-item>
           </q-list>
         </q-expansion-item>
+
+        <q-item
+          v-if="authStore.tienePermiso('Bodega')"
+          clickable
+          to="/bodega"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
+          <q-item-section avatar><q-icon name="warehouse" /></q-item-section>
+          <q-item-section>Bodega</q-item-section>
+        </q-item>
+
+        <q-item
+          v-if="authStore.tienePermiso('Instrucciones de Embarque')"
+          clickable
+          to="/embarque"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
+          <q-item-section avatar><q-icon name="local_shipping" /></q-item-section>
+          <q-item-section>Instrucciones de Embarque</q-item-section>
+        </q-item>
+
+        <q-item
+          v-if="authStore.tienePermiso('Bitácoras')"
+          clickable
+          to="/bitacoras"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
+          <q-item-section avatar><q-icon name="menu_book" /></q-item-section>
+          <q-item-section>Bitácoras</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 

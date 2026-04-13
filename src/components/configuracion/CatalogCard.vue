@@ -127,7 +127,8 @@ async function cargar() {
   loading.value = true;
   try {
     const { data } = await api.get(props.apiBase, props.getParams ? { params: props.getParams } : undefined);
-    items.value = (data as { id: number; nombre: string }[]).map(d => ({ id: d.id, nombre: d.nombre }));
+    const arr = Array.isArray(data) ? (data as { id: number; nombre: string }[]) : [];
+    items.value = arr.map(d => ({ id: d.id, nombre: d.nombre }));
   } catch {
     Notify.create({ type: 'negative', message: `Error al cargar ${props.title}` });
   } finally {

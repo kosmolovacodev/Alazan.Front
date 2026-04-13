@@ -202,15 +202,15 @@ const cargarData = async () => {
       ]);
 
       // Forzamos el guardado con el tipo correcto
-      usuariosStore.listaUsuarios = resUsers.data;
-      usuariosStore.listaRoles = resRoles.data;
+      usuariosStore.listaUsuarios = Array.isArray(resUsers.data) ? resUsers.data : [];
+      usuariosStore.listaRoles = Array.isArray(resRoles.data) ? resRoles.data : [];
     } catch (err) {
       console.warn('Error cargando datos', err);
     }
   }
 
   // 1. Mapeamos y aseguramos que cada objeto sea tratado como 'Usuario'
-  const datosMezclados = (usuariosStore.listaUsuarios as Usuario[]).map((uServidor) => {
+  const datosMezclados = (Array.isArray(usuariosStore.listaUsuarios) ? usuariosStore.listaUsuarios as Usuario[] : []).map((uServidor) => {
     const cambioPendiente = offlineStore.colaUsuarios.find((p) => p.id === uServidor.id);
 
     // Creamos una copia limpia para evitar problemas de referencia
