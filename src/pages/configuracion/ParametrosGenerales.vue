@@ -11,7 +11,9 @@
     </div>
 
     <q-card flat bordered class="shadow-2 rounded-borders">
+      <div class="tabs-scroll-wrap" @wheel.prevent="scrollTabs">
       <q-tabs
+        ref="tabsRef"
         v-model="mainTab"
         dense
         class="text-grey-7 bg-white"
@@ -32,8 +34,10 @@
         <q-tab name="bodega" label="Bodega" icon="warehouse" />
         <q-tab name="embarque" label="Instrucciones de Embarque" icon="local_shipping" />
         <q-tab name="bitacoras" label="Bitácoras" icon="history" />
+        <q-tab name="inicio-dia" label="Inicio del Día" icon="wb_sunny" />
         <q-tab name="consultas" label="Consultas" icon="manage_search" />
       </q-tabs>
+      </div>
 
       <q-separator />
 
@@ -157,6 +161,14 @@
           <ConfiguracionBitacoras />
         </q-tab-panel>
 
+        <q-tab-panel name="inicio-dia" class="q-pa-none">
+          <div class="q-pa-md q-pb-sm">
+            <div class="text-h6 q-mb-xs">Configuración — Inicio del Día</div>
+            <div class="text-caption text-grey-6">Secciones activas, íconos, colores y estado diario por sede</div>
+          </div>
+          <ConfiguracionInicioDia />
+        </q-tab-panel>
+
         <q-tab-panel name="consultas">
           <div class="text-h6">Configuración de Consultas</div>
           Define módulos consultables, tipos de reportes y opciones de exportación.
@@ -206,8 +218,22 @@ import ConfiguracionInstruccionesEmbarque from 'src/components/configuracion/Con
 // Importación de Configuración de Bitácoras
 import ConfiguracionBitacoras from 'src/components/configuracion/ConfiguracionBitacoras.vue';
 
+// Importación de Configuración de Inicio del Día
+import ConfiguracionInicioDia from 'src/components/configuracion/ConfiguracionInicioDia.vue';
+
 // Estado de la pestaña principal
 const mainTab = ref('general');
+
+// ── Scroll con trackpad/mousewheel en el panel de tabs ────────
+const tabsRef = ref<{ $el: HTMLElement } | null>(null);
+
+function scrollTabs(e: WheelEvent) {
+  const content = tabsRef.value?.$el?.querySelector('.q-tabs__content') as HTMLElement | null;
+  if (content) {
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    content.scrollBy({ left: delta * 3, behavior: 'smooth' });
+  }
+}
 </script>
 
 <style scoped>
@@ -217,5 +243,14 @@ const mainTab = ref('general');
 /* Estética para que los expansion items se vean limpios dentro de la tab */
 .rounded-borders {
   border-radius: 8px;
+}
+
+/* Wrapper que captura el evento wheel para scroll horizontal con trackpad */
+.tabs-scroll-wrap {
+  overflow: hidden;
+}
+/* Suaviza el scroll horizontal del contenedor interno de q-tabs */
+:deep(.q-tabs__content) {
+  scroll-behavior: smooth;
 }
 </style>

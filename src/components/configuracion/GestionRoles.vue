@@ -23,6 +23,19 @@
         bordered
         :pagination="{ rowsPerPage: 0 }"
       >
+        <template v-slot:body-cell-seccion_inicio_dia="props">
+          <q-td :props="props" class="text-center">
+            <q-badge
+              v-if="props.row.seccion_inicio_dia"
+              :style="{ background: colorSeccion(props.row.seccion_inicio_dia) }"
+              class="text-uppercase text-white"
+            >
+              {{ props.row.seccion_inicio_dia }}
+            </q-badge>
+            <span v-else class="text-grey-4 text-caption">—</span>
+          </q-td>
+        </template>
+
         <template v-slot:body-cell-acciones="props">
           <q-td :props="props" class="q-gutter-xs">
             <q-btn flat round dense color="primary" icon="edit" @click="abrirModalRol(props.row)">
@@ -57,6 +70,32 @@
           :disable="editandoRol && formRol.nombre_rol === 'ADMIN'"
         />
         <q-input v-model="formRol.descripcion" label="Descripción" type="textarea" outlined dense />
+        <q-select
+          v-model="formRol.seccion_inicio_dia"
+          :options="SECCIONES_OPTIONS"
+          option-value="value"
+          option-label="label"
+          emit-value
+          map-options
+          label="Sección Inicio de Día"
+          outlined
+          dense
+          clearable
+          hint="¿A qué sección pertenece este rol?"
+        />
+        <q-select
+          v-model="formRol.tipo_inicio_dia"
+          :options="TIPO_INICIO_OPTIONS"
+          option-value="value"
+          option-label="label"
+          emit-value
+          map-options
+          label="Tipo de participación en Inicio de Día"
+          outlined
+          dense
+          clearable
+          hint="Define el flujo que verá este rol al iniciar sesión"
+        />
       </q-card-section>
       <q-card-actions align="right">
         <q-btn flat label="Cancelar" v-close-popup />
@@ -85,7 +124,9 @@ interface Rol {
   id: number;
   nombre_rol: string;
   descripcion: string;
-  permisos_json?: string; // Puede venir nulo o vacío
+  permisos_json?: string;
+  seccion_inicio_dia?: string | null;
+  tipo_inicio_dia?: string | null;
 }
 
 interface Pantalla {
@@ -107,25 +148,44 @@ const listaPantallas = ref<Pantalla[]>([]); // Array de Pantalla
 const modalRol = ref(false);
 const editandoRol = ref(false);
 
-const formRol = ref<Rol>({ id: 0, nombre_rol: '', descripcion: '' });
+const formRol = ref<Rol>({ id: 0, nombre_rol: '', descripcion: '', seccion_inicio_dia: null, tipo_inicio_dia: null });
 
 // Definición estricta de columnas para Quasar
 const columnasRoles: QTableColumn[] = [
-  {
-    name: 'nombre_rol',
-    label: 'NOMBRE DEL ROL',
-    align: 'left',
-    field: 'nombre_rol',
-    sortable: true,
-  },
-  { name: 'descripcion', label: 'DESCRIPCIÓN', align: 'left', field: 'descripcion' },
-  { name: 'acciones', label: 'ACCIONES', align: 'center', field: 'id' },
+  { name: 'nombre_rol',         label: 'NOMBRE DEL ROL',        align: 'left',   field: 'nombre_rol',         sortable: true },
+  { name: 'descripcion',        label: 'DESCRIPCIÓN',            align: 'left',   field: 'descripcion' },
+  { name: 'seccion_inicio_dia', label: 'SECCIÓN INICIO DE DÍA', align: 'center', field: 'seccion_inicio_dia' },
+  { name: 'acciones',           label: 'ACCIONES',               align: 'center', field: 'id' },
+];
+
+interface SeccionOpcion { label: string; value: string | null; color?: string }
+
+const SECCIONES_OPTIONS = ref<SeccionOpcion[]>([{ label: '— Ninguna —', value: null }]);
+
+async function cargarSecciones() {
+  try {
+    const { data } = await api.get<{ codigo: string; nombre: string; color: string }[]>('/api/inicio-dia/secciones');
+    SECCIONES_OPTIONS.value = [
+      { label: '— Ninguna —', value: null },
+      ...data.map(s => ({ label: s.nombre, value: s.codigo, color: s.color })),
+    ];
+  } catch {
+    // Si falla, las opciones quedan solo con "Ninguna"
+  }
+}
+
+const TIPO_INICIO_OPTIONS = [
+  { label: '— No participa —', value: null },
+  { label: 'Supervisor  — llena asistencia directamente',      value: 'SUPERVISOR' },
+  { label: 'Asistente   — pregunta si asistió el supervisor',  value: 'ASISTENTE'  },
+  { label: 'Analista    — espera a que otro inicie el día',     value: 'ANALISTA'   },
 ];
 
 // --- CARGA DE DATOS ---
 onMounted(async () => {
   await cargarRoles();
   await obtenerCatalogoPantallas();
+  await cargarSecciones();
 });
 
 async function cargarRoles() {
@@ -154,14 +214,17 @@ async function obtenerCatalogoPantallas() {
 }
 
 // --- GESTIÓN DE ROLES (CRUD) ---
+function colorSeccion(seccion: string): string {
+  return SECCIONES_OPTIONS.value.find(s => s.value === seccion)?.color ?? 'grey-6';
+}
+
 function abrirModalRol(rol: Rol | null = null) {
   if (rol) {
     editandoRol.value = true;
-    // Usamos spread operator de forma segura
     formRol.value = { ...rol };
   } else {
     editandoRol.value = false;
-    formRol.value = { id: 0, nombre_rol: '', descripcion: '' };
+    formRol.value = { id: 0, nombre_rol: '', descripcion: '', seccion_inicio_dia: null, tipo_inicio_dia: null };
   }
   modalRol.value = true;
 }
@@ -169,9 +232,9 @@ function abrirModalRol(rol: Rol | null = null) {
 async function guardarRol() {
   try {
     if (editandoRol.value) {
-      await api.put(`roles/${formRol.value.id}`, formRol.value);
+      await api.put(`/api/roles/${formRol.value.id}`, formRol.value);
     } else {
-      await api.post('roles', formRol.value);
+      await api.post('/api/roles', formRol.value);
     }
     modalRol.value = false;
     await cargarRoles();
@@ -191,7 +254,7 @@ function eliminarRol(id: number) {
     // Para solucionar el error de ESLint, envolvemos la llamada en un bloque void
     void (async () => {
       try {
-        await api.delete(`/roles/${id}`);
+        await api.delete(`/api/roles/${id}`);
         await cargarRoles(); //
         $q.notify({ type: 'positive', message: 'Rol eliminado' });
       } catch (error) {

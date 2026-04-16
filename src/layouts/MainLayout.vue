@@ -282,8 +282,11 @@
     </q-drawer>
 
     <q-page-container>
-      <router-view />
+      <router-view :key="authStore.sedeActivaId ?? 0" />
     </q-page-container>
+
+    <!-- Inicio de Día — overlay bloqueante -->
+    <InicioDiaModal v-if="mostrarInicioDia" @completado="mostrarInicioDia = false" />
 
     <q-footer v-if="!isOnline" class="bg-red-10 text-white">
       <q-toolbar dense>
@@ -312,6 +315,7 @@ import { api } from 'src/boot/axios';
 import { Notify, useQuasar } from 'quasar';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import InicioDiaModal from 'src/components/InicioDiaModal.vue';
 
 const $q = useQuasar();
 const offlineStore = useOfflineStore();
@@ -324,6 +328,7 @@ function irAnalisisCalidad() {
 }
 const leftDrawerOpen = ref(false);
 const isOnline = ref(window.navigator.onLine);
+const mostrarInicioDia = ref(false);
 
 const verRecepcion = computed(() =>
   [
@@ -370,12 +375,13 @@ const produccionPendientesTotal = computed(() =>
 function alCambiarSede(nuevaSedeId: number) {
   authStore.setSedeActiva(nuevaSedeId);
   Notify.create({
-    message: `Cambiando a: ${authStore.nombreSedeActiva}`,
+    message: `Bodega: ${authStore.nombreSedeActiva}`,
     color: 'orange-8',
     icon: 'place',
-    timeout: 1000,
+    timeout: 1200,
   });
-  // Opcional: router.go(0) si quieres forzar recarga total de datos
+  // El :key en <router-view> fuerza el remontaje de la página activa,
+  // disparando onMounted en todos los módulos automáticamente.
 }
 
 // --- SINCRONIZACIÓN Y OFFLINE ---
@@ -737,6 +743,20 @@ onMounted(async () => {
   // Al montar, si ya hay usuario pero no hay sedes en el store, cargarlas
   if (authStore.isLoggedIn && authStore.listaSedes.length === 0) {
     await authStore.cargarSedes();
+  }
+
+  // Verificar inicio de día (los usuarios con sede_id=0 son admin global y lo omiten siempre)
+  if (authStore.isLoggedIn && isOnline.value && authStore.user?.sede_id !== 0) {
+    try {
+      const sedeId  = authStore.sedeActivaId ?? 0;
+      const seccion = authStore.user?.seccion_inicio_dia ?? null;
+      const { data } = await api.get('/api/inicio-dia/hoy', { params: { sedeId, seccion } });
+      if (!data.completo) {
+        mostrarInicioDia.value = true;
+      }
+    } catch {
+      // Si falla la verificación, no bloqueamos el acceso
+    }
   }
 
   if (isOnline.value) void updateStatus();

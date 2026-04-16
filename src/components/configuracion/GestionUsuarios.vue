@@ -11,7 +11,7 @@
       />
     </div>
 
-    <q-table :rows="usuarios" :columns="columns" row-key="id" flat bordered :loading="loading">
+    <q-table :rows="usuarios" :columns="columns" row-key="id" flat bordered :loading="loading" :rows-per-page-options="[0]">
       <template v-slot:body-cell-nombre_sede="props">
         <q-td :props="props">
           <q-badge :color="props.row.sede_id === 0 ? 'black' : 'grey-7'" outline>
@@ -117,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { useOfflineStore } from 'src/stores/offlineStore';
@@ -150,7 +150,9 @@ interface Rol {
 }
 
 const usuarios = ref<Usuario[]>([]);
-const rolesOptions = ref<{ label: string; value: number }[]>([]);
+const rolesOptions = computed(() =>
+  (usuariosStore.listaRoles as Rol[]).map((r) => ({ label: r.nombre_rol, value: r.id }))
+);
 const loading = ref(false);
 const modal = ref(false);
 
@@ -173,7 +175,7 @@ const columns = [
   { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left' as const },
   { name: 'username', label: 'Email', field: 'username', align: 'left' as const },
   { name: 'nombre_rol', label: 'Rol', field: 'nombre_rol', align: 'left' as const },
-  { name: 'nombre_sede', label: 'Sede', field: 'nombre', align: 'left' as const }, // NUEVA COLUMNA
+  { name: 'nombre_sede', label: 'Sede', field: 'nombre_sede', align: 'left' as const },
   { name: 'activo', label: 'Estado', field: 'activo', align: 'center' as const },
   { name: 'acciones', label: 'Acciones', field: 'id', align: 'right' as const },
 ];
@@ -193,17 +195,23 @@ const cargarData = async () => {
 
       // Tipamos explícitamente la respuesta como Usuario[]
 
-      const miSedeId = authStore.user?.sede_id ?? 0;
-
-      // En GestionUsuarios.vue
-      const [resUsers, resRoles] = await Promise.all([
-        api.get<Usuario[]>(`usuarios?sedeId=${miSedeId}`), // El interceptor pondrá solo el ?sedeId=X
-        api.get<Rol[]>('roles'),
+      // Admin global (user.sede_id === 0) siempre pide sedeId=0 → ve todos los usuarios
+      const sedeIdQuery = authStore.esAdminGlobal ? 0 : (authStore.sedeActivaId ?? 0);
+      const [resUsers, resRoles] = await Promise.allSettled([
+        api.get<Usuario[]>('/api/usuarios', { params: { sedeId: sedeIdQuery } }),
+        api.get<Rol[]>('/api/roles'),
       ]);
 
-      // Forzamos el guardado con el tipo correcto
-      usuariosStore.listaUsuarios = Array.isArray(resUsers.data) ? resUsers.data : [];
-      usuariosStore.listaRoles = Array.isArray(resRoles.data) ? resRoles.data : [];
+      if (resUsers.status === 'fulfilled') {
+        usuariosStore.listaUsuarios = Array.isArray(resUsers.value.data) ? resUsers.value.data : [];
+      } else {
+        console.warn('Error cargando usuarios:', resUsers.reason);
+      }
+      if (resRoles.status === 'fulfilled') {
+        usuariosStore.listaRoles = Array.isArray(resRoles.value.data) ? resRoles.value.data : [];
+      } else {
+        console.warn('Error cargando roles:', resRoles.reason);
+      }
     } catch (err) {
       console.warn('Error cargando datos', err);
     }
@@ -230,11 +238,6 @@ const cargarData = async () => {
   // Asignamos el resultado a la tabla
   usuarios.value = datosMezclados;
 
-  // Corregimos el error de ESLint 'any' usando la interfaz Rol
-  rolesOptions.value = (usuariosStore.listaRoles as Rol[]).map((r) => ({
-    label: r.nombre_rol,
-    value: r.id,
-  }));
 
   loading.value = false;
 };
@@ -279,10 +282,10 @@ async function guardar() {
   try {
     loading.value = true;
     if (form.value.id) {
-      await api.put(`usuarios/${form.value.id}`, form.value);
+      await api.put(`/api/usuarios/${form.value.id}`, form.value);
       Notify.create({ type: 'positive', message: 'Usuario actualizado' });
     } else {
-      await api.post('usuarios', form.value);
+      await api.post('/api/usuarios', form.value);
       Notify.create({ type: 'positive', message: 'Usuario creado' });
     }
     modal.value = false;

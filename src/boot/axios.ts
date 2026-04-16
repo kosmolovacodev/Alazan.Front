@@ -75,8 +75,8 @@ api.interceptors.request.use(
       const sedeId = authStore.sedeActivaId ?? 0;
 
       config.params = {
-        ...config.params,
-        sedeId,
+        sedeId,          // valor por defecto del interceptor
+        ...config.params, // los params explícitos del componente tienen prioridad
       };
 
       if (authStore.user?.nombre_completo) {

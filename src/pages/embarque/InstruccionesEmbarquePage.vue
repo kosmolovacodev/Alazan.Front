@@ -7,84 +7,118 @@
     <template v-if="vista === 'historial'">
 
       <!-- Encabezado -->
-      <div class="row items-center justify-between q-mb-md">
-        <div class="row items-center q-gutter-sm">
-          <q-icon name="local_shipping" size="md" color="teal-7" />
-          <div>
-            <div class="text-h6 text-weight-bold text-grey-9">Instrucciones de Embarque</div>
-            <div class="text-caption text-grey-6">Historial y gestión de instrucciones</div>
-          </div>
-        </div>
-        <q-btn unelevated color="teal-7" icon="add" label="Nueva Instrucción"
-          style="border-radius:8px" @click="abrirNueva" />
+      <div class="row items-center q-mb-lg">
+        <q-btn flat round dense icon="arrow_back" color="grey-7"
+          @click="router.back()" class="q-mr-sm" />
+        <div class="text-h5 text-weight-bold text-grey-9">Instrucciones de Embarque</div>
       </div>
 
       <!-- KPI Cards -->
-      <div class="row q-gutter-md q-mb-md">
-        <div class="col">
-          <div class="ie-kpi-card">
-            <div class="ie-kpi-label">Total</div>
-            <div class="ie-kpi-value">{{ stats.totalTons }}T</div>
-            <div class="ie-kpi-sub">{{ stats.total }} instrucciones</div>
+      <div class="ie-kpi-row q-mb-lg">
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#f1f5f9">
+            <q-icon name="local_shipping" size="22px" color="blue-grey-5" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">TOTAL</div>
+            <div class="ie-kpi2-value">{{ stats.totalTons }} T</div>
+            <div class="ie-kpi2-sub">{{ stats.total }} instrucciones</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-warning">
-            <div class="ie-kpi-label">Pendiente</div>
-            <div class="ie-kpi-value">{{ stats.pendiente }}</div>
-            <div class="ie-kpi-sub">{{ stats.tonsPendiente }}T</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#fef9c3">
+            <q-icon name="schedule" size="22px" style="color:#d97706" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">PENDI...</div>
+            <div class="ie-kpi2-value">{{ stats.pendiente }}</div>
+            <div class="ie-kpi2-sub">{{ stats.tonsPendiente }} T</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-info">
-            <div class="ie-kpi-label">En Tránsito</div>
-            <div class="ie-kpi-value">{{ stats.enTransito }}</div>
-            <div class="ie-kpi-sub">{{ stats.tonsTransito }}T</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#dbeafe">
+            <q-icon name="directions_boat" size="22px" style="color:#2563eb" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">EN TR...</div>
+            <div class="ie-kpi2-value">{{ stats.enTransito }}</div>
+            <div class="ie-kpi2-sub">{{ stats.tonsTransito }} T</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-success">
-            <div class="ie-kpi-label">Embarcado</div>
-            <div class="ie-kpi-value">{{ stats.embarcado }}</div>
-            <div class="ie-kpi-sub">{{ stats.tonsEmbarcado }}T</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#dcfce7">
+            <q-icon name="check_circle_outline" size="22px" style="color:#16a34a" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">EMBA...</div>
+            <div class="ie-kpi2-value">{{ stats.embarcado }}</div>
+            <div class="ie-kpi2-sub">{{ stats.tonsEmbarcado }} T</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-error">
-            <div class="ie-kpi-label">Cancelado</div>
-            <div class="ie-kpi-value">{{ stats.cancelado }}</div>
-            <div class="ie-kpi-sub">{{ stats.tonsCancelado }}T</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#fee2e2">
+            <q-icon name="cancel" size="22px" style="color:#dc2626" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">CANC...</div>
+            <div class="ie-kpi2-value">{{ stats.cancelado }}</div>
+            <div class="ie-kpi2-sub">{{ stats.tonsCancelado }} T</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-garbanzo">
-            <div class="ie-kpi-label">Garbanzo</div>
-            <div class="ie-kpi-value">{{ stats.tonsGarbanzo }}T</div>
-            <div class="ie-kpi-sub">{{ stats.garbanzo }} instrucciones</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#fef3c7">
+            <q-icon name="grain" size="22px" style="color:#d97706" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">GARB...</div>
+            <div class="ie-kpi2-value">{{ stats.tonsGarbanzo }}</div>
+            <div class="ie-kpi2-sub">{{ stats.garbanzo }} instrucciones</div>
           </div>
         </div>
-        <div class="col">
-          <div class="ie-kpi-card ie-kpi-frijol">
-            <div class="ie-kpi-label">Frijol</div>
-            <div class="ie-kpi-value">{{ stats.tonsFrijol }}T</div>
-            <div class="ie-kpi-sub">{{ stats.frijol }} instrucciones</div>
+
+        <div class="ie-kpi2">
+          <div class="ie-kpi2-icon" style="background:#fde8d0">
+            <q-icon name="spa" size="22px" style="color:#78350f" />
+          </div>
+          <div class="ie-kpi2-body">
+            <div class="ie-kpi2-label">FRIJOL</div>
+            <div class="ie-kpi2-value">{{ stats.tonsFrijol }}</div>
+            <div class="ie-kpi2-sub">{{ stats.frijol }} instrucciones</div>
           </div>
         </div>
       </div>
 
-      <!-- Filtros + Tabla -->
+      <!-- Tabla Card -->
       <div class="bg-white rounded-borders shadow-1" style="border:1px solid #e8e8e8">
-        <div class="row items-center q-pa-md q-gutter-sm">
-          <q-input v-model="buscar" dense outlined placeholder="Buscar contrato, cliente..." class="col"
-            clearable>
+
+        <!-- Barra de controles -->
+        <div class="row items-center q-pa-md" style="gap:12px; flex-wrap:wrap">
+          <div class="text-subtitle1 text-weight-bold text-grey-9">Historial</div>
+          <q-space />
+          <q-input v-model="buscar" dense outlined placeholder="Buscar contrato, cliente..."
+            style="min-width:260px" clearable>
             <template v-slot:prepend><q-icon name="search" /></template>
           </q-input>
+          <q-btn unelevated outline icon="tune" label="Filtros" color="grey-7"
+            style="border-radius:8px; border:1px solid #d0d0d0"
+            @click="mostrarFiltros = !mostrarFiltros" />
+          <q-btn unelevated color="orange-7" icon="add" label="Nueva"
+            style="border-radius:8px" @click="abrirNueva" />
+        </div>
+
+        <!-- Panel de filtros (desplegable) -->
+        <div v-if="mostrarFiltros" class="row q-px-md q-pb-md q-gutter-sm items-center">
           <q-select v-model="filtroProducto" :options="['Garbanzo','Frijol']" dense outlined
-            placeholder="Producto" clearable style="min-width:130px" />
+            label="Producto" clearable style="min-width:130px" />
           <q-select v-model="filtroStatusEmbarque" :options="statusEmbarqueOpts" dense outlined
-            placeholder="Status Embarque" clearable style="min-width:160px" />
+            label="Status Embarque" clearable style="min-width:160px" />
           <q-select v-model="filtroStatusDoc" :options="statusDocOpts" dense outlined
-            placeholder="Status Doc." clearable style="min-width:160px" />
+            label="Status Doc." clearable style="min-width:160px" />
           <q-btn v-if="filtrosActivos" flat dense icon="filter_alt_off" color="grey-6"
             @click="limpiarFiltros">
             <q-tooltip>Limpiar filtros</q-tooltip>
@@ -93,53 +127,86 @@
 
         <q-separator />
 
-        <q-table :rows="historialFiltrado" :columns="columnas" row-key="id" flat
-          :loading="cargando" :rows-per-page-options="[15, 25, 50]">
+        <!-- Tabla personalizada -->
+        <div class="overflow-auto">
+          <table class="ie-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>FECHA</th>
+                <th>CONTRATO</th>
+                <th>CLIENTE</th>
+                <th>PRODUCTO</th>
+                <th>CALIBRE</th>
+                <th style="text-align:right">TONS</th>
+                <th>EMBARQUE</th>
+                <th>DOCUMENTACIÓN</th>
+                <th>VER</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="cargando">
+                <td colspan="10" class="text-center q-py-xl">
+                  <q-spinner color="orange-6" size="36px" />
+                </td>
+              </tr>
+              <tr v-else-if="historialFiltrado.length === 0">
+                <td colspan="10" class="text-center text-grey-5 q-py-xl" style="font-size:13px">
+                  Sin registros
+                </td>
+              </tr>
+              <template v-else>
+                <tr v-for="(row, idx) in historialFiltrado" :key="row.id">
+                  <td class="ie-td-num">{{ idx + 1 }}</td>
+                  <td>{{ formatFecha(row.fecha) }}</td>
+                  <td><span class="ie-td-contrato">{{ row.contrato || '—' }}</span></td>
+                  <td class="ie-td-cliente">{{ row.cliente || '—' }}</td>
+                  <td>
+                    <span class="ie-chip-producto"
+                      :class="row.producto === 'Garbanzo' ? 'ie-chip-g' : 'ie-chip-f'">
+                      {{ row.producto }}
+                    </span>
+                  </td>
+                  <td>
+                    <span v-if="row.calibre" class="ie-calibre-badge">{{ row.calibre }}</span>
+                    <span v-else class="text-grey-4">—</span>
+                  </td>
+                  <td style="text-align:right; font-weight:600; padding-right:20px">{{ row.tons }}</td>
+                  <td>
+                    <span class="ie-dot-badge" :class="dotBadgeEmbarque(row.statusEmbarque)">
+                      <span class="ie-dot"
+                        :style="{ background: dotColorEmbarque(row.statusEmbarque, true) }"></span>
+                      {{ row.statusEmbarque }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="ie-dot-badge" :class="dotBadgeDoc(row.statusDocumentacion)">
+                      <span class="ie-dot"
+                        :style="{ background: dotColorDoc(row.statusDocumentacion, true) }"></span>
+                      {{ row.statusDocumentacion }}
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <q-btn flat round dense icon="visibility" color="blue-grey-5" size="sm"
+                      @click="verDetalle(row)">
+                      <q-tooltip>Ver detalle</q-tooltip>
+                    </q-btn>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
 
-          <template v-slot:body-cell-producto="props">
-            <q-td :props="props">
-              <span class="ie-chip-producto" :class="props.row.producto === 'Garbanzo' ? 'ie-chip-g' : 'ie-chip-f'">
-                {{ props.row.producto }}
-              </span>
-            </q-td>
-          </template>
+        <q-separator />
 
-          <template v-slot:body-cell-calibre="props">
-            <q-td :props="props">
-              <q-badge v-if="props.row.calibre" color="blue-grey-7" outline>{{ props.row.calibre }}</q-badge>
-              <span v-else class="text-grey-4">—</span>
-            </q-td>
-          </template>
-
-          <template v-slot:body-cell-statusEmbarque="props">
-            <q-td :props="props">
-              <span class="ie-badge-status" :class="colorEmbarque(props.row.statusEmbarque)">
-                {{ props.row.statusEmbarque }}
-              </span>
-            </q-td>
-          </template>
-
-          <template v-slot:body-cell-statusDocumentacion="props">
-            <q-td :props="props">
-              <span class="ie-badge-status" :class="colorDoc(props.row.statusDocumentacion)">
-                {{ props.row.statusDocumentacion }}
-              </span>
-            </q-td>
-          </template>
-
-          <template v-slot:body-cell-acciones="props">
-            <q-td :props="props" class="text-right">
-              <q-btn flat round dense icon="visibility" color="teal-7" size="sm"
-                @click="verDetalle(props.row)">
-                <q-tooltip>Ver detalle</q-tooltip>
-              </q-btn>
-              <q-btn flat round dense icon="edit_note" color="blue-7" size="sm"
-                @click="abrirEditar(props.row)">
-                <q-tooltip>Editar</q-tooltip>
-              </q-btn>
-            </q-td>
-          </template>
-        </q-table>
+        <!-- Footer -->
+        <div class="row items-center justify-between q-px-md q-py-sm">
+          <span class="text-caption text-grey-6">{{ totalTonsHistorial }} Tons totales</span>
+          <span class="text-caption text-grey-6">
+            {{ historialFiltrado.length }} de {{ historial.length }} registros
+          </span>
+        </div>
       </div>
     </template>
 
@@ -244,11 +311,15 @@
             </div>
 
             <q-separator class="q-mb-md" />
-            <div class="row justify-between">
-              <q-btn flat label="Regresar" icon="arrow_back" color="grey-7"
-                @click="vista = 'historial'" />
-              <q-btn unelevated color="teal-7" icon="edit" label="Editar"
-                style="border-radius:8px" @click="abrirEditar(detalle)" />
+            <div class="row justify-between items-center">
+              <q-btn unelevated icon="arrow_back" label="Regresar" color="grey-3"
+                text-color="grey-8" style="border-radius:8px" @click="vista = 'historial'" />
+              <div class="row q-gutter-sm">
+                <q-btn unelevated color="orange-7" icon="print" label="Reporte"
+                  style="border-radius:8px" @click="imprimir" />
+                <q-btn unelevated color="teal-7" icon="edit" label="Editar"
+                  style="border-radius:8px" @click="abrirEditar(detalle)" />
+              </div>
             </div>
           </div>
         </div>
@@ -520,20 +591,97 @@
       </div>
     </template>
 
+    <!-- ══════════════════════════════════════════════════
+         MODAL: REPORTE DE EMBARQUE
+    ═══════════════════════════════════════════════════ -->
+    <q-dialog v-model="modalReporte">
+      <q-card style="width:520px; max-width:95vw; border-radius:16px; overflow:hidden">
+        <!-- Header naranja -->
+        <q-toolbar style="background:#f97316; color:#fff; padding:16px 20px">
+          <q-icon name="description" size="sm" class="q-mr-sm" />
+          <q-toolbar-title class="text-weight-bold">Reporte de Embarque</q-toolbar-title>
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-toolbar>
+
+        <q-card-section class="q-pt-lg q-pb-sm text-center">
+          <div class="q-mb-md">
+            <q-avatar size="72px" style="background:#fff3e0">
+              <q-icon name="description" size="36px" color="orange-6" />
+            </q-avatar>
+          </div>
+          <div class="text-h6 text-weight-bolder q-mb-sm">REPORTE DE EMBARQUE</div>
+          <div class="text-body2 text-grey-6" style="max-width:380px; margin:0 auto">
+            En este reporte se mostrará la información previamente capturada, incluyendo el cliente,
+            producto, cantidad, número de contrato, así como la existencia actual y su ubicación correspondiente.
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-px-lg q-pb-md">
+          <div class="rounded-borders q-pa-md" style="background:#f9fafb; border:1px solid #e5e7eb">
+            <div class="row q-col-gutter-md">
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Contrato</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.contrato || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Ref. Alazán</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.referenciaAlazan || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Cliente</div>
+                <div class="text-body2 text-weight-medium" style="word-break:break-word">{{ detalle?.cliente || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Producto</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.producto || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Calibre</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.calibre || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Cantidad</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.tons ? detalle.tons + ' Tons' : '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Lugar Embarque</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.lugarEmbarque || '—' }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-caption text-uppercase text-grey-5 text-weight-bold">Fecha Embarque</div>
+                <div class="text-body2 text-weight-medium">{{ detalle?.fechaEmbarque || '—' }}</div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="center" class="q-pb-lg q-gutter-md">
+          <q-btn unelevated label="Cancelar" color="grey-3" text-color="grey-8"
+            style="border-radius:8px; min-width:120px" v-close-popup />
+          <q-btn unelevated icon="print" label="Imprimir" style="background:#f97316; color:#fff; border-radius:8px; min-width:140px"
+            @click="ejecutarImpresion" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 
 const authStore = useAuthStore();
-const sedeId = computed(() => authStore.sedeActivaId ?? 0);
+const router    = useRouter();
+const sedeId    = computed(() => authStore.sedeActivaId ?? 0);
 
 // ── Vistas ───────────────────────────────────────────────────
-const vista = ref<'historial' | 'detalle' | 'form'>('historial');
+const vista          = ref<'historial' | 'detalle' | 'form'>('historial');
+const modalReporte   = ref(false);
+const mostrarFiltros = ref(false);
 
 // ── Tipos ────────────────────────────────────────────────────
 interface Instruccion {
@@ -630,19 +778,9 @@ const historialFiltrado = computed(() => {
   return lista;
 });
 
-// ── Columnas ──────────────────────────────────────────────────
-const columnas = [
-  { name: 'noInstruccion',       label: '#',           field: 'noInstruccion',       align: 'left'   as const, sortable: true },
-  { name: 'fecha',               label: 'Fecha',       field: 'fecha',               align: 'left'   as const, sortable: true },
-  { name: 'contrato',            label: 'Contrato',    field: 'contrato',            align: 'left'   as const },
-  { name: 'cliente',             label: 'Cliente',     field: 'cliente',             align: 'left'   as const },
-  { name: 'producto',            label: 'Producto',    field: 'producto',            align: 'left'   as const },
-  { name: 'calibre',             label: 'Calibre',     field: 'calibre',             align: 'center' as const },
-  { name: 'tons',                label: 'Tons',        field: 'tons',                align: 'right'  as const },
-  { name: 'statusEmbarque',      label: 'Embarque',    field: 'statusEmbarque',      align: 'center' as const },
-  { name: 'statusDocumentacion', label: 'Doc.',        field: 'statusDocumentacion', align: 'center' as const },
-  { name: 'acciones',            label: 'Ver',         field: 'id',                  align: 'right'  as const },
-];
+const totalTonsHistorial = computed(() =>
+  historialFiltrado.value.reduce((s, r) => s + (r.tons || 0), 0));
+
 
 // ── Form ──────────────────────────────────────────────────────
 const formInicial = () => ({
@@ -694,9 +832,23 @@ function colorEmbarque(s: string) {
 }
 function colorDoc(s: string) {
   const m: Record<string, string> = {
-    'Incompleto': 'ie-status-default', 'Completo': 'ie-status-success', 'Enviado': 'ie-status-info',
+    'Incompleto': 'ie-status-default', 'Completo': 'ie-status-orange', 'Enviado': 'ie-status-success',
   };
   return m[s] ?? 'ie-status-default';
+}
+
+function dotBadgeEmbarque(s: string) {
+  const m: Record<string, string> = {
+    'Pendiente': 'ie-dot-warning', 'En Tránsito': 'ie-dot-info',
+    'Embarcado': 'ie-dot-success', 'Cancelado': 'ie-dot-error',
+  };
+  return m[s] ?? 'ie-dot-default';
+}
+function dotBadgeDoc(s: string) {
+  const m: Record<string, string> = {
+    'Incompleto': 'ie-dot-default', 'Completo': 'ie-dot-orange', 'Enviado': 'ie-dot-success',
+  };
+  return m[s] ?? 'ie-dot-default';
 }
 
 function statusEmbarqueKey(s: string) {
@@ -723,7 +875,7 @@ function dotColorEmbarque(s: string, selected: boolean) {
 function dotColorDoc(s: string, selected: boolean) {
   if (!selected) return '#d0d0d0';
   const m: Record<string, string> = {
-    'Incompleto': '#9e9e9e', 'Completo': '#10b981', 'Enviado': '#f59e0b',
+    'Incompleto': '#9e9e9e', 'Completo': '#f97316', 'Enviado': '#10b981',
   };
   return m[s] ?? '#9e9e9e';
 }
@@ -835,7 +987,11 @@ async function guardar() {
 }
 
 function imprimir() {
-  Notify.create({ type: 'info', message: 'Módulo de reporte en desarrollo', timeout: 2000 });
+  modalReporte.value = true;
+}
+
+function ejecutarImpresion() {
+  window.print();
 }
 
 onMounted(async () => {
@@ -844,29 +1000,138 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ── KPI ────────────────────────────────────────────────── */
-.ie-kpi-card     { background:#fff; border:1px solid #e8e8e8; border-radius:12px; padding:16px 18px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.06); }
-.ie-kpi-label    { font-size:11px; font-weight:700; letter-spacing:.8px; color:#9e9e9e; margin-bottom:4px; }
-.ie-kpi-value    { font-size:22px; font-weight:800; color:#424242; }
-.ie-kpi-sub      { font-size:11px; color:#9e9e9e; margin-top:2px; }
-.ie-kpi-warning  { border-left:4px solid #f59e0b; }
-.ie-kpi-info     { border-left:4px solid #3b82f6; }
-.ie-kpi-success  { border-left:4px solid #10b981; }
-.ie-kpi-error    { border-left:4px solid #ef4444; }
-.ie-kpi-garbanzo { border-left:4px solid #d97706; }
-.ie-kpi-frijol   { border-left:4px solid #78350f; }
+/* ── KPI v2 ──────────────────────────────────────────────── */
+.ie-kpi-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.ie-kpi2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 120px;
+  flex: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.ie-kpi2-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ie-kpi2-body { min-width: 0; }
+.ie-kpi2-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  color: #9e9e9e;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ie-kpi2-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.1;
+}
+.ie-kpi2-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+  white-space: nowrap;
+}
 
 /* ── Chips / Badges ──────────────────────────────────────── */
 .ie-chip-producto { display:inline-block; font-size:11px; font-weight:700; padding:3px 12px; border-radius:20px; color:#fff; }
 .ie-chip-g        { background:#d97706; }
 .ie-chip-f        { background:#78350f; }
 
-.ie-badge-status  { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; color:#fff; }
+.ie-badge-status   { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; color:#fff; }
 .ie-status-warning { background:#f59e0b; }
 .ie-status-info    { background:#3b82f6; }
 .ie-status-success { background:#10b981; }
 .ie-status-error   { background:#ef4444; }
+.ie-status-orange  { background:#f97316; }
 .ie-status-default { background:#9e9e9e; }
+
+/* ── Tabla personalizada ─────────────────────────────────── */
+.ie-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ie-table thead tr {
+  border-bottom: 2px solid #f1f5f9;
+}
+.ie-table th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  color: #94a3b8;
+  text-align: left;
+  white-space: nowrap;
+}
+.ie-table tbody tr {
+  border-bottom: 1px solid #f8fafc;
+  transition: background .1s;
+}
+.ie-table tbody tr:hover { background: #f8fafc; }
+.ie-table td {
+  padding: 12px 14px;
+  color: #374151;
+  vertical-align: middle;
+}
+.ie-td-num      { color: #9ca3af; font-weight: 600; width: 40px; }
+.ie-td-contrato { color: #f97316; font-weight: 700; }
+.ie-td-cliente  { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ie-calibre-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1.5px solid #475569;
+  color: #334155;
+  background: transparent;
+}
+
+/* ── Dot badges ──────────────────────────────────────────── */
+.ie-dot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.ie-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ie-dot-warning { background: #fef9c3; color: #a16207; }
+.ie-dot-info    { background: #dbeafe; color: #1d4ed8; }
+.ie-dot-success { background: #dcfce7; color: #166534; }
+.ie-dot-error   { background: #fee2e2; color: #991b1b; }
+.ie-dot-orange  { background: #fff7ed; color: #c2410c; }
+.ie-dot-default { background: #f3f4f6; color: #6b7280; }
 
 /* ── Detalle ─────────────────────────────────────────────── */
 .ie-det-label { font-size:11px; font-weight:700; letter-spacing:.6px; color:#9e9e9e; margin-bottom:4px; }

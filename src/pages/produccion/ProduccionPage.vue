@@ -938,10 +938,11 @@
         <div class="row items-center q-gutter-sm">
           <q-btn flat round icon="arrow_back" @click="vista = 'historial'" />
           <div class="text-h5 text-grey-8 text-weight-bold">
-            <q-icon name="science" class="q-mr-sm" />Análisis de Calidad
+            <q-icon name="science" class="q-mr-sm" />Historial de Análisis de Calidad
           </div>
         </div>
-        <q-btn unelevated color="deep-purple-7" icon="add" label="Nuevo Análisis"
+        <q-btn unelevated icon="add" label="Nuevo Análisis"
+          style="background:#00C950; color:#fff"
           @click="abrirModalNuevoAnalisis" />
       </div>
 
@@ -999,6 +1000,10 @@
   </q-popup-proxy>
 </q-input>
           <span class="text-caption text-grey-5">{{ listaAnalisisFiltrada.length }} de {{ listaAnalisis.length }}</span>
+        </q-card-section>
+
+        <q-card-section class="q-py-xs q-px-md" style="border-bottom:1px solid #f0f0f0">
+          <span class="text-caption text-grey-6">Registros: <strong>{{ listaAnalisisFiltrada.length }}</strong></span>
         </q-card-section>
 
         <q-table
@@ -1104,8 +1109,8 @@
                   <q-input :model-value="idx + 1" dense borderless readonly class="text-center" />
                 </td>
                 <td class="bg-teal-1">
-                  <q-select v-model="p.calibre" :options="calibresAnalisis" dense borderless
-                    :disable="analisisReadonly" />
+                  <q-input v-model="p.calibre" dense borderless
+                    placeholder="Ej. 44-46" :disable="analisisReadonly" />
                 </td>
                 <td v-for="col in campoDanoAnalisis" :key="col">
                   <q-input v-model.number="p[col]" type="number" min="0" step="0.01" dense borderless
@@ -1138,12 +1143,7 @@
           <div class="row q-col-gutter-lg">
             <!-- Completas -->
             <div class="col-12 col-md-6">
-              <div class="row items-center justify-between q-mb-sm">
-                <div class="text-subtitle2 text-blue-9 text-weight-bold">Completas</div>
-                <q-btn unelevated color="blue-7" icon="add" size="sm" label="Agregar"
-                  :disable="analisisReadonly"
-                  @click="parrillaCompletas.push({ calibre: '', cantidad: 0, kg: 0 })" />
-              </div>
+              <div class="text-subtitle2 text-blue-9 text-weight-bold q-mb-sm">Completas</div>
               <div v-for="(c, idx) in parrillaCompletas" :key="idx"
                 class="row q-col-gutter-sm q-mb-xs items-center bg-blue-1 rounded-borders q-pa-xs">
                 <div class="col">
@@ -1158,20 +1158,11 @@
                   <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG"
                     :disable="analisisReadonly" />
                 </div>
-                <div class="col-auto">
-                  <q-btn v-if="!analisisReadonly" flat dense round icon="delete" color="negative"
-                    @click="parrillaCompletas.splice(idx, 1)" />
-                </div>
               </div>
             </div>
             <!-- Incompletas -->
             <div class="col-12 col-md-6">
-              <div class="row items-center justify-between q-mb-sm">
-                <div class="text-subtitle2 text-orange-9 text-weight-bold">Incompletas</div>
-                <q-btn unelevated color="orange-7" icon="add" size="sm" label="Agregar"
-                  :disable="analisisReadonly"
-                  @click="parrillaIncompletas.push({ calibre: '', cantidad: 0, kg: 0 })" />
-              </div>
+              <div class="text-subtitle2 text-orange-9 text-weight-bold q-mb-sm">Incompletas</div>
               <div v-for="(c, idx) in parrillaIncompletas" :key="idx"
                 class="row q-col-gutter-sm q-mb-xs items-center bg-orange-1 rounded-borders q-pa-xs">
                 <div class="col">
@@ -1185,10 +1176,6 @@
                 <div class="col-3">
                   <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG"
                     :disable="analisisReadonly" />
-                </div>
-                <div class="col-auto">
-                  <q-btn v-if="!analisisReadonly" flat dense round icon="delete" color="negative"
-                    @click="parrillaIncompletas.splice(idx, 1)" />
                 </div>
               </div>
             </div>
@@ -1207,21 +1194,18 @@
         <q-card-section>
           <div class="row q-col-gutter-md">
             <div class="col-6">
-              <q-select
+              <q-input
                 v-model="formAnalisis.noOrden"
-                :options="ordenesConResultadoFiltradas"
-                use-input
-                input-debounce="0"
                 outlined dense label="Orden"
                 clearable
-                @filter="(val, update) => { filtroOrden = val; update(() => {}) }"
               />
             </div>
             <div class="col-6">
               <q-input v-model="formAnalisis.fecha" outlined dense label="Fecha *" type="date" />
             </div>
             <div class="col-6">
-              <q-select v-model="formAnalisis.envasado" :options="['25 Kg', '50 Kg', 'Polibolsa']"
+              <q-select v-model="formAnalisis.envasado"
+                :options="cats.presentacion.map((p: { nombre: string }) => p.nombre)"
                 outlined dense label="Envasado *" />
             </div>
             <div class="col-6">
@@ -1241,6 +1225,11 @@
               <q-select v-model="formAnalisis.silo"
                 :options="(formAnalisis.producto === 'Frijol' ? cats.bodegas : cats.silos).map((o: { nombre: string }) => o.nombre)"
                 outlined dense label="Silo / Almacén" />
+            </div>
+            <div class="col-12">
+              <q-input v-model="formAnalisis.variedad" outlined dense label="Variedad *"
+                placeholder="Ej: Blanco Sinaloa" />
+              <div class="text-caption text-grey-6 q-mt-xs">Los campos marcados con * son obligatorios</div>
             </div>
           </div>
         </q-card-section>
@@ -1432,7 +1421,6 @@ function resetOrigenesTrenes() {
 
 // calibresParaTren ya no se usa — calibre es texto libre en el resultado
 
-const calibresAnalisis = computed(() => cats.value.calibresAnalisis.map(c => c.nombre));
 
 // ─── HISTORIAL DE ÓRDENES ─────────────────────────────────────────────────
 const loading = ref(false);
@@ -1832,17 +1820,6 @@ interface LineaSubprod {
 const ordenActual = ref<OrdenResumen | null>(null);
 const trenesActuales = ref<TrenResultado[]>([]);
 const resultadoReadonly = computed(() => ordenActual.value?.status === 'Resultado Registrado');
-const filtroOrden = ref('');
-const ordenesConResultado = computed(() => {
-  const yaAnalizados = new Set(listaAnalisis.value.map(a => a.noOrden));
-  return ordenes.value
-    .filter(o => o.status === 'Pendiente' && !yaAnalizados.has(o.noOrden))
-    .map(o => o.noOrden);
-});
-const ordenesConResultadoFiltradas = computed(() => {
-  const q = filtroOrden.value.toLowerCase();
-  return q ? ordenesConResultado.value.filter(n => n.toLowerCase().includes(q)) : ordenesConResultado.value;
-});
 
 const resultado = ref<{
   fechaInicio: string; horaInicio: string;
@@ -2105,15 +2082,15 @@ const columnasAnalisis: QTableColumn[] = [
   { name: 'producto', label: 'Producto', field: 'producto', align: 'left'  },
   { name: 'cosecha',  label: 'Cosecha',  field: 'cosecha',  align: 'left'  },
   { name: 'proceso',  label: 'Proceso',  field: 'proceso',  align: 'left'  },
-  { name: 'silo',       label: 'Silo',    field: 'silo',       align: 'left'   },
-  { name: 'finalizado', label: 'Estado',  field: 'finalizado', align: 'center' },
-  { name: 'acciones',   label: 'Ver',     field: 'id',         align: 'center' },
+  { name: 'silo',      label: 'Silo',     field: 'silo',     align: 'left'   },
+  { name: 'variedad',  label: 'Variedad', field: 'variedad', align: 'left'   },
+  { name: 'acciones',  label: 'Acción',   field: 'id',       align: 'center' },
 ];
 
 const formAnalisis = ref({
   noOrden: '', fecha: fechaHoy(),
   envasado: '', producto: '', granoId: null as number | null,
-  cosecha: '', proceso: '', silo: '',
+  cosecha: '', proceso: '', silo: '', variedad: '',
 });
 
 const analisisActual = ref<AnalisisResumen & { granoId: number | null; detallado: string; parrillas: string }>({
@@ -2141,7 +2118,7 @@ function abrirModalNuevoAnalisis() {
   formAnalisis.value = {
     noOrden: '', fecha: fechaHoy(),
     envasado: '', producto: '', granoId: null,
-    cosecha: '', proceso: '', silo: '',
+    cosecha: '', proceso: '', silo: '', variedad: '',
   };
   modalNuevoAnalisis.value = true;
 }

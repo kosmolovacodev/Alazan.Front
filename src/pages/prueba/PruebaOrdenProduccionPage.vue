@@ -106,10 +106,10 @@
                 <q-input v-model="item.codigo_producto_receta" dense outlined label="Cód. Insumo *" />
               </div>
               <div class="col-6 col-sm-3">
-                <q-select v-model="item.tipo_producto" :options="opcionesTipoProducto" emit-value map-options dense outlined label="Tipo *" />
+                <q-input v-model.number="item.tipo_producto" dense outlined type="number" label="Tipo *" />
               </div>
               <div class="col-3 col-sm-2">
-                <q-select v-model="item.aplicacion_producto" :options="[{label:'(+)', value:'+'}, {label:'(-)', value:'-'}, {label:'(=)', value:'='}]" emit-value map-options dense outlined label="Apl." />
+                <q-input v-model.number="item.aplicacion_producto" dense outlined type="number" label="Apl." />
               </div>
               <div class="col-3 col-sm-2">
                 <q-input v-model.number="item.cantidad_producto" dense outlined type="number" label="Cant. *" />
@@ -158,8 +158,8 @@ import { useMba3Store } from 'src/stores/mba3Store';
 // INTERFACES (Corrige error "Unexpected any")
 interface DetalleItem {
   codigo_producto_receta: string;
-  tipo_producto: string | null;
-  aplicacion_producto: string | null;
+  tipo_producto: number | null;
+  aplicacion_producto: number | null;
   cantidad_producto: number;
   listado_lotes: string;
 }
@@ -196,7 +196,6 @@ const MBA3_BASE_URL = 'http://201.148.25.52:8443';
 
 const opcionesOperacion = [{ value: '1', label: '1 - Crear Orden' }, { value: '4', label: '4 - Proceso Completo' }];
 const opcionesEstatus = [{ value: '1', label: '1 - Planificado' }, { value: '3', label: '3 - En Proceso' }];
-const opcionesTipoProducto = [{ value: 'MP', label: 'Materia Prima' }, { value: 'I', label: 'Insumo' }];
 
 const mba3Store = useMba3Store();
 const tokenInfo = computed(() => mba3Store.tokenInfo(MBA3_CODIGO));
@@ -247,11 +246,6 @@ async function forzarNuevoToken() {
 }
 
 async function enviar() {
-  if (!form.value.operacion || !form.value.codigo_sucursal) {
-    Notify.create({ type: 'warning', message: 'Faltan campos obligatorios.' });
-    return;
-  }
-
   enviando.value = true;
   errorMba3.value = '';
 
@@ -276,16 +270,20 @@ async function enviar() {
     }));
     fd.append('detalle', JSON.stringify(dFinal));
 
-    await mba3Request({
+    const resp = await mba3Request<{ error_api?: boolean; msg?: string }>({
       method: 'post',
       endpoint: '/mba3api/ordenes_produccion',
       codigo: MBA3_CODIGO,
       pwd: MBA3_PWD,
       multipartData: fd,
-      useBearerPrefix: true
     });
 
-    Notify.create({ type: 'positive', message: 'Enviado correctamente a MBA3' });
+    if (resp && typeof resp === 'object' && resp.error_api) {
+      errorMba3.value = resp.msg ?? JSON.stringify(resp);
+      Notify.create({ type: 'negative', message: resp.msg ?? 'Error en MBA3' });
+    } else {
+      Notify.create({ type: 'positive', message: 'Enviado correctamente a MBA3' });
+    }
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'response' in err) {
       const e = err as { response: { data: unknown } };

@@ -3,11 +3,15 @@ import { api } from 'boot/axios';
 
 export interface User {
   id: string;
+  usuario_id: number;        // dbo.usuarios.id (entero)
   nombre_completo: string;
   email: string;
   nombre_rol: string;
   permisos_json: string;
   sede_id: number;
+  departamento?: string;
+  seccion_inicio_dia?: string;    // BASCULA | VOLCADO | PROCESO | ALMACEN — viene del rol
+  tipo_inicio_dia?: string;       // SUPERVISOR | ASISTENTE | OPERADOR | null — define el flujo del modal
 }
 
 export interface Sede {

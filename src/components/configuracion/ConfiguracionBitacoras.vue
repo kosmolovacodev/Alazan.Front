@@ -79,7 +79,7 @@
 
     <div class="q-gutter-y-sm">
       <q-expansion-item
-        v-for="sec in SECCIONES" :key="sec.codigo"
+        v-for="sec in secciones" :key="sec.codigo"
         :default-opened="sec.codigo === 'SEC-01'"
         bordered
         class="rounded-borders overflow-hidden"
@@ -355,11 +355,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
 import { api } from 'src/boot/axios';
 
 // ─── Tipos ───────────────────────────────────────────────────
-interface ColDef { campo: string; label: string; }
+interface ColDef { campo: string; label: string; esMeta?: boolean; }
 
 interface BitacoraConfig {
   periodicidad:     string;
@@ -376,7 +376,7 @@ interface BitacoraConfig {
 interface BitacoraItem {
   codigo:   string;
   nombre:   string;
-  columnas: ColDef[];   // sólo bitácoras con columnas aparecen aquí
+  columnas: ColDef[];
 }
 
 interface SeccionItem {
@@ -405,6 +405,13 @@ interface NipConfigRow {
   tiempoBloqueo: number;
 }
 
+interface ApiSeccion {
+  codigo: string; nombre: string; icono: string; color: string; totalBitacoras: number;
+}
+interface ApiBitacora {
+  codigo: string; nombre: string; tipo: string; fuenteQuery?: string;
+}
+
 // ─── Constantes ───────────────────────────────────────────────
 const PERIODICIDADES = [
   { val: 'Diaria',    label: 'Diaria',    icon: 'today' },
@@ -415,159 +422,27 @@ const PERIODICIDADES = [
 
 const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
-const SECCIONES: SeccionItem[] = [
-  {
-    codigo: 'SEC-01', nombre: 'Báscula', color: '#e65100', colorLight: '#fff3e0', colorQ: 'deep-orange-8', icono: 'scale',
-    bitacoras: [
-      { codigo: 'FO-HC-IMP-002', nombre: 'Bitácora de Registro de Recepción de Grano', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'productor_cliente', label: 'Productor/Cliente' },
-        { campo: 'placas',            label: 'Placas de Camión' },
-        { campo: 'tipo_grano',        label: 'Tipo de Grano' },
-        { campo: 'ticket',            label: '# de Ticket o Boleta' },
-        { campo: 'peso_bruto',        label: 'Peso Bruto (kg)' },
-        { campo: 'tara',              label: 'Tara (kg)' },
-        { campo: 'peso_neto',         label: 'Peso Neto (kg)' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-      { codigo: 'FO-HC-IMP-003', nombre: 'Bitácora de Análisis de Grano', columnas: [
-        { campo: 'ticket',            label: 'Ticket/No. Boleta' },
-        { campo: 'placas',            label: 'Placas de Camión' },
-        { campo: 'color_apariencia',  label: 'Color/Apariencia' },
-        { campo: 'olor',              label: 'Olor' },
-        { campo: 'humedad',           label: 'Humedad del Grano (%)' },
-        { campo: 'impurezas',         label: 'Impurezas (%)' },
-        { campo: 'infestacion_moho',  label: 'Infestación/Moho (S/N)' },
-        { campo: 'resultado_final',   label: 'Resultado Final' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-      { codigo: 'FO-HC-IMP-011', nombre: 'Bitácora de Báscula – Salida', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'ticket_folio',      label: 'Ticket/Folio' },
-        { campo: 'producto',          label: 'Producto' },
-        { campo: 'lote',              label: 'Lote' },
-        { campo: 'peso_bruto',        label: 'Peso Bruto (kg)' },
-        { campo: 'tara',              label: 'Tara (kg)' },
-        { campo: 'peso_neto',         label: 'Peso Neto (kg)' },
-        { campo: 'cliente_destino',   label: 'Cliente/Destino' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-    ],
-  },
-  {
-    codigo: 'SEC-02', nombre: 'Volcado', color: '#f59e0b', colorLight: '#fffbeb', colorQ: 'amber-8', icono: 'move_to_inbox',
-    bitacoras: [
-      { codigo: 'FO-HC-IMP-004', nombre: 'Bitácora de Volcado y Evaluación Visual del Grano', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'ticket',            label: 'Ticket/No. Boleta' },
-        { campo: 'condicion_tolva',   label: 'Condición de Tolva antes de Volcado' },
-        { campo: 'condicion_grano',   label: 'Condición del Grano Descargado' },
-        { campo: 'silo_asignado',     label: 'Silo Asignado' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-      { codigo: 'FO-HC-IMP-009', nombre: 'Bitácora de Monitoreo de Temperatura y Humedad', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'hora',              label: 'Hora' },
-        { campo: 'area_silo',         label: 'Área o Silo Monitoreado' },
-        { campo: 'temperatura',       label: 'Temperatura (°C)' },
-        { campo: 'humedad_relativa',  label: 'Humedad Relativa (%)' },
-        { campo: 'condicion',         label: 'Condición del Grano / Obs. Visual' },
-        { campo: 'accion_correctiva', label: 'Acción Correctiva Aplicada' },
-        { campo: 'responsable',       label: 'Nombre y Firma del Responsable' },
-      ]},
-    ],
-  },
-  {
-    codigo: 'SEC-03', nombre: 'Proceso', color: '#3b82f6', colorLight: '#eff6ff', colorQ: 'blue-6', icono: 'precision_manufacturing',
-    bitacoras: [
-      { codigo: 'FO-HC-IMP-005', nombre: 'Bitácora de Producción y Clasificación (Garbanzo / Frijol)', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'orden_lote',        label: 'Orden de Producción / Lote' },
-        { campo: 'producto',          label: 'Producto' },
-        { campo: 'num_tren',          label: '# Tren' },
-        { campo: 'silo_origen',       label: 'Silo Origen' },
-        { campo: 'cant_procesada',    label: 'Cantidad Procesada (kg)' },
-        { campo: 'prod_clasificado',  label: 'Producto Clasificado (kg)' },
-        { campo: 'subproducto',       label: 'Subproducto / Rezaga (kg)' },
-        { campo: 'desecho',           label: 'Desecho (kg)' },
-        { campo: 'rendimiento',       label: 'Rendimiento (%)' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-      { codigo: 'FO-HC-IMP-006', nombre: 'Bitácora de Control de Calidad del Producto Terminado', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'envasado',          label: 'Envasado' },
-        { campo: 'producto',          label: 'Producto' },
-        { campo: 'cosecha',           label: 'Cosecha' },
-        { campo: 'proceso',           label: 'Proceso' },
-        { campo: 'silos',             label: 'Silos' },
-        { campo: 'variedad',          label: 'Variedad' },
-        { campo: 'parrillas_completas',  label: 'Parrillas Completas' },
-        { campo: 'parrillas_comenzadas', label: 'Parrillas Comenzadas' },
-      ]},
-    ],
-  },
-  {
-    codigo: 'SEC-04', nombre: 'Almacén', color: '#14b8a6', colorLight: '#f0fdfa', colorQ: 'teal-6', icono: 'warehouse',
-    bitacoras: [
-      { codigo: 'FO-HC-IMP-007', nombre: 'Bitácora de Descarga Manual y Almacenamiento de Frijol', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'ticket',            label: 'Ticket / Boleta No.' },
-        { campo: 'condicion_camion',  label: 'Condición de Camión antes de Descarga' },
-        { campo: 'condicion_grano',   label: 'Condición del Grano Descargado' },
-        { campo: 'almacen_asignado',  label: 'Almacén Asignado' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-        { campo: 'resultado_accion',  label: 'Resultado / Acción Tomada' },
-      ]},
-      { codigo: 'FO-HC-IMP-008', nombre: 'Bitácora de Almacenamiento Final de Producto', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'producto',          label: 'Producto' },
-        { campo: 'presentacion',      label: 'Presentación' },
-        { campo: 'variedad',          label: 'Variedad' },
-        { campo: 'ubicacion',         label: 'Ubicación' },
-        { campo: 'lote',              label: 'Lote' },
-        { campo: 'cantidad',          label: 'Cantidad Almacenada (kg/sacos)' },
-        { campo: 'cond_producto',     label: 'Condición del Producto' },
-        { campo: 'cond_area',         label: 'Condición del Área' },
-        { campo: 'marbete_colocado',  label: 'Marbete Colocado' },
-        { campo: 'codigo_marbete',    label: 'Código del Marbete' },
-        { campo: 'movimiento',        label: 'Movimiento' },
-        { campo: 'observaciones',     label: 'Observaciones' },
-      ]},
-      { codigo: 'FO-HC-IMP-009', nombre: 'Bitácora de Monitoreo de Temperatura y Humedad', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'hora',              label: 'Hora' },
-        { campo: 'area_silo',         label: 'Área o Silo Monitoreado' },
-        { campo: 'temperatura',       label: 'Temperatura (°C)' },
-        { campo: 'humedad_relativa',  label: 'Humedad Relativa (%)' },
-        { campo: 'condicion',         label: 'Condición del Grano / Obs. Visual' },
-        { campo: 'accion_correctiva', label: 'Acción Correctiva Aplicada' },
-        { campo: 'responsable',       label: 'Nombre y Firma del Responsable' },
-      ]},
-    ],
-  },
-  {
-    codigo: 'SEC-05', nombre: 'Despacho', color: '#8b5cf6', colorLight: '#f5f3ff', colorQ: 'purple-6', icono: 'local_shipping',
-    bitacoras: [
-      { codigo: 'FO-HC-IMP-010', nombre: 'Bitácora de Despacho y Verificación de Unidades Limpias', columnas: [
-        { campo: 'fecha',             label: 'Fecha' },
-        { campo: 'unidad_placas',     label: 'Unidad / Placas' },
-        { campo: 'conductor',         label: 'Conductor / Transportista' },
-        { campo: 'producto_despachado', label: 'Producto Despachado' },
-        { campo: 'lote',              label: 'Lote de Producto' },
-        { campo: 'cantidad_peso',     label: 'Cantidad / Peso (kg)' },
-        { campo: 'cond_vehiculo',     label: 'Condición del Vehículo' },
-        { campo: 'resultado_verif',   label: 'Resultado de Verificación' },
-        { campo: 'observaciones',     label: 'Observaciones / Acción Correctiva' },
-      ]},
-    ],
-  },
-  {
-    codigo: 'SEC-06', nombre: 'Inocuidad', color: '#22c55e', colorLight: '#f0fdf4', colorQ: 'green-6', icono: 'health_and_safety',
-    bitacoras: [],
-  },
-];
+// Mapa de color → color claro (fondo de tarjeta de sección)
+const COLOR_LIGHT: Record<string, string> = {
+  '#e65100': '#fff3e0',
+  '#f59e0b': '#fffbeb',
+  '#3b82f6': '#eff6ff',
+  '#14b8a6': '#f0fdfa',
+  '#8b5cf6': '#f5f3ff',
+  '#22c55e': '#f0fdf4',
+};
+// Mapa de sección → Quasar color name (usado en q-chip)
+const COLOR_Q: Record<string, string> = {
+  'SEC-01': 'deep-orange-8',
+  'SEC-02': 'amber-8',
+  'SEC-03': 'blue-6',
+  'SEC-04': 'teal-6',
+  'SEC-05': 'purple-6',
+  'SEC-06': 'green-6',
+};
 
 // ─── Estado reactivo ──────────────────────────────────────────
+const secciones = ref<SeccionItem[]>([]);
 const nip = reactive<NipConfig>({ longitud: 4, intentos: 3, tiempo: 15 });
 const configs  = reactive<Record<string, BitacoraConfig>>({});
 const saving   = reactive<Record<string, boolean>>({});
@@ -604,6 +479,7 @@ function capitalize(s: string): string {
 // ─── Carga inicial ────────────────────────────────────────────
 onMounted(async () => {
   try {
+    // 1. Cargar config de bitácoras + NIP global
     const [cfgRes, nipRes] = await Promise.all([
       api.get<BitacoraConfigRow[]>('/api/bitacoras-config'),
       api.get<NipConfigRow>('/api/bitacoras-config/nip-global'),
@@ -626,6 +502,42 @@ onMounted(async () => {
     nip.intentos = nipRes.data.intentos ?? 3;
     nip.tiempo   = nipRes.data.tiempoBloqueo ?? 15;
   } catch { /* defaults */ }
+
+  try {
+    // 2. Cargar secciones dinámicas desde la BD
+    const secRes = await api.get<ApiSeccion[]>('/api/bitacoras/secciones');
+    const secRaw = Array.isArray(secRes.data) ? secRes.data : [];
+
+    // Para cada sección: cargar definición + columnas en paralelo
+    const secCompletas = await Promise.all(
+      secRaw.map(async (sec) => {
+        const defRes = await api.get<ApiBitacora[]>(`/api/bitacoras/definicion/${sec.codigo}`);
+        const defs = Array.isArray(defRes.data) ? defRes.data : [];
+
+        const bitacoras = await Promise.all(
+          defs.map(async (bit) => {
+            const colRes = await api.get<ColDef[]>(`/api/bitacoras/columnas/${bit.codigo}`);
+            const columnas = Array.isArray(colRes.data)
+              ? colRes.data.filter(c => !c.esMeta)
+              : [];
+            return { codigo: bit.codigo, nombre: bit.nombre, columnas } as BitacoraItem;
+          })
+        );
+
+        return {
+          codigo:     sec.codigo,
+          nombre:     sec.nombre,
+          color:      sec.color,
+          colorLight: COLOR_LIGHT[sec.color] ?? sec.color + '1A',
+          colorQ:     COLOR_Q[sec.codigo]    ?? 'grey-7',
+          icono:      sec.icono,
+          bitacoras:  bitacoras.filter(b => b.columnas.length > 0),
+        } as SeccionItem;
+      })
+    );
+
+    secciones.value = secCompletas;
+  } catch { /* sin secciones */ }
 });
 
 // ─── Auto-save (bitácoras) ────────────────────────────────────
