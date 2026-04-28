@@ -541,7 +541,7 @@
         />
       </q-card-actions>
       <!-- Indicador de ya autorizado -->
-      <q-card-section v-else class="q-pa-md bg-green-1 text-center">
+      <q-card-section v-else-if="yaAutorizado" class="q-pa-md bg-green-1 text-center">
         <q-icon name="check_circle" color="green" size="sm" class="q-mr-sm" />
         <span class="text-weight-bold text-green-9">
           Este precio ya fue autorizado ({{ selectedBoleta?.estatus }})
@@ -943,22 +943,25 @@ function emitClose(): void {
 
 function autorizar(): void {
   // Garbanzo: validar justificación si precio o descuento es mayor al original
+  // En modo renegociar se omite esta validación (el rechazo del productor ya es el contexto)
   if (esGarbanzo.value) {
     const precio = Number(precioManual.value) || 0;
     const descuento = Number(descuentoManual.value) || undefined;
-    const precioOriginal = Number(props.selectedBoleta?.precioSugerido) || 0;
-    const descuentoOriginal = Math.round(Number(props.selectedBoleta?.descuento) || 0);
-    const necesitaJustificacion = precio > precioOriginal || (descuento !== undefined && descuento > descuentoOriginal);
-    if (necesitaJustificacion) {
-      const justif = justificacionModel.value?.trim() || '';
-      if (justif.length < 10) {
-        $q.notify({
-          type: 'warning',
-          message: 'Debe justificar el motivo cuando el precio o descuento es mayor al original (mínimo 10 caracteres).',
-          position: 'top',
-          timeout: 4000,
-        });
-        return;
+    if (props.modo !== 'renegociar') {
+      const precioOriginal = Number(props.selectedBoleta?.precioSugerido) || 0;
+      const descuentoOriginal = Math.round(Number(props.selectedBoleta?.descuento) || 0);
+      const necesitaJustificacion = precio > precioOriginal || (descuento !== undefined && descuento > descuentoOriginal);
+      if (necesitaJustificacion) {
+        const justif = justificacionModel.value?.trim() || '';
+        if (justif.length < 10) {
+          $q.notify({
+            type: 'warning',
+            message: 'Debe justificar el motivo cuando el precio o descuento es mayor al original (mínimo 10 caracteres).',
+            position: 'top',
+            timeout: 4000,
+          });
+          return;
+        }
       }
     }
     emit('autorizar', precio, descuento);
@@ -979,7 +982,8 @@ function autorizar(): void {
     }
   }
   // Validar que si requiere justificación, esta esté completa
-  if (requiereJustificacion.value) {
+  // En modo renegociar se omite (el rechazo del productor ya es el contexto)
+  if (requiereJustificacion.value && props.modo !== 'renegociar') {
     const justificacion = justificacionModel.value?.trim() || '';
     if (justificacion.length < 10) {
       $q.notify({

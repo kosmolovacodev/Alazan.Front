@@ -328,7 +328,6 @@ import { reactive, ref, computed, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth'; // Asegúrate de que la ruta sea correcta
-import { mba3Request } from 'src/services/mba3Api';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import type { ProductorPendiente } from 'src/stores/offlineStore';
 
@@ -357,8 +356,6 @@ async function cargarIdRealDeUsuario() {
 
 onMounted(async () => {
   await cargarIdRealDeUsuario();
-  // Pre-cargar la lista inicial de MBA3 en background para que el dropdown sea instantáneo
-  void executeMba3Search('');
 });
 
 const $q = useQuasar();
@@ -612,205 +609,14 @@ const snapshotProductor = ref<CamposProductor | null>(null);
 const opcionesProductores = ref<Productor[]>([]);
 const productorSeleccionado = ref<Productor | null>(null);
 const buscandoProductores = ref(false);
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const mba3Disponible = ref(true); // se vuelve false la primera vez que MBA3 falla en esta sesión
-const mba3InFlight = ref(false); // hay una petición MBA3 activa
-let latestPendingVal: string | null = null; // última búsqueda encolada mientras había vuelo
-// Caché de resultados MBA3 por prefijo — evita re-consultas dentro de 5 minutos
-const mba3Cache = new Map<string, { productores: Productor[]; ts: number }>();
-const MBA3_CACHE_TTL = 5 * 60 * 1000; // 5 minutos en ms
-
-function mapMba3Items(
-  mba3Items: Record<string, unknown>[],
-  localList: Pick<Productor, 'id' | 'rfc'>[],
-): Productor[] {
-  return mba3Items.map((m) => {
-    const rfc = ((m['RUC_or_FED_ID'] as string) ?? '').replace(/\s/g, '');
-    const esMoral = rfc.length === 12;
-    const atiende = esMoral ? (m['ACCOUNT_MNGR'] as string) || null : null;
-    const telMain = ((m['TELEPHONE_MAIN'] as string) ?? '').replace(/\s/g, '');
-    const telPm = ((m['TELEPHONE_PM'] as string) ?? '').replace(/\s/g, '');
-    const correo = ((m['E_MAIL'] as string) ?? '').trim() || undefined;
-    const localMatch = rfc ? localList.find((p) => p.rfc === rfc) : undefined;
-    return {
-      id: localMatch?.id ?? null,
-      nombre: (m['VENDOR_NAME'] as string) ?? '',
-      telefono: telMain,
-      ...(telPm ? { telefono2: telPm } : {}),
-      ...(rfc ? { rfc } : {}),
-      ...(atiende ? { atiende } : {}),
-      ...(correo ? { correo } : {}),
-      origen: (localMatch ? 'MBA3+LOCAL' : 'MBA3') as Productor['origen'],
-      mba3Raw: m,
-    };
-  });
-}
-
-/**
- * Ejecuta UNA petición MBA3 para buscar productores.
- * Si ya hay una en vuelo, encola esta como la siguiente a ejecutar.
- * Esto garantiza que nunca haya dos peticiones simultáneas → sin race condition de tokens.
- */
-async function executeMba3Search(val: string) {
-  // Si MBA3 ya falló antes en esta sesión, usar directamente la lista local
-  if (!mba3Disponible.value) {
-    const localList = props.listaProductores ?? [];
-    const filtered = val
-      ? localList.filter((p) => p.nombre.toUpperCase().includes(val.toUpperCase()))
-      : localList;
-    opcionesProductores.value = filtered;
-    buscandoProductores.value = false;
-    return;
-  }
-
-  // Verificar caché primero — si el prefijo ya fue consultado recientemente, usarlo al instante
-  const cacheKey = val.toLowerCase();
-  const cached = mba3Cache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < MBA3_CACHE_TTL) {
-    opcionesProductores.value = cached.productores;
-    buscandoProductores.value = false;
-    return;
-  }
-
-  // Para carga inicial (val vacío), intentar localStorage precargado desde BasculaPage
-  if (val === '') {
-    const raw = localStorage.getItem('mba3_productores_init');
-    if (raw) {
-      try {
-        const { data, ts, sedeId } = JSON.parse(raw) as {
-          data: unknown;
-          ts: number;
-          sedeId: number;
-        };
-        const esFresco = Date.now() - ts < MBA3_CACHE_TTL;
-        const esMiSede = sedeId === (authStore.sedeActivaId ?? 0);
-        if (esFresco && esMiSede && Array.isArray(data)) {
-          const productores = mapMba3Items(
-            data as Record<string, unknown>[],
-            props.listaProductores ?? [],
-          );
-          opcionesProductores.value = productores;
-          mba3Cache.set(cacheKey, { productores, ts });
-          buscandoProductores.value = false;
-          return;
-        }
-      } catch {
-        /* JSON corrupto, continuar con petición normal */
-      }
-    }
-  }
-
-  // Si el usuario está filtrando y ya tenemos el catálogo completo en caché, filtrar client-side
-  if (val.length >= 1) {
-    const fullCache = mba3Cache.get('');
-    if (fullCache && Date.now() - fullCache.ts < MBA3_CACHE_TTL) {
-      const valUpper = val.toUpperCase();
-      const filtrados = fullCache.productores.filter((p) =>
-        p.nombre.toUpperCase().includes(valUpper),
-      );
-      const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
-      const localList = props.listaProductores ?? [];
-      localList
-        .filter(
-          (p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
-        )
-        .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
-      opcionesProductores.value = filtrados;
-      mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
-      buscandoProductores.value = false;
-      return;
-    }
-  }
-
-  // Si ya hay petición en vuelo, encolar y salir (la petición activa la retomará al terminar)
-  if (mba3InFlight.value) {
-    latestPendingVal = val;
-    return;
-  }
-
-  const MBA3_CODIGO = 'CON100';
-  const MBA3_PWD = 'zaqxsw97531';
-
-  mba3InFlight.value = true;
-  buscandoProductores.value = true;
-
-  try {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 3);
-    const fecha3 = d.toISOString().split('T')[0]; // 3 años atrás
-
-    // Sin BETWEEN ni limit — se trae todo el catálogo (~200 registros) y se filtra client-side
-    const data = await mba3Request<unknown>({
-      method: 'post',
-      endpoint: '/ws_Consulta_externa_MBA3/',
-      codigo: MBA3_CODIGO,
-      pwd: MBA3_PWD,
-      formData: {
-        select:
-          'VENDOR_NAME,RECORD_DATE,RUC_or_FED_ID,FIRST_NAME,ACCOUNT_MNGR,TELEPHONE_MAIN,TELEPHONE_PM,ACCT_CODE,ADDRESS_1,ADDRESS_2,CITY,STATE,ZIP,COUNTRY,NAME_RAZON_SOCIAL,FACSIMILE,E_MAIL',
-        from: 'PROV_Ficha_Principal',
-        where: `CORP='BGAR1' AND RECORD_DATE > '${fecha3}'`,
-        limit: '9999',
-      },
-    });
-
-    const localList = props.listaProductores ?? [];
-    const mba3Items = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-    const todosProductores: Productor[] = mapMba3Items(mba3Items, localList);
-
-    // Guardar catálogo completo bajo clave '' para filtrado client-side posterior
-    mba3Cache.set('', { productores: todosProductores, ts: Date.now() });
-
-    if (val.length >= 1) {
-      // Petición disparada antes de que el caché estuviera listo — filtrar ahora
-      const valUpper = val.toUpperCase();
-      const filtrados = todosProductores.filter((p) => p.nombre.toUpperCase().includes(valUpper));
-      const mba3Rfcs = new Set(filtrados.map((p) => p.rfc).filter(Boolean));
-      localList
-        .filter(
-          (p) => p.nombre.toUpperCase().includes(valUpper) && (!p.rfc || !mba3Rfcs.has(p.rfc)),
-        )
-        .forEach((p) => filtrados.push({ ...p, origen: 'LOCAL' }));
-      opcionesProductores.value = filtrados;
-      mba3Cache.set(cacheKey, { productores: filtrados, ts: Date.now() });
-    } else {
-      opcionesProductores.value = todosProductores;
-    }
-  } catch {
-    mba3Disponible.value = false; // marcar caído para evitar reintentos lentos
-    const localList = props.listaProductores ?? [];
-    const filtered = val
-      ? localList.filter((p) => p.nombre.toUpperCase().includes(val.toUpperCase()))
-      : localList;
-    opcionesProductores.value = filtered;
-  } finally {
-    buscandoProductores.value = false;
-    mba3InFlight.value = false;
-    // Si llegó una nueva búsqueda mientras estábamos en vuelo, ejecutarla ahora
-    if (latestPendingVal !== null) {
-      const nextVal = latestPendingVal;
-      latestPendingVal = null;
-      void executeMba3Search(nextVal);
-    }
-  }
-}
 
 function filtrarProductores(val: string, update: (fn: () => void) => void) {
-  if (debounceTimer) clearTimeout(debounceTimer);
-
-  // Llamar update() inmediatamente para que Quasar no quede sin respuesta.
-  // Las opciones se actualizan reactivamente cuando executeMba3Search() termina.
-  update(() => {});
-
-  buscandoProductores.value = true;
-
-  // Debounce: 0ms al abrir dropdown (val=''), 400ms al escribir (busca al dejar de teclear)
-  debounceTimer = setTimeout(
-    () => {
-      void executeMba3Search(val);
-    },
-    val ? 400 : 0,
-  );
+  update(() => {
+    const list = props.listaProductores ?? [];
+    opcionesProductores.value = val
+      ? list.filter((p) => p.nombre.toUpperCase().includes(val.toUpperCase()))
+      : list;
+  });
 }
 
 function onProductorSelected(prod: Productor | null) {
@@ -1037,6 +843,7 @@ async function onSubmit() {
     chofer: form.chofer,
     placas: form.placas,
     peso_bruto_kg: Number(form.peso_bruto_kg),
+    ton_aprox: form.ton_aprox > 0 ? Number(form.ton_aprox) : null,
     grano_id: form.grano_id ? Number(form.grano_id) : null,
     origen_id: form.origen_id ? Number(form.origen_id) : null,
     comprador_id: form.comprador_id,

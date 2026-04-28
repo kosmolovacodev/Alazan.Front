@@ -93,7 +93,26 @@
             </div>
 
             <div class="col-12 col-md-6 q-gutter-y-sm">
-              <q-input v-model="form.firma" label="Firma" outlined dense />
+              <!-- Firma de imagen -->
+              <div>
+                <div class="text-caption text-grey-7 q-mb-xs">Firma (imagen)</div>
+                <div
+                  style="background:#fff; border:1px solid #bdbdbd; border-radius:4px; min-height:80px; display:flex; align-items:center; justify-content:center; padding:8px;"
+                >
+                  <img v-if="form.firma" :src="form.firma" style="max-height:70px; max-width:100%; display:block;" />
+                  <span v-else class="text-grey-5 text-caption">Sin firma cargada</span>
+                </div>
+                <div class="row q-gutter-sm q-mt-xs">
+                  <q-btn flat dense size="sm" icon="upload" label="Cargar imagen" color="blue" @click="triggerFirmaInput" />
+                  <q-btn v-if="form.firma" flat dense size="sm" icon="clear" label="Quitar" color="negative" @click="form.firma = ''" />
+                </div>
+                <input ref="firmaInput" type="file" accept="image/*" style="display:none" @change="onFirmaChange" />
+                <canvas ref="firmaCanvas" style="display:none" />
+              </div>
+
+              <q-input v-model="form.nip" label="NIP de firma (4-6 dígitos)" type="password"
+                outlined dense maxlength="6"
+                hint="Se usa para firmar bitácoras digitalmente. Dejar vacío para no cambiar." />
               <q-input v-model="form.departamento" label="Departamento (Opcional)" outlined dense />
               <q-input
                 v-model="form.telefono"
@@ -133,10 +152,11 @@ interface Usuario {
   nombre: string;
   username: string;
   password?: string;
+  nip?: string;
   rol_id: number | null;
   nombre_rol?: string;
-  nombre_sede?: string; // Para mostrar el nombre en la tabla
-  sede_id: number | null; // <--- NUEVO
+  nombre_sede?: string;
+  sede_id: number | null;
   firma?: string;
   departamento?: string;
   telefono?: string;
@@ -156,11 +176,47 @@ const rolesOptions = computed(() =>
 const loading = ref(false);
 const modal = ref(false);
 
+// Firma de imagen
+const firmaInput = ref<HTMLInputElement | null>(null);
+const firmaCanvas = ref<HTMLCanvasElement | null>(null);
+
+function triggerFirmaInput() {
+  firmaInput.value?.click();
+}
+
+function onFirmaChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = firmaCanvas.value!;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const brightness = (d[i]! + d[i + 1]! + d[i + 2]!) / 3;
+        if (brightness > 200) d[i + 3] = 0; // quitar fondo claro
+      }
+      ctx.putImageData(imageData, 0, 0);
+      form.value.firma = canvas.toDataURL('image/png');
+    };
+    img.src = ev.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+  (e.target as HTMLInputElement).value = '';
+}
+
 const initialForm: Usuario = {
   id: null,
   nombre: '',
   username: '',
   password: '',
+  nip: '',
   rol_id: null,
   sede_id: null,
   firma: '',
@@ -283,10 +339,13 @@ async function guardar() {
     loading.value = true;
     if (form.value.id) {
       await api.put(`/api/usuarios/${form.value.id}`, form.value);
+      if (form.value.nip && form.value.nip.length >= 4) {
+        await api.post(`/api/usuarios/${form.value.id}/nip`, { nip: form.value.nip });
+      }
       Notify.create({ type: 'positive', message: 'Usuario actualizado' });
     } else {
       await api.post('/api/usuarios', form.value);
-      Notify.create({ type: 'positive', message: 'Usuario creado' });
+      Notify.create({ type: 'positive', message: 'Usuario creado. El usuario debe configurar su NIP de firma desde la edición.' });
     }
     modal.value = false;
     await cargarData();

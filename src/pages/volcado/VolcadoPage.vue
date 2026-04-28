@@ -53,7 +53,7 @@
       <div class="col-12 col-sm-6 col-md-3">
         <q-card bordered flat class="bg-purple-1 border-purple">
           <q-card-section class="q-py-sm">
-            <div class="text-caption text-purple-9 text-weight-medium">Total Toneladas</div>
+            <div class="text-caption text-purple-9 text-weight-medium">Total Bruto</div>
             <div class="text-h4 text-weight-bold text-purple-9">
               {{ formatNumber(resumen.totalToneladas) }}
             </div>

@@ -142,11 +142,6 @@
             {{ seccionActiva.nombre }} &mdash; {{ seccionActiva.codigo }}
           </div>
         </div>
-        <!-- Botón Imprimir (oculto al imprimir) -->
-        <q-btn unelevated icon="print" label="Imprimir"
-          class="no-print"
-          style="background:#1a2233; color:#fff; border-radius:8px; flex-shrink:0"
-          @click="imprimirBitacora" />
       </div>
 
       <!-- Sin columnas definidas -->
@@ -168,6 +163,21 @@
 
           <!-- Barra superior: buscador -->
           <div class="row items-center q-pa-md q-gutter-sm no-print">
+            <!-- Mientras verifica si ya existe documento: spinner neutral -->
+            <q-btn v-if="verificandoDocumento" flat dense loading
+              style="min-width:110px; border-radius:8px" color="grey-6" />
+
+            <!-- No existe documento en el período → permitir generar -->
+            <q-btn v-else-if="!documentoActivo" unelevated icon="description" label="Generar"
+              style="background:#2e7d32; color:#fff; border-radius:8px"
+              :loading="generando"
+              @click="generarDocumento" />
+
+            <!-- Ya existe documento → solo "Ver Documento" -->
+            <q-btn v-else unelevated icon="visibility" label="Ver Documento"
+              style="background:#1565c0; color:#fff; border-radius:8px"
+              :loading="generando"
+              @click="generarDocumento" />
             <q-space />
             <q-input v-model="buscar" dense outlined placeholder="Buscar..."
               style="min-width:220px; max-width:300px" clearable>
@@ -246,7 +256,7 @@
                       <span v-else class="text-grey-4">—</span>
                     </template>
 
-                    <!-- Texto / observaciones -->
+                    <!-- Texto / observaciones (cont.) -->
                     <template v-else>
                       <span v-if="row.datos[col.campo]"
                         :class="col.campo === 'observaciones' ? 'text-grey-6 text-italic' : ''">
@@ -256,6 +266,7 @@
                     </template>
 
                   </td>
+
                 </tr>
 
                 <!-- Fila de totales -->
@@ -360,17 +371,184 @@
       </q-card>
     </q-dialog>
 
+    <!-- ══════════════════════════════════════════════════
+         MODAL — Documento oficial con Firmas de Control
+    ═══════════════════════════════════════════════════ -->
+    <q-dialog v-model="modalDocumento" maximized transition-show="slide-up">
+      <q-card>
+        <q-bar class="bg-grey-2 q-pa-sm">
+          <q-btn flat round dense icon="close" @click="modalDocumento = false" />
+          <span class="text-subtitle2 q-ml-sm">{{ bitacoraActiva?.nombre }} — {{ hoyStr }}</span>
+          <q-space />
+          <q-badge :color="colorStatus">
+            {{ etiquetaStatus }}
+          </q-badge>
+          <q-btn
+            v-if="!documentoTotalmenteFirmado"
+            flat dense icon="restart_alt" color="negative" class="q-ml-sm"
+            :loading="reiniciando"
+            @click="reiniciarDocumento"
+          >
+            <q-tooltip>Reiniciar documento (sin firmas completadas)</q-tooltip>
+          </q-btn>
+          <q-btn
+            flat dense icon="print" class="q-ml-sm"
+            :color="documentoTotalmenteFirmado ? '' : 'grey-5'"
+            :disable="!documentoTotalmenteFirmado"
+            @click="imprimirDocumento"
+          >
+            <q-tooltip v-if="!documentoTotalmenteFirmado">
+              Faltan firmas por completar
+            </q-tooltip>
+          </q-btn>
+        </q-bar>
+
+        <div class="documento-cuerpo q-pa-lg">
+          <!-- Encabezado oficial -->
+          <table class="encabezado-oficial" width="100%">
+            <tr>
+              <td width="120">
+                <img
+                  :src="configSistema.logo_url || '/img/logo-alazan.png'"
+                  height="60"
+                  style="object-fit: contain; max-width: 110px"
+                />
+              </td>
+              <td class="text-center">
+                <div class="text-weight-bold">
+                  {{ configSistema.nombre_empresa || 'BODEGA DE GRANOS EL ALAZAN Y EL ROCIO S.A. DE C.V.' }}
+                </div>
+                <div v-if="configSistema.rfc" class="text-caption">RFC: {{ configSistema.rfc }}</div>
+                <div class="text-h6 q-mt-xs">{{ bitacoraActiva?.nombre }}</div>
+              </td>
+              <td width="160" class="text-caption text-right">
+                Código: {{ bitacoraActiva?.codigo }}<br/>
+                Fecha: {{ hoyStr }}
+              </td>
+            </tr>
+          </table>
+
+          <!-- Tabla de datos -->
+          <table class="tabla-bitacora q-mt-md" width="100%">
+            <thead>
+              <tr>
+                <th v-for="col in columnasDocumento" :key="col.campo">{{ col.label }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(fila, idx) in filasDocumento" :key="idx">
+                <td v-for="col in columnasDocumento" :key="col.campo">
+                  {{ fila[col.campo] ?? '' }}
+                </td>
+              </tr>
+              <tr v-if="!filasDocumento.length">
+                <td :colspan="columnasDocumento.length" class="text-center text-grey-5 q-pa-md">
+                  Sin registros para hoy
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Firmas de Control -->
+          <table class="tabla-firmas q-mt-lg" width="100%">
+            <thead>
+              <tr class="bg-grey-3">
+                <th colspan="4" class="text-center">Firmas de Control</th>
+              </tr>
+              <tr>
+                <th>Puesto / Área</th>
+                <th>Fecha</th>
+                <th>Nombre</th>
+                <th>Firma</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="firma in firmasDocumento" :key="firma.id">
+                <td>{{ firma.etiqueta }}</td>
+                <td>{{ firma.firmadoEn ? formatFecha(firma.firmadoEn) : '' }}</td>
+                <td>{{ firma.nombreFirmante ?? '' }}</td>
+                <td>
+                  <template v-if="firma.usuarioId">
+                    <div style="text-align:center">
+                      <img v-if="firma.firmaTexto && firma.firmaTexto.startsWith('data:')"
+                        :src="firma.firmaTexto" style="max-height:80px; max-width:160px; display:block; margin:0 auto" />
+                      <span v-else class="text-positive text-caption row items-center justify-center q-gutter-xs">
+                        <q-icon name="check_circle" size="16px" />
+                        <span>{{ firma.firmaTexto || firma.nombreFirmante }}</span>
+                      </span>
+                    </div>
+                  </template>
+                  <q-btn v-else-if="puedeYoFirmar(firma)"
+                    unelevated dense color="positive" icon="draw" label="Firmar"
+                    @click="abrirDialogoFirmar(firma)" />
+                  <span v-else-if="esperandoOrden(firma)" class="text-orange-8 text-caption row items-center q-gutter-xs">
+                    <q-icon name="hourglass_top" size="14px" />
+                    <span>Espera firma anterior</span>
+                  </span>
+                  <span v-else class="text-grey-5 text-caption">Pendiente</span>
+                </td>
+              </tr>
+              <tr v-if="!firmasDocumento.length">
+                <td colspan="4" class="text-center text-grey-5 q-pa-sm">Sin slots de firma configurados</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </q-card>
+    </q-dialog>
+
+    <!-- ══════════════════════════════════════════════════
+         DIÁLOGO — Confirmar firma con NIP
+    ═══════════════════════════════════════════════════ -->
+    <q-dialog v-model="modalNip" persistent>
+      <q-card style="min-width:280px">
+        <q-card-section class="text-subtitle2">Confirmar firma con NIP</q-card-section>
+        <q-card-section>
+          <q-input v-model="nipInput" type="password" label="NIP" dense outlined
+            inputmode="numeric" maxlength="6" autofocus
+            :error="!!nipError" :error-message="nipError"
+            @keyup.enter="confirmarFirma" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" @click="modalNip = false" />
+          <q-btn unelevated color="positive" label="Confirmar"
+            :loading="firmandoNip" @click="confirmarFirma" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { useNotificacionesStore } from 'src/stores/notificacionesStore';
+import { useRoute } from 'vue-router';
 
-const authStore = useAuthStore();
+const authStore  = useAuthStore();
+const notifStore = useNotificacionesStore();
+const route = useRoute();
 const sedeId = computed(() => authStore.sedeActivaId ?? 0);
+
+const configSistema = ref({ nombre_empresa: '', rfc: '', logo_url: '' });
+
+async function cargarConfigSistema() {
+  try {
+    const { data } = await api.get('/api/configuracion', { params: { sedeId: sedeId.value } });
+    configSistema.value = {
+      nombre_empresa: data.nombre_empresa || '',
+      rfc: data.rfc || '',
+      logo_url: data.logo_url || '',
+    };
+  } catch {
+    // usa valores vacíos, el template usa fallbacks
+  }
+}
+
+watch(sedeId, () => void cargarConfigSistema());
 
 // ── Interfaces ────────────────────────────────────────────────
 interface ColumnaDef {
@@ -398,6 +576,7 @@ interface SeccionDef {
   bitacoras: BitacoraDef[];
   totalBitacoras?: number;
   pendiente?: number;
+  rolesAcceso?: string | null;
 }
 
 interface BitacoraRegistro {
@@ -408,6 +587,17 @@ interface BitacoraRegistro {
   status: string;
   datos: Record<string, unknown>;
   sedeId: number;
+}
+
+interface FirmaDoc {
+  id: number;
+  rolRequerido: string;
+  etiqueta: string;
+  orden: number;
+  usuarioId: number | null;
+  nombreFirmante: string | null;
+  firmaTexto: string | null;
+  firmadoEn: string | null;
 }
 
 // ── Estado de secciones (cargado desde API) ───────────────────
@@ -495,14 +685,207 @@ const pesoNetoTotal = computed(() => {
   return sumarCol('peso_neto');
 });
 
-function imprimirBitacora() {
+// ── Modales ───────────────────────────────────────────────────
+const modalNuevo        = ref(false);
+const nuevoForm         = ref<Record<string, string>>({});
+const guardandoRegistro = ref(false);
+
+// ── Documento oficial (modal Generar) ─────────────────────────
+const modalDocumento    = ref(false);
+const documentoActivo   = ref<{ id: number; status: string } | null>(null);
+const filasDocumento    = ref<Record<string, unknown>[]>([]);
+const columnasDocumento = ref<ColumnaDef[]>([]);
+const firmasDocumento   = ref<FirmaDoc[]>([]);
+
+// NIP dialog
+const modalNip           = ref(false);
+const nipInput           = ref('');
+const nipError           = ref('');
+const firmandoNip        = ref(false);
+const firmaSlotPendiente = ref<FirmaDoc | null>(null);
+
+const hoyStr = computed(() => {
+  const d = new Date();
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+});
+
+const firmasCompletadas = computed(() =>
+  firmasDocumento.value.filter(f => !!f.usuarioId || !!f.firmaTexto).length
+);
+
+const documentoTotalmenteFirmado = computed(() => {
+  if (firmasDocumento.value.length === 0) return true;
+  return firmasCompletadas.value === firmasDocumento.value.length;
+});
+
+const etiquetaStatus = computed(() => {
+  const total = firmasDocumento.value.length;
+  if (total === 0) return documentoActivo.value?.status ?? '';
+  const done = firmasCompletadas.value;
+  if (done === 0) return 'Pendiente';
+  if (done === total) return 'Firmado';
+  return `Firmado ${done}/${total}`;
+});
+
+const colorStatus = computed(() => {
+  const total = firmasDocumento.value.length;
+  if (total === 0 || firmasCompletadas.value === 0) return 'grey-6';
+  if (firmasCompletadas.value === total) return 'positive';
+  return 'orange-8';
+});
+
+function imprimirDocumento() {
+  if (!documentoTotalmenteFirmado.value) {
+    Notify.create({
+      type: 'warning',
+      icon: 'draw',
+      message: 'El documento no puede imprimirse hasta que todas las firmas estén completadas.',
+      timeout: 4000,
+    });
+    return;
+  }
   window.print();
 }
 
-// ── Modales ───────────────────────────────────────────────────
-const modalNuevo      = ref(false);
-const nuevoForm       = ref<Record<string, string>>({});
-const guardandoRegistro = ref(false);
+async function generarDocumento() {
+  if (!bitacoraActiva.value) return;
+  generando.value = true;
+  try {
+    const res = await api.post('/api/bitacoras/documentos/generar', {
+      codigoBitacora: bitacoraActiva.value.codigo,
+      sedeId: sedeId.value,
+      fecha: new Date().toISOString().substring(0, 10),
+    });
+    documentoActivo.value   = { id: res.data.documentoId as number, status: res.data.status as string };
+    filasDocumento.value    = Array.isArray(res.data.filas)    ? res.data.filas    : [];
+    columnasDocumento.value = Array.isArray(res.data.columnas) ? res.data.columnas : [];
+    firmasDocumento.value   = Array.isArray(res.data.firmas)   ? res.data.firmas   : [];
+    modalDocumento.value = true;
+
+    // Notificar al usuario si tiene firmas pendientes por completar
+    const misFirmasPendientes = firmasDocumento.value.filter(f => puedeYoFirmar(f));
+    if (misFirmasPendientes.length > 0) {
+      Notify.create({
+        type: 'info',
+        icon: 'draw',
+        message: `Tienes ${misFirmasPendientes.length === 1 ? 'una firma pendiente' : `${misFirmasPendientes.length} firmas pendientes`} en este documento.`,
+        timeout: 5000,
+      });
+    }
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al generar el documento' });
+  } finally {
+    generando.value = false;
+  }
+}
+
+function abrirDialogoFirmar(firma: FirmaDoc) {
+  firmaSlotPendiente.value = firma;
+  nipInput.value = '';
+  nipError.value = '';
+  modalNip.value = true;
+}
+
+async function confirmarFirma() {
+  if (!nipInput.value || !documentoActivo.value) return;
+  firmandoNip.value = true;
+  nipError.value = '';
+  try {
+    const res = await api.post(
+      `/api/bitacoras/documentos/${documentoActivo.value.id}/firmar`,
+      { nip: nipInput.value },
+    );
+    firmasDocumento.value = Array.isArray(res.data.firmas) ? res.data.firmas : [];
+    if (res.data.status) documentoActivo.value.status = res.data.status as string;
+    modalNip.value = false;
+    notifStore.disparar(); // actualiza campana en tiempo real
+  } catch (err: unknown) {
+    nipError.value = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'NIP incorrecto';
+  } finally {
+    firmandoNip.value = false;
+  }
+}
+
+function rolCoincide(firma: FirmaDoc): boolean {
+  const userRol = authStore.user?.nombre_rol?.toLowerCase();
+  if (!userRol) return false;
+  const rolReq = firma.rolRequerido?.toLowerCase();
+  return userRol === rolReq || userRol.startsWith(rolReq + '_');
+}
+
+function puedeYoFirmar(firma: FirmaDoc): boolean {
+  if (firma.usuarioId) return false;                   // ya firmado
+  if (!rolCoincide(firma)) return false;               // rol no coincide
+  // Respetar orden: todos los slots con orden menor deben estar firmados
+  const prevPendientes = firmasDocumento.value.filter(
+    f => f.orden < firma.orden && !f.usuarioId && !f.firmaTexto
+  );
+  return prevPendientes.length === 0;
+}
+
+// True cuando el rol del usuario coincide pero debe esperar una firma anterior
+function esperandoOrden(firma: FirmaDoc): boolean {
+  if (firma.firmaTexto || firma.usuarioId) return false;
+  if (!rolCoincide(firma)) return false;
+  return firmasDocumento.value.some(f => f.orden < firma.orden && !f.usuarioId && !f.firmaTexto);
+}
+
+const generando            = ref(false);
+const reiniciando          = ref(false);
+const verificandoDocumento = ref(false);
+
+async function reiniciarDocumento() {
+  if (!documentoActivo.value) return;
+  reiniciando.value = true;
+  try {
+    await api.delete(`/api/bitacoras/documentos/${documentoActivo.value.id}`);
+    modalDocumento.value  = false;
+    documentoActivo.value = null;
+    filasDocumento.value    = [];
+    columnasDocumento.value = [];
+    firmasDocumento.value   = [];
+    Notify.create({ type: 'positive', message: 'Documento reiniciado — puedes generar de nuevo', timeout: 3000 });
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al reiniciar';
+    Notify.create({ type: 'negative', message: msg });
+  } finally {
+    reiniciando.value = false;
+  }
+}
+
+// ── Filtrado de secciones por rol ─────────────────────────────
+
+// Quita acentos para comparar "Báscula" == "bascula"
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/\p{Mn}/gu, '');
+}
+
+// Si la BD no tiene roles_acceso configurado, lo inferimos por el nombre de la sección.
+function inferirRolesAcceso(sec: SeccionDef): string | null {
+  const t = norm(sec.nombre + ' ' + sec.codigo);
+  if (t.includes('bascula') || t.includes('recepcion')) return 'bascula';
+  if (t.includes('volcado'))                             return 'volcado';
+  if (t.includes('produccion') || t.includes('proceso')) return 'produccion,proceso';
+  if (t.includes('almacen'))                             return 'almacen';
+  if (t.includes('despacho'))                            return 'despacho';
+  if (t.includes('inocuidad'))                           return 'inocuidad';
+  return null; // sin restricción conocida → visible a todos
+}
+
+function puedeVerSeccion(sec: SeccionDef): boolean {
+  if (authStore.esAdminGlobal) return true;
+  const userRol = authStore.user?.nombre_rol?.toLowerCase() ?? '';
+  if (!userRol) return true;
+  // Roles genéricos sin sufijo de área (GERENTE, SUPERVISOR, ADMIN…) ven todo.
+  if (!userRol.includes('_')) return true;
+
+  // Preferir valor de BD; si está vacío, usar inferencia por nombre.
+  const rolesAcceso = sec.rolesAcceso || inferirRolesAcceso(sec);
+  if (!rolesAcceso) return true; // sección sin restricción detectada
+
+  const prefijos = rolesAcceso.split(',').map(r => norm(r.trim())).filter(Boolean);
+  return prefijos.some(p => norm(userRol).includes(p));
+}
 
 // ── API — Secciones ───────────────────────────────────────────
 async function cargarSecciones() {
@@ -510,13 +893,25 @@ async function cargarSecciones() {
     const { data } = await api.get<SeccionDef[]>('/api/bitacoras/secciones', {
       params: { sedeId: sedeId.value },
     });
-    secciones.value = (Array.isArray(data) ? data : []).map(s => ({
-      ...s,
-      bitacoras: [],   // se cargan lazy al entrar a la sección
-    }));
+    secciones.value = (Array.isArray(data) ? data : [])
+      .filter(s => puedeVerSeccion(s))
+      .map(s => ({ ...s, bitacoras: [] }));
   } catch {
     Notify.create({ type: 'negative', message: 'Error al cargar secciones' });
   }
+}
+
+// ── Navegación desde notificación (query params: ?doc=X&sec=Y&bit=Z) ──
+async function navegarDesdeNotificacion(secCodigo: string, bitCodigo: string) {
+  const sec = secciones.value.find(s => s.codigo === secCodigo);
+  if (!sec) return;
+  await entrarSeccion(sec);
+  const bit = seccionActiva.value?.bitacoras.find(b => b.codigo === bitCodigo);
+  if (!bit) return;
+  await entrarBitacora(bit);
+  // generarDocumento llama al POST find-or-create que devuelve filas, columnas y firmas.
+  // Así el modal abre con todos los datos aunque el documento ya existía.
+  await generarDocumento();
 }
 
 // ── Navegación ────────────────────────────────────────────────
@@ -545,6 +940,10 @@ async function entrarBitacora(bit: BitacoraDef) {
   registros.value = [];
   buscar.value = '';
   filtroStatus.value = '';
+  documentoActivo.value = null;
+  filasDocumento.value = [];
+  columnasDocumento.value = [];
+  firmasDocumento.value = [];
   nivel.value = 3;
 
   // Cargar columnas desde la API
@@ -556,7 +955,27 @@ async function entrarBitacora(bit: BitacoraDef) {
     bitacoraActiva.value = { ...bit, columnas: null };
   }
 
-  if (bitacoraActiva.value?.columnas) await cargarRegistros(bit.codigo);
+  if (bitacoraActiva.value?.columnas) {
+    await cargarRegistros(bit.codigo);
+    await verificarDocumentoHoy(bit.codigo);
+  }
+}
+
+async function verificarDocumentoHoy(codigo: string) {
+  verificandoDocumento.value = true;
+  try {
+    const { data } = await api.get('/api/bitacoras/documentos', {
+      params: { codigoBitacora: codigo, sedeId: sedeId.value },
+    });
+    if (data && data.documento) {
+      documentoActivo.value = { id: data.documento.id as number, status: data.documento.status as string };
+      firmasDocumento.value = Array.isArray(data.firmas) ? data.firmas : [];
+    }
+  } catch {
+    // no hay documento en este período, es normal
+  } finally {
+    verificandoDocumento.value = false;
+  }
 }
 
 // ── API — Registros ───────────────────────────────────────────
@@ -598,7 +1017,27 @@ async function guardarRegistro() {
 
 
 
-onMounted(() => void cargarSecciones());
+onMounted(async () => {
+  await cargarSecciones();
+  void cargarConfigSistema();
+
+  const { doc, sec, bit } = route.query;
+  if (doc && sec && bit) {
+    await navegarDesdeNotificacion(String(sec), String(bit));
+  }
+});
+
+// Cuando ya estás en /bitacoras y llega una notificación, el componente no
+// se vuelve a montar — solo cambian los query params. Este watch lo detecta.
+watch(
+  () => route.query,
+  async (q) => {
+    const { doc, sec, bit } = q;
+    if (doc && sec && bit) {
+      await navegarDesdeNotificacion(String(sec), String(bit));
+    }
+  }
+);
 
 </script>
 
@@ -791,6 +1230,30 @@ onMounted(() => void cargarSecciones());
 /* ── Detalle modal ───────────────────────────────────────── */
 .bit-det-label { font-size: 11px; font-weight: 700; letter-spacing: .6px; color: #9e9e9e; margin-bottom: 4px; }
 .bit-det-value { font-size: 14px; color: #424242; }
+
+/* ── Modal documento oficial ─────────────────────────────── */
+.encabezado-oficial td { vertical-align: middle; }
+
+.tabla-bitacora,
+.tabla-firmas {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.tabla-bitacora th,
+.tabla-bitacora td,
+.tabla-firmas th,
+.tabla-firmas td {
+  border: 1px solid #bbb;
+  padding: 4px 8px;
+}
+.tabla-bitacora thead tr {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+.tabla-firmas thead tr:first-child th {
+  background: #eeeeee;
+  font-weight: 700;
+}
 </style>
 
 <!-- Estilos globales de impresión (sin scoped para afectar el layout de Quasar) -->
@@ -898,5 +1361,10 @@ onMounted(() => void cargarSecciones());
   /* ── Evitar cortes de fila ─────────────────────────────── */
   .bit-tr      { page-break-inside: avoid; }
   .bit-tr-totals { page-break-inside: avoid; }
+
+  /* ── Modal documento (cuando se imprime desde él) ─────── */
+  .q-bar { display: none !important; }
+  .documento-cuerpo { padding: 0 !important; }
+  .tabla-bitacora, .tabla-firmas { font-size: 9px !important; }
 }
 </style>

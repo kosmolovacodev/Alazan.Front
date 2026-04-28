@@ -278,46 +278,6 @@
                   />
                 </div>
 
-                <!-- Calidad Visual -->
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="analisisData.color_apariencia"
-                    label="Color / Apariencia"
-                    outlined dense
-                    placeholder="Ej: Amarillo uniforme"
-                    :readonly="!esEditable"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model="analisisData.olor"
-                    label="Olor"
-                    outlined dense
-                    placeholder="Normal"
-                    :readonly="!esEditable"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-caption text-grey-6 q-mb-xs">Infestación / Moho</div>
-                  <div class="row q-gutter-sm">
-                    <q-btn
-                      :outline="analisisData.infestacion_moho !== 'N'"
-                      :unelevated="analisisData.infestacion_moho === 'N'"
-                      :color="analisisData.infestacion_moho === 'N' ? 'positive' : 'grey-4'"
-                      label="N" size="sm"
-                      :disable="!esEditable"
-                      @click="analisisData.infestacion_moho = 'N'"
-                    />
-                    <q-btn
-                      :outline="analisisData.infestacion_moho !== 'S'"
-                      :unelevated="analisisData.infestacion_moho === 'S'"
-                      :color="analisisData.infestacion_moho === 'S' ? 'negative' : 'grey-4'"
-                      label="S" size="sm"
-                      :disable="!esEditable"
-                      @click="analisisData.infestacion_moho = 'S'"
-                    />
-                  </div>
-                </div>
               </div>
             </q-card-section>
           </q-card>
@@ -452,6 +412,7 @@ interface CampoAnalisisConfig {
   granoId: number | null;
   tipoDato?: string;
   afectaExportacion?: boolean;
+  opciones?: string | null;
 }
 
 interface RegistroBascula {
@@ -510,9 +471,6 @@ interface AnalisisData {
   sumaR2: number;
   totalDanosNum: number;
   exportacion: number;
-  color_apariencia: string;
-  infestacion_moho: string;   // 'S' | 'N'
-  olor: string;
 }
 
 // --- Props & Emits ---
@@ -616,6 +574,8 @@ const camposExtras = computed(() => {
       clave: c.claveCampo,
       label: c.nombreMostrar,
       valor: datosPersonalizados.value[c.claveCampo] ?? '',
+      tipoDato: c.tipoDato ?? 'texto',
+      opciones: c.opciones ?? '',
     }));
 
   // Claves ya mostradas (config + descuentos) para evitar duplicados
@@ -635,6 +595,8 @@ const camposExtras = computed(() => {
       clave,
       label: clave.toUpperCase().replace(/_/g, ' '),
       valor: String(valor),
+      tipoDato: 'texto',
+      opciones: '',
     }));
 
   return [...fromConfig, ...fromSaved];
@@ -750,9 +712,6 @@ const analisisData = reactive<AnalisisData>({
   sumaR2: 0,
   totalDanosNum: 0,
   exportacion: 0,
-  color_apariencia: '',
-  infestacion_moho: 'N',
-  olor: 'Normal',
 });
 
 async function cargarCalibres(granoId?: number) {
@@ -890,14 +849,8 @@ watch(
         // Cargar datos de frijol si existen
         frijolData.value = Array.isArray(extra.frijol_datos) ? extra.frijol_datos : [];
 
-        // Campos de inocuidad / calidad visual
-        analisisData.color_apariencia = extra.color_apariencia || '';
-        analisisData.infestacion_moho = extra.infestacion_moho || 'N';
-        analisisData.olor             = extra.olor             || 'Normal';
-
         // Cargar campos personalizados (cualquier clave que no sea de las reservadas del núcleo)
-        const reservadas = new Set(['exportacion', 'cafes_lisos', 'helados', 'alimonados', 'revolcados', 'fotos', 'frijol_datos', 'germinados',
-          'color_apariencia', 'infestacion_moho', 'olor']);
+        const reservadas = new Set(['exportacion', 'cafes_lisos', 'helados', 'alimonados', 'revolcados', 'fotos', 'frijol_datos', 'germinados']);
         datosPersonalizados.value = {};
         for (const key of Object.keys(extra)) {
           if (!reservadas.has(key)) datosPersonalizados.value[key] = String(extra[key] ?? '');
@@ -910,14 +863,11 @@ watch(
       }
     } else {
       // Si no hay análisis previo, aseguramos que los campos calculados inicien limpios
-      analisisData.cafesLisos      = '';
-      analisisData.helados         = '';
-      analisisData.alimonados      = '';
-      analisisData.revolcados      = '';
-      analisisData.germinados      = '';
-      analisisData.color_apariencia = '';
-      analisisData.infestacion_moho = 'N';
-      analisisData.olor             = 'Normal';
+      analisisData.cafesLisos   = '';
+      analisisData.helados      = '';
+      analisisData.alimonados   = '';
+      analisisData.revolcados   = '';
+      analisisData.germinados   = '';
       uploadedPhotos.value = [];
       frijolData.value = [];
       datosPersonalizados.value = {};
@@ -978,10 +928,7 @@ function limpiarFormulario() {
   analisisData.helados          = '';
   analisisData.alimonados       = '';
   analisisData.revolcados       = '';
-  analisisData.germinados       = '';
-  analisisData.color_apariencia = '';
-  analisisData.infestacion_moho = 'N';
-  analisisData.olor             = 'Normal';
+  analisisData.germinados = '';
 
   // Limpiar el array de fotos, datos de frijol y campos personalizados
   uploadedPhotos.value = [];
@@ -1164,9 +1111,6 @@ async function guardar() {
       alimonados: num(analisisData.alimonados),
       revolcados: num(analisisData.revolcados),
       germinados: num(analisisData.germinados),
-      color_apariencia: analisisData.color_apariencia || '',
-      infestacion_moho: analisisData.infestacion_moho || 'N',
-      olor:             analisisData.olor             || 'Normal',
       fotos: uploadedPhotos.value,
       ...(r.grano_id === 1 && frijolData.value.length > 0
         ? { frijol_datos: frijolData.value }

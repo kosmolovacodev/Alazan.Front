@@ -59,7 +59,7 @@
         <div class="col-12 col-sm-6 col-md-3">
           <q-card bordered flat class="bg-purple-1 border-purple">
             <q-card-section class="q-py-sm">
-              <div class="text-caption text-purple-9 text-weight-medium">Total Toneladas</div>
+              <div class="text-caption text-purple-9 text-weight-medium">Total Neto</div>
               <div class="text-h4 text-weight-bold text-purple-9">
                 {{ fmtNum(resumen.totalToneladas) }}
               </div>
@@ -602,18 +602,43 @@
         </div>
         <div class="row q-gutter-sm">
           <q-btn flat round icon="print" size="lg" @click="imprimirPantalla" />
-          <q-btn flat round icon="download" size="lg" />
+          <q-btn flat round icon="download" size="lg" :loading="descargandoPDF" @click="descargarPreliquidacion" />
         </div>
       </div>
 
-      <q-card id="preliquidacion-print-area" bordered flat class="q-pa-lg" style="max-width: 900px; margin: 0 auto">
-        <!-- Header naranja -->
-        <div class="bg-orange-7 text-white text-center q-pa-md rounded-borders q-mb-lg">
-          <div class="text-h4 text-weight-bold">Pre-Liquidación</div>
-          <div v-if="preliquidacionDocumentos.length > 1" class="text-body2 q-mt-xs">
-            Documento {{ docActualIdx + 1 }} de {{ preliquidacionDocumentos.length }}
+      <q-card id="preliquidacion-print-area" bordered flat style="max-width: 900px; margin: 0 auto">
+        <!-- Header profesional -->
+        <div style="border-bottom: 2px solid #1a1a1a; padding: 10px 20px">
+          <div class="row items-start">
+            <div class="col">
+              <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; line-height: 1.4">
+                {{ configSistema.nombre_empresa || 'BODEGA DE GRANOS EL ALAZÁN Y EL ROCÍO S.A. DE C.V.' }}
+              </div>
+              <div style="font-size: 11px; margin-top: 2px">RFC: {{ configSistema.rfc || '—' }}</div>
+              <div style="font-size: 11px">SUCURSAL: {{ authStore.nombreSedeActiva }}</div>
+              <div style="font-size: 10px; color: #b91c1c; font-weight: 600; margin-top: 6px">
+                *NOTA: EL PRECIO A LIQUIDAR ES EL ESTIPULADO EN ESTA BOLETA.
+              </div>
+            </div>
+            <div class="col-auto" style="text-align: right; min-width: 130px">
+              <img
+                v-if="configSistema.logo_url"
+                :src="configSistema.logo_url"
+                style="max-width: 120px; max-height: 70px; object-fit: contain; margin-left: auto; display: block"
+              />
+              <div style="font-size: 17px; font-weight: 700; margin-top: 4px">PRE-LIQUIDACIÓN</div>
+              <div v-if="preliquidacionDocumentos.length > 1" style="font-size: 10px; color: #555">
+                Documento {{ docActualIdx + 1 }} de {{ preliquidacionDocumentos.length }}
+              </div>
+              <div class="no-print row q-gutter-xs justify-end q-mt-xs">
+                <q-btn flat dense icon="print" size="xs" color="primary" @click="imprimirPantalla">
+                  <q-tooltip>Imprimir</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
           </div>
         </div>
+        <div class="q-pa-lg">
 
         <!-- Fila de Boleta / Ticket -->
         <div
@@ -682,9 +707,9 @@
           </div>
           <ol class="text-body2" style="line-height: 2">
             <li>Identificación oficial (INE)</li>
-            <li>Constancia de situación fiscal Actualizado (Con vigencia no mayor a 30 días)</li>
-            <li>Opinión de cumplimiento 32D (Positivo, Con vigencia no mayor a 30 días)</li>
-            <li>Carátula bancaria (Con vigencia no mayor a 30 días)</li>
+            <li>Documento fiscal Actualizado (Con vigencia no mayor a 90 días)</li>
+            <li>Opinión de cumplimiento 32D (Positivo, Con vigencia no mayor a 90 días)</li>
+            <li>Carátula bancaria (Con vigencia no mayor a 90 días)</li>
             <li>Correo electrónico para envío de liquidación</li>
             <li>Nombre y teléfono del contador</li>
             <li>Nombre y teléfono del productor</li>
@@ -717,6 +742,7 @@
             @click="handleGuardarPreliquidacion"
           />
         </div>
+        </div><!-- /q-pa-lg -->
       </q-card>
     </template>
 
@@ -739,141 +765,97 @@
       </q-banner>
 
       <q-card id="boleta-print-area" bordered flat style="max-width: 900px; margin: 0 auto">
-        <!-- Header verde -->
-        <q-card-section class="bg-green-7 text-white text-center">
-          <div class="text-h5 text-weight-bold">BOLETA</div>
-          <div class="text-caption">Precio aceptado por productor</div>
-        </q-card-section>
-
-        <!-- Iconos imprimir/descargar -->
-        <div class="row justify-end q-pa-sm q-gutter-sm no-print">
-          <q-btn flat round icon="print" @click="imprimir" />
-          <q-btn flat round icon="download" />
+        <!-- Header profesional -->
+        <div style="border-bottom: 2px solid #1a1a1a; padding: 10px 16px">
+          <div class="row items-start">
+            <div class="col">
+              <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; line-height: 1.4">
+                {{ configSistema.nombre_empresa || 'BODEGA DE GRANOS EL ALAZÁN Y EL ROCÍO S.A. DE C.V.' }}
+              </div>
+              <div style="font-size: 11px; margin-top: 2px">RFC: {{ configSistema.rfc || '—' }}</div>
+              <div style="font-size: 11px">SUCURSAL: {{ authStore.nombreSedeActiva }}</div>
+              <div style="font-size: 10px; color: #b91c1c; font-weight: 600; margin-top: 6px">
+                *NOTA: EL PRECIO A LIQUIDAR ES EL ESTIPULADO EN ESTA BOLETA.
+              </div>
+            </div>
+            <div class="col-auto" style="text-align: right; min-width: 130px">
+              <img
+                v-if="configSistema.logo_url"
+                :src="configSistema.logo_url"
+                style="max-width: 120px; max-height: 70px; object-fit: contain; margin-left: auto; display: block"
+              />
+              <div style="font-size: 17px; font-weight: 700; margin-top: 4px">BOLETA</div>
+              <div class="no-print row q-gutter-xs justify-end q-mt-xs">
+                <q-btn flat dense icon="print" size="xs" color="primary" @click="imprimir">
+                  <q-tooltip>Imprimir</q-tooltip>
+                </q-btn>
+                <q-btn flat dense icon="download" size="xs" color="primary"
+                  :loading="descargandoPDF" @click="descargar">
+                  <q-tooltip>Descargar PDF</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
+          </div>
         </div>
 
         <q-card-section>
-          <!-- Folio -->
-          <div class="row justify-end q-mb-md">
-            <q-input
-              :model-value="selectedRegistro.noBoleta"
-              label="FOLIO / BOLETA"
-              outlined
-              dense
-              readonly
-              bg-color="grey-2"
-              style="width: 250px"
-            />
-          </div>
-
-          <!-- Campos grid -->
-          <div class="row q-col-gutter-md q-mb-lg">
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.productor"
-                label="PRODUCTOR"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+          <!-- Datos de la Boleta — visibilidad controlada por configuración Boleta Grid -->
+          <div class="row q-col-gutter-sm">
+            <div v-if="campoBOLETAGridVisible('noBoleta')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">FOLIO / BOLETA</div>
+              <div class="text-weight-bold">{{ detalle.noBoleta || selectedRegistro.noBoleta }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.fecha"
-                label="FECHA Y HORA"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('productor')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">PRODUCTOR</div>
+              <div class="text-weight-bold">{{ detalle.productor || selectedRegistro.productor }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.telefono || '-'"
-                label="TELÉFONO"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('fecha')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">FECHA Y HORA</div>
+              <div class="text-weight-bold">{{ detalle.fecha || selectedRegistro.fecha }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.tProductor || '-'"
-                label="T. PRODUCTOR"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('telefono')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">TELÉFONO</div>
+              <div class="text-weight-bold">{{ detalle.telefono || selectedRegistro.telefono || 'N/A' }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.comprador || '-'"
-                label="COMPRADOR"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('comprador')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">COMPRADOR</div>
+              <div class="text-weight-bold">{{ detalle.comprador || selectedRegistro.comprador || 'N/A' }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="selectedRegistro.origen || '-'"
-                label="ORIGEN"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('origen')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">ORIGEN</div>
+              <div class="text-weight-bold">{{ detalle.origen || selectedRegistro.origen || 'N/A' }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="fmtMoney(detalle.precio || 0)"
-                label="PRECIO / KG"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('calibre')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">CALIBRE</div>
+              <div class="text-weight-bold text-blue-9">{{ detalle.calibre || '-' }}</div>
             </div>
-            <div class="col-6">
-              <q-input
-                :model-value="fmtNum(detalle.descuento) + ' kg/ton'"
-                label="DESCUENTO (KG/TON)"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('humedad')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">HUMEDAD</div>
+              <div class="text-weight-bold">{{ detalle.humedad || 0 }}%</div>
             </div>
-            <div v-if="campoPantallaVisible('calibre')" class="col-6">
-              <q-input
-                :model-value="detalle.calibre || '-'"
-                label="CALIBRE"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('precio')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">PRECIO / KG</div>
+              <div class="text-weight-bold text-green-9 text-h6">{{ fmtMoney(detalle.precio || 0) }}</div>
             </div>
-            <div v-if="campoPantallaVisible('humedad')" class="col-6">
-              <q-input
-                :model-value="(detalle.humedad || 0) + '%'"
-                label="HUMEDAD"
-                outlined
-                dense
-                readonly
-                bg-color="grey-2"
-              />
+            <div v-if="campoBOLETAGridVisible('pesoBruto')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">PESO BRUTO</div>
+              <div class="text-weight-bold">{{ fmtNum(detalle.pesoBruto || selectedRegistro.pesoBruto) }} kg</div>
+            </div>
+            <div v-if="campoBOLETAGridVisible('descuento')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">DESCUENTO (KG/TON)</div>
+              <div class="text-weight-bold">{{ Math.round(detalle.descuento || 0) }}</div>
+            </div>
+            <div v-if="campoBOLETAGridVisible('tonsAprox')" class="col-6 col-md-4">
+              <div class="text-caption text-grey-7">TON. APROX</div>
+              <div class="text-weight-bold">{{ detalle.tonsAprox || selectedRegistro.tonsAprox }}</div>
             </div>
           </div>
 
           <q-separator class="q-my-md" />
 
           <!-- Analisis de Calidad -->
-          <div class="text-subtitle2 text-weight-bold q-mb-sm">Resultados de Análisis</div>
-          <div class="q-mb-md">
+          <div class="analisis-calidad-print q-mb-md">
+            <div class="text-subtitle2 text-weight-bold q-mb-sm">ANALISIS DE CALIDAD</div>
             <TablaAnalisisDesplegable
               :tipo-grano-id="detalle.granoId || 0"
               :impurezas="detalle.impurezas || 0"
@@ -895,31 +877,15 @@
             />
 
             <!-- CAMPOS PERSONALIZADOS -->
-            <q-card
-              v-if="camposPersonalizadosVisibles.length > 0"
-              bordered
-              class="bg-white q-mt-sm"
-            >
+            <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
               <q-card-section class="q-gutter-sm">
                 <div
                   v-for="campo in camposPersonalizadosVisibles"
                   :key="campo.claveCampo"
                   class="row items-center justify-between"
                 >
-                  <div class="col text-body2 text-grey-8 text-weight-medium">
-                    {{ campo.nombreMostrar }}
-                  </div>
-                  <div class="col-auto">
-                    <q-input
-                      :model-value="datosPersonalizados[campo.claveCampo] || ''"
-                      dense
-                      outlined
-                      readonly
-                      bg-color="grey-2"
-                      input-class="text-right"
-                      style="width: 160px"
-                    />
-                  </div>
+                  <div class="col text-body2 text-grey-8 text-weight-medium">{{ campo.nombreMostrar }}</div>
+                  <div class="col-auto text-weight-bold">{{ datosPersonalizados[campo.claveCampo] || '-' }}</div>
                 </div>
               </q-card-section>
             </q-card>
@@ -930,22 +896,16 @@
           <!-- Firmas -->
           <div class="row q-col-gutter-md">
             <div class="col-4 text-center">
-              <div class="bg-grey-3 q-pa-md rounded-borders" style="min-height: 80px">
-                <q-icon name="draw" size="md" color="grey-5" />
-              </div>
-              <div class="text-caption text-grey-7 q-mt-xs">Analista</div>
+              <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">ANALISTA</div>
             </div>
             <div class="col-4 text-center">
-              <div class="bg-grey-3 q-pa-md rounded-borders" style="min-height: 80px">
-                <q-icon name="draw" size="md" color="grey-5" />
-              </div>
-              <div class="text-caption text-grey-7 q-mt-xs">Recepcionista</div>
+              <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">RECEPCIONISTA</div>
             </div>
             <div class="col-4 text-center">
-              <div class="bg-grey-3 q-pa-md rounded-borders" style="min-height: 80px">
-                <q-icon name="draw" size="md" color="grey-5" />
-              </div>
-              <div class="text-caption text-grey-7 q-mt-xs">Autorizó</div>
+              <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">AUTORIZACIÓN</div>
             </div>
           </div>
         </q-card-section>
@@ -1249,6 +1209,7 @@ import { useAuthStore } from 'src/stores/auth';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import type { QTableColumn } from 'quasar';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
+import { usePdfDescarga, boletaPrintCSS, buildPrintContent } from 'src/composables/usePdfDescarga';
 
 const guardandoDocumento = ref(false);
 // Esta variable ya la tienes, pero asegúrate que se actualice al terminar de guardar
@@ -1295,39 +1256,62 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const stream = ref<MediaStream | null>(null);
 
-function abrirVentanaImpresion(elementId: string, zoom = 0.65) {
+function abrirVentanaImpresion(elementId: string, zoom = 0.65, titulo = 'Boleta') {
   const el = document.getElementById(elementId);
   if (!el) return;
-  // URLs absolutas de <link> (funcionan en ventana nueva)
   const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
     .map((l) => `<link rel="stylesheet" href="${(l as HTMLLinkElement).href}">`)
     .join('');
-  // Estilos inline de Vite dev (contienen Quasar, íconos, etc.)
   const styleTags = Array.from(document.querySelectorAll('style'))
-    .map((s) => s.outerHTML)
-    .join('');
+    .map((s) => s.outerHTML).join('');
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.documentElement.innerHTML = `
-<head>
+  win.document.documentElement.innerHTML = `<head>
   <meta charset="utf-8">
+  <title>${titulo}</title>
   ${linkTags}
   ${styleTags}
-  <style>
-    @page { size: A4 portrait; margin: 8mm; }
-    body { margin: 0; background: white; }
-    #${elementId} { max-width: none !important; box-shadow: none !important; border: none !important; zoom: ${zoom}; width: 100%; }
-    .no-print { display: none !important; }
-    .overflow-hidden { overflow: visible !important; }
-    .bg-grey-3 { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    img { display: block !important; max-width: 100% !important; height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  </style>
+  ${boletaPrintCSS(elementId, zoom)}
 </head>
 <body>${el.outerHTML}</body>`;
   setTimeout(() => { win.focus(); win.print(); win.close(); }, 900);
 }
 
-const imprimir = () => abrirVentanaImpresion('boleta-print-area', 0.65);
+const imprimir = () => {
+  const folio = selectedRegistro.value?.noBoleta ?? 'boleta';
+  abrirVentanaImpresion('boleta-print-area', 0.68, `Boleta-${folio}`);
+};
+
+function buildPrintHTML(elementId: string, zoom: number) {
+  const el = document.getElementById(elementId);
+  if (!el) return null;
+  const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map((l) => `<link rel="stylesheet" href="${(l as HTMLLinkElement).href}">`)
+    .join('');
+  const styleTags = Array.from(document.querySelectorAll('style'))
+    .map((s) => s.outerHTML)
+    .join('');
+  return `<html><head><meta charset="utf-8">${linkTags}${styleTags}${boletaPrintCSS(elementId, zoom)}</head><body>${buildPrintContent(el)}</body></html>`;
+}
+
+const descargar = () => {
+  const folio = selectedRegistro.value?.noBoleta ?? 'boleta';
+  // zoom=1: html2canvas ignores CSS zoom; page height computed dynamically from scrollHeight
+  const html = buildPrintHTML('boleta-print-area', 1);
+  if (html) void descargarDesdeHTML(html, `Boleta-${folio}`);
+};
+
+const imprimirPantalla = () => {
+  const folio = selectedRegistro.value?.noBoleta ?? 'preliquidacion';
+  abrirVentanaImpresion('preliquidacion-print-area', 0.65, `Preliquidacion-${folio}`);
+};
+
+const descargarPreliquidacion = () => {
+  const folio = selectedRegistro.value?.noBoleta ?? 'preliquidacion';
+  // zoom=1: same reason as descargar
+  const html = buildPrintHTML('preliquidacion-print-area', 1);
+  if (html) void descargarDesdeHTML(html, `Preliquidacion-${folio}`);
+};
 
 const preliquidacionDto = ref({
   boletaId: 0,
@@ -1447,10 +1431,43 @@ interface PreliquidacionDoc {
 const opcionesRT = ['Riego', 'Temporal'];
 
 const $q = useQuasar();
-const authStore = useAuthStore();
+const authStore  = useAuthStore();
 const offlineStore = useOfflineStore();
+const { descargarDesdeHTML, descargando: descargandoPDF } = usePdfDescarga();
 const isOnline = ref(window.navigator.onLine);
 const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
+
+const configSistema = ref({
+  rfc: '',
+  nombre_empresa: '',
+  logo_url: '',
+  direccion: '',
+  telefono: '',
+  correo: '',
+  color_primario: '',
+  mensaje_ticket: '',
+  tiempo_autorizacion_auto: 30,
+});
+
+async function cargarConfigSistema() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get('/api/configuracion', { params: { sedeId } });
+    configSistema.value = {
+      rfc: data.rfc || '',
+      nombre_empresa: data.nombre_empresa || '',
+      logo_url: data.logo_url || '',
+      direccion: data.direccion || '',
+      telefono: data.telefono || '',
+      correo: data.correo || '',
+      color_primario: data.color_primario || '',
+      mensaje_ticket: data.mensaje_ticket || '',
+      tiempo_autorizacion_auto: data.tiempo_autorizacion_auto ?? 30,
+    };
+  } catch {
+    // Si falla, usa valores vacíos
+  }
+}
 
 // --- ESTADO ---
 const registros = ref<RegistroPreliq[]>([]);
@@ -1653,21 +1670,22 @@ interface CampoConfig {
 
 const camposAnalisisConfig = ref<CampoConfig[]>([]);
 const camposPreliqConfig = ref<CampoConfig[]>([]);
+const camposBoletaGridConfig = ref<CampoConfig[]>([]);
 
 const camposConfigActual = computed(() => {
   const granoId = detalle.value.granoId ?? null;
   return camposAnalisisConfig.value.filter((c) => c.granoId === granoId);
 });
 
-function campoPantallaVisible(clave: string): boolean {
-  if (camposConfigActual.value.length === 0) return true;
-  const cfg = camposConfigActual.value.find((c) => c.claveCampo === clave);
-  return !cfg || cfg.visible;
-}
-
 function campoPLVisible(clave: string): boolean {
   if (camposPreliqConfig.value.length === 0) return true;
   const cfg = camposPreliqConfig.value.find((c) => c.claveCampo === clave);
+  return !cfg || cfg.visible;
+}
+
+function campoBOLETAGridVisible(clave: string): boolean {
+  if (camposBoletaGridConfig.value.length === 0) return true;
+  const cfg = camposBoletaGridConfig.value.find((c) => c.claveCampo === clave);
   return !cfg || cfg.visible;
 }
 
@@ -1765,6 +1783,9 @@ async function cargarConfigCampos() {
     camposPreliqConfig.value = todos
       .filter((c) => c.pantalla === 'PRELIQUIDACION')
       .map((c) => ({ ...c, visible: !!c.visible, granoId: null }));
+    camposBoletaGridConfig.value = todos
+      .filter((c) => c.pantalla === 'BOLETA_GRID')
+      .map((c) => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
   } catch {
     // Si falla, se muestran todos los campos
   }
@@ -1834,8 +1855,6 @@ async function cargarResumen() {
     console.error('Error al cargar resumen:', error);
   }
 }
-
-const imprimirPantalla = () => abrirVentanaImpresion('preliquidacion-print-area', 0.62);
 
 async function cargarFactorImpurezas() {
   try {
@@ -2008,12 +2027,8 @@ function calcularDescuento(neto: number) {
 
 function calcularKgALiquidar(neto: number, descPorTon: number) {
   // Descuento Total = descuento kg/ton × (pesoNeto / 1000)
-  // KG A LIQUIDAR = Peso Neto - (Descuento kg/ton × Toneladas) -- Este se esta usando basado en figma.
-  const kgALiq = neto - descPorTon * Math.floor(neto / 1000.0);
-
-  //console.log(kgALiq);
-  //const descuentoTotal = descPorTon * (neto / 1000);
-  //const kgLiq = neto - descuentoTotal;
+  // KG A LIQUIDAR = Peso Neto - (Descuento kg/ton × Toneladas)
+  const kgALiq = neto - descPorTon * (neto / 1000.0);
   kgALiquidar.value = kgALiq.toFixed(2);
 
   calcularALiquidar(kgALiq);
@@ -2686,6 +2701,7 @@ onMounted(async () => {
     cargarRegistros(),
     cargarResumen(),
     cargarConfigCampos(),
+    cargarConfigSistema(),
   ]);
 });
 

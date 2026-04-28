@@ -64,7 +64,7 @@
       <div class="col-12 col-sm-6 col-md-3">
         <q-card flat bordered class="bg-purple-1">
           <q-card-section>
-            <div class="text-caption text-grey-7">Total Toneladas</div>
+            <div class="text-caption text-grey-7">Total Neto</div>
             <div class="text-h5 text-purple-10">{{ totalToneladas }}</div>
           </q-card-section>
         </q-card>

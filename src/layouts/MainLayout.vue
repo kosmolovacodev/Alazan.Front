@@ -37,6 +37,8 @@
         </div>
 
         <div class="q-gutter-sm row items-center no-wrap">
+          <BitacoraNotificacionBell v-if="authStore.isLoggedIn && authStore.tienePermiso('Bitácoras')" />
+
           <q-btn
             v-if="authStore.tienePermiso('Configuración')"
             flat
@@ -258,6 +260,17 @@
         </q-item>
 
         <q-item
+          v-if="authStore.tienePermiso('Inventario - Silos')"
+          clickable
+          to="/inventario-silos"
+          active-class="menu-item-active"
+          class="text-menu-inactive"
+        >
+          <q-item-section avatar><q-icon name="storage" /></q-item-section>
+          <q-item-section>Inventario Silos</q-item-section>
+        </q-item>
+
+        <q-item
           v-if="authStore.tienePermiso('Instrucciones de Embarque')"
           clickable
           to="/embarque"
@@ -316,6 +329,7 @@ import { Notify, useQuasar } from 'quasar';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import InicioDiaModal from 'src/components/InicioDiaModal.vue';
+import BitacoraNotificacionBell from 'src/components/bitacoras/BitacoraNotificacionBell.vue';
 
 const $q = useQuasar();
 const offlineStore = useOfflineStore();

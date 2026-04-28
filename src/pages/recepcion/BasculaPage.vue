@@ -214,7 +214,6 @@ import { Notify, useQuasar, exportFile } from 'quasar';
 import type { QTableProps } from 'quasar';
 import BasculaFormulario from './BasculaFormulario.vue';
 import { useAuthStore } from 'src/stores/auth';
-import { precargarMba3Productores, MBA3_LS_KEY } from 'src/services/mba3ProductoresPreload';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import type { RegistroBasculaPendiente } from 'src/stores/offlineStore';
 
@@ -535,9 +534,7 @@ watch(
   () => authStore.sedeActivaId,
   async (nuevaSedeId, sedeAnterior) => {
     if (nuevaSedeId !== sedeAnterior && sedeAnterior !== undefined) {
-      localStorage.removeItem(MBA3_LS_KEY);
       await cargarDatos();
-      void precargarMba3Productores();
       Notify.create({
         type: 'info',
         message: `Datos actualizados para: ${authStore.nombreSedeActiva}`,
@@ -584,10 +581,8 @@ async function handleGuardarRegistro(nuevoRegistro: RegistroBascula & { _product
   $q.loading.show({ message: 'Procesando registro...' });
   try {
     await api.post('/api/bascula/guardar', nuevoRegistro);
-    localStorage.removeItem(MBA3_LS_KEY);
     await cargarDatos();
     showFormulario.value = false;
-    void precargarMba3Productores();
     Notify.create({ type: 'positive', message: '¡Ticket generado correctamente!' });
   } catch {
     Notify.create({ type: 'negative', message: 'Error al guardar el registro' });

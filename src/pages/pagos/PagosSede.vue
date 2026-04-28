@@ -321,7 +321,7 @@
                   label="Banco del Productor" dense outlined readonly />
               </div>
               <div class="col-12">
-                <q-input :model-value="pagoSeleccionado.clabe ?? '-'"
+                <q-input :model-value="pagoSeleccionado.cuenta_clabe ?? '-'"
                   label="CLABE" dense outlined readonly />
               </div>
             </div>
@@ -337,6 +337,11 @@
               <div class="col-12">
                 <q-input :model-value="pagoSeleccionado.fecha_autorizacion ?? '-'"
                   label="Fecha de Autorización" dense outlined readonly />
+              </div>
+              <div class="col-12">
+                <q-input :model-value="pagoSeleccionado.cuenta_clabe ?? '-'"
+                  label="Cuenta del Productor (CLABE destino)" dense outlined readonly
+                  hint="Cuenta registrada del productor a quien se realizará el pago" />
               </div>
               <div class="col-12">
                 <q-input
@@ -359,11 +364,13 @@
                   :options="bancosOptions"
                   option-value="id" option-label="nombre_banco"
                   emit-value map-options
-                  label="Banco" dense outlined clearable
+                  label="Banco desde donde se transfirió" dense outlined clearable
                 />
               </div>
               <div class="col-12">
-                <q-input v-model="detallePagoForm.cuenta" label="Cuenta" dense outlined />
+                <q-input v-model="detallePagoForm.cuentaOrigen"
+                  label="Cuenta desde donde se pagó" dense outlined
+                  hint="Cuenta o CLABE de la empresa desde la que se realizó la transferencia" />
               </div>
               <div class="col-12">
                 <q-input v-model="detallePagoForm.folioPago" label="Folio de Pago" dense outlined />
@@ -395,8 +402,12 @@
                   label="Forma de Pago" dense outlined readonly />
               </div>
               <div class="col-12">
-                <q-input :model-value="pagoSeleccionado.cuenta ?? '-'"
-                  label="Cuenta" dense outlined readonly />
+                <q-input :model-value="pagoSeleccionado.cuenta_clabe ?? '-'"
+                  label="Cuenta del Productor (CLABE destino)" dense outlined readonly />
+              </div>
+              <div class="col-12">
+                <q-input :model-value="pagoSeleccionado.cuenta_origen ?? '-'"
+                  label="Cuenta desde donde se pagó" dense outlined readonly />
               </div>
               <div class="col-12">
                 <q-input :model-value="pagoSeleccionado.folio_pago ?? '-'"
@@ -465,10 +476,10 @@ interface PagoSedeRecord {
   status_pago: 'PAGO SOLICITADO' | 'AUTORIZADO' | 'PAGADO'
   banco_id: number | null
   nombre_banco: string | null
-  forma_pago_id: number | null
+  metodo_pago: number | null
   nombre_forma_pago: string | null
-  clabe: string | null
-  cuenta: string | null
+  cuenta_clabe: string | null
+  cuenta_origen: string | null
   sede_id: number
   nombre_sede: string | null
 }
@@ -523,6 +534,7 @@ const detallePagoForm  = ref({
   bancoId:           null as number | null,
   formaPagoId:       null as number | null,
   cuenta:            '',
+  cuentaOrigen:      '',
   folioPago:         '',
 })
 
@@ -675,8 +687,8 @@ async function cargarDatos() {
     ])
 
     pagos.value          = Array.isArray(solicitudesRes.data) ? solicitudesRes.data : []
-    bancosOptions.value  = configRes.data.Bancos    ?? []
-    formasPagoOptions.value = configRes.data.FormasPago ?? []
+    bancosOptions.value     = configRes.data.bancos     ?? configRes.data.Bancos     ?? []
+    formasPagoOptions.value = configRes.data.formasPago ?? configRes.data.FormasPago ?? []
 
     // Enriquecer topes con cálculos de disponibilidad
     topesSedes.value = (Array.isArray(topesRes.data) ? topesRes.data as TopeSede[] : []).map(t => ({
@@ -729,8 +741,9 @@ function handleVerDetalle(pago: PagoSedeRecord) {
     fechaAutorizacion: '',
     fechaPago:         '',
     bancoId:           pago.banco_id ?? null,
-    formaPagoId:       pago.forma_pago_id ?? null,
-    cuenta:            pago.cuenta ?? '',
+    formaPagoId:       pago.metodo_pago ?? null,
+    cuenta:            pago.cuenta_clabe ?? '',
+    cuentaOrigen:      pago.cuenta_origen ?? '',
     folioPago:         pago.folio_pago ?? '',
   }
   showDetalle.value = true
@@ -768,12 +781,13 @@ async function handleRegistrarPago() {
   try {
     await api.put('/pagos/registrar-pago', {
       SolicitudId: pagoSeleccionado.value.id,
-      FechaPago:   detallePagoForm.value.fechaPago,
-      FolioPago:   detallePagoForm.value.folioPago,
-      BancoId:     detallePagoForm.value.bancoId,
-      FormaPagoId: detallePagoForm.value.formaPagoId,
-      Cuenta:      detallePagoForm.value.cuenta,
-      ImportePago: pagoSeleccionado.value.monto_solicitado,
+      FechaPago:    detallePagoForm.value.fechaPago,
+      FolioPago:    detallePagoForm.value.folioPago,
+      BancoId:      detallePagoForm.value.bancoId,
+      FormaPagoId:  detallePagoForm.value.formaPagoId,
+      Cuenta:       detallePagoForm.value.cuenta,
+      CuentaOrigen: detallePagoForm.value.cuentaOrigen || null,
+      ImportePago:  pagoSeleccionado.value.monto_solicitado,
       SedeId:      authStore.sedeActivaId ?? 0,
     })
     $q.notify({ type: 'positive', message: 'Pago registrado exitosamente' })

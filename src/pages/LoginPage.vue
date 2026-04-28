@@ -76,8 +76,6 @@ import { reactive } from 'vue';
 import { useQuasar, Notify } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
-import { precargarMba3Productores } from 'src/services/mba3ProductoresPreload';
-
 const $q = useQuasar();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -100,7 +98,6 @@ async function onLogin() {
         icon: 'check_circle',
         position: 'top',
       });
-      void precargarMba3Productores();
       // Navegamos al index (que usa el MainLayout)
       await router.push('/');
     } else {

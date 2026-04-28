@@ -15,15 +15,34 @@
 
         <q-card-section class="row q-col-gutter-md">
           <div class="col-12 col-md-3 flex flex-center column">
-            <q-avatar
-              size="100px"
-              font-size="50px"
-              :style="`background-color: ${form.color_primario}`"
-              text-color="white"
+            <!-- Logo de la empresa -->
+            <div
+              class="logo-upload-area rounded-borders flex flex-center column cursor-pointer q-mb-sm"
+              style="width: 140px; height: 100px; border: 2px dashed #bdbdbd; background: #f5f5f5"
+              @click="seleccionarLogo"
             >
-              {{ form.nombre_empresa ? form.nombre_empresa.charAt(0) : 'E' }}
-            </q-avatar>
-            <div class="q-mt-sm text-caption text-grey">Color Primario</div>
+              <img
+                v-if="form.logo_url"
+                :src="form.logo_url"
+                style="max-width: 130px; max-height: 90px; object-fit: contain"
+              />
+              <template v-else>
+                <q-icon name="add_photo_alternate" size="md" color="grey-5" />
+                <div class="text-caption text-grey-6 q-mt-xs text-center">Subir logo</div>
+              </template>
+            </div>
+            <q-btn
+              v-if="form.logo_url"
+              flat
+              dense
+              size="xs"
+              icon="delete"
+              color="negative"
+              label="Quitar logo"
+              @click="form.logo_url = ''"
+            />
+            <input ref="logoInputRef" type="file" accept="image/*" style="display:none" @change="onLogoSeleccionado" />
+            <div class="q-mt-md text-caption text-grey">Color Primario</div>
             <q-input
               v-model="form.color_primario"
               filled
@@ -176,6 +195,7 @@ import { useAuthStore } from 'src/stores/auth';
 
 const authStore = useAuthStore();
 const loading = ref(false);
+const logoInputRef = ref<HTMLInputElement | null>(null);
 
 const form = ref({
   // Datos Empresa
@@ -186,6 +206,7 @@ const form = ref({
   correo: '',
   color_primario: '#1976D2',
   mensaje_ticket: '',
+  logo_url: '',
   
   // Unidades de Medida
   unidadesMedida: [
@@ -206,6 +227,20 @@ const form = ref({
   // Configuración del Módulo de Precios
   tiempo_autorizacion_auto: 30 // Minutos para autorización automática
 });
+
+function seleccionarLogo() {
+  logoInputRef.value?.click();
+}
+
+function onLogoSeleccionado(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    form.value.logo_url = ev.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+}
 
 const cargarConfiguracion = async () => {
   try {

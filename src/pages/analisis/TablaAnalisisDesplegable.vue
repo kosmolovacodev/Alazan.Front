@@ -292,7 +292,7 @@
             </q-item-section>
           </q-item>
 
-          <!-- CAMPOS EXTRA (texto/número, no duplicados del análisis estándar) -->
+          <!-- CAMPOS EXTRA (texto/número/seleccionar, no duplicados del análisis estándar) -->
           <q-item
             v-for="extra in camposExtras"
             :key="extra.clave"
@@ -304,7 +304,20 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
+              <q-select
+                v-if="extra.tipoDato === 'seleccionar' && extra.opciones"
+                dense outlined
+                style="width: 160px"
+                :options="extra.opciones.split(',').map(o => o.trim()).filter(Boolean)"
+                :model-value="extra.valor || null"
+                @update:model-value="(v) => emitInput(extra.clave, v ?? '')"
+                :readonly="readOnly"
+                clearable
+                emit-value
+                map-options
+              />
               <q-input
+                v-else
                 dense outlined
                 style="width: 160px"
                 input-class="text-right"
@@ -353,7 +366,7 @@ interface Props {
   revolcados: string | number;
   germinados?: string | number;
   descuentosExportacion?: { clave: string; label: string; valor: string }[];
-  camposExtras?: { clave: string; label: string; valor: string }[];
+  camposExtras?: { clave: string; label: string; valor: string; tipoDato?: string; opciones?: string }[];
   sumaR2: number;
   totalDanosNum: number;
   exportacion: number;

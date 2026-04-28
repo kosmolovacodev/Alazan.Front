@@ -293,126 +293,119 @@
               "
             >
               <q-card id="boleta-page-print-area" bordered>
-                <q-card-section
-                  :class="
-                    boletaSeleccionada?.estatus === 'Precio Aceptado'
-                      ? 'bg-green-7 text-white'
-                      : 'bg-orange-7 text-white'
-                  "
-                >
-                  <div class="row items-center justify-between">
-                    <div class="text-h6 text-weight-bold">
-                      {{
-                        boletaSeleccionada?.estatus === 'Precio Aceptado'
-                          ? 'BOLETA'
-                          : 'BOLETA PRELIMINAR'
-                      }}
+                <!-- Header profesional -->
+                <div style="border-bottom: 2px solid #1a1a1a; padding: 10px 16px">
+                  <div class="row items-start">
+                    <div class="col">
+                      <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; line-height: 1.4">
+                        {{ configSistema.nombre_empresa || 'BODEGA DE GRANOS EL ALAZÁN Y EL ROCÍO S.A. DE C.V.' }}
+                      </div>
+                      <div style="font-size: 11px; margin-top: 2px">RFC: {{ configSistema.rfc || '—' }}</div>
+                      <div style="font-size: 11px">SUCURSAL: {{ authStore.nombreSedeActiva }}</div>
+                      <div style="font-size: 10px; color: #b91c1c; font-weight: 600; margin-top: 6px">
+                        *NOTA: EL PRECIO A LIQUIDAR ES EL ESTIPULADO EN ESTA BOLETA.
+                      </div>
                     </div>
-                    <div
-                      v-if="boletaSeleccionada?.estatus === 'Precio Aceptado'"
-                      class="text-caption"
-                    >
-                      Precio aceptado por productor
-                    </div>
-                    <div class="row q-gutter-sm no-print">
-                      <q-btn flat dense icon="print" label="Imprimir" @click="imprimirBoleta" />
-                      <q-btn
-                        flat
-                        dense
-                        icon="download"
-                        label="Descargar"
-                        @click="descargarBoleta"
+                    <div class="col-auto" style="text-align: right; min-width: 130px">
+                      <img
+                        v-if="configSistema.logo_url"
+                        :src="configSistema.logo_url"
+                        style="max-width: 120px; max-height: 70px; object-fit: contain; margin-left: auto; display: block"
                       />
+                      <div style="font-size: 17px; font-weight: 700; margin-top: 4px">BOLETA</div>
+                      <div class="no-print row q-gutter-xs justify-end q-mt-xs">
+                        <q-btn flat dense icon="print" size="xs" color="primary" @click="imprimirBoleta">
+                          <q-tooltip>Imprimir</q-tooltip>
+                        </q-btn>
+                        <q-btn flat dense icon="download" size="xs" color="primary"
+                          :loading="descargandoPDF" @click="descargarBoleta">
+                          <q-tooltip>Descargar PDF</q-tooltip>
+                        </q-btn>
+                      </div>
                     </div>
                   </div>
-                </q-card-section>
+                </div>
 
                 <q-card-section>
-                  <!-- Datos de la Boleta -->
+                  <!-- Datos de la Boleta — visibilidad controlada por configuración Boleta Grid -->
                   <div class="row q-col-gutter-sm">
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('noBoleta')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">FOLIO / BOLETA</div>
                       <div class="text-weight-bold">{{ boletaSeleccionada?.noBoleta }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('productor')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">PRODUCTOR</div>
                       <div class="text-weight-bold">{{ boletaSeleccionada?.productor }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('fecha')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">FECHA Y HORA</div>
                       <div class="text-weight-bold">{{ boletaSeleccionada?.fecha }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
-                      <div class="text-caption text-grey-7">TELEFONO</div>
-                      <div class="text-weight-bold">
-                        {{ boletaSeleccionada?.telefono || 'N/A' }}
-                      </div>
+                    <div v-if="campoBOLETAGridVisible('telefono')" class="col-6 col-md-4">
+                      <div class="text-caption text-grey-7">TELÉFONO</div>
+                      <div class="text-weight-bold">{{ boletaSeleccionada?.telefono || 'N/A' }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('comprador')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">COMPRADOR</div>
-                      <div class="text-weight-bold">{{ boletaSeleccionada?.comprador }}</div>
+                      <div class="text-weight-bold">{{ boletaSeleccionada?.comprador || 'N/A' }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('origen')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">ORIGEN</div>
-                      <div class="text-weight-bold">{{ boletaSeleccionada?.origen }}</div>
+                      <div class="text-weight-bold">{{ boletaSeleccionada?.origen || 'N/A' }}</div>
                     </div>
-                    <div v-if="campoPantallaVisible('calibre')" class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('calibre')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">CALIBRE</div>
-                      <div class="text-weight-bold text-blue-9">
-                        {{ boletaSeleccionada?.calibre }}
-                      </div>
+                      <div class="text-weight-bold text-blue-9">{{ boletaSeleccionada?.calibre }}</div>
                     </div>
-                    <div v-if="campoPantallaVisible('humedad')" class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('humedad')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">HUMEDAD</div>
                       <div class="text-weight-bold">{{ boletaSeleccionada?.humedad }}%</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('precio')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">PRECIO / KG</div>
                       <div class="text-weight-bold text-green-9 text-h6">
                         ${{ formatNumber(boletaSeleccionada?.precio) }}
                       </div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('pesoBruto')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">PESO BRUTO</div>
                       <div class="text-weight-bold">{{ boletaSeleccionada?.pesoBruto }} kg</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('descuento')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">DESCUENTO (KG/TON)</div>
-                      <div class="text-weight-bold">
-                        {{ Math.round(boletaSeleccionada?.descuento || 0) }}
-                      </div>
+                      <div class="text-weight-bold">{{ Math.round(boletaSeleccionada?.descuento || 0) }}</div>
                     </div>
-                    <div class="col-6 col-md-4">
+                    <div v-if="campoBOLETAGridVisible('tonsAprox')" class="col-6 col-md-4">
                       <div class="text-caption text-grey-7">TON. APROX</div>
-                      <div class="text-weight-bold">
-                        {{ boletaSeleccionada?.tonsAprox }}
-                      </div>
+                      <div class="text-weight-bold">{{ boletaSeleccionada?.tonsAprox }}</div>
                     </div>
                   </div>
 
                   <q-separator class="q-my-md" />
 
                   <!-- Analisis de Calidad -->
-                  <div class="text-subtitle2 text-weight-bold q-mb-sm">ANALISIS DE CALIDAD</div>
-                  <TablaAnalisisDesplegable
-                    :tipo-grano-id="boletaSeleccionada?.granoId || 0"
-                    :impurezas="boletaSeleccionada?.impurezas || 0"
-                    :r1="boletaSeleccionada?.r1 || 0"
-                    :r2="boletaSeleccionada?.r2 || 0"
-                    :cafes-lisos="boletaSeleccionada?.cafesLisos || 0"
-                    :manchados="boletaSeleccionada?.manchados || 0"
-                    :queb-mxc="boletaSeleccionada?.quebMxc || 0"
-                    :helados="boletaSeleccionada?.helados || 0"
-                    :alimonados="boletaSeleccionada?.alimonados || 0"
-                    :revolcados="boletaSeleccionada?.revolcados || 0"
-                    :suma-r2="boletaSeleccionada?.sumaR2 || 0"
-                    :total-danos-num="calcularTotalDanos"
-                    :exportacion="boletaSeleccionada?.exportacion || 0"
-                    :calibre="boletaSeleccionada?.calibre || ''"
-                    :read-only="true"
-                    :frijol-data-inicial="frijolDataInicial"
-                    :camposConfig="camposConfigActual"
-                  />
+                  <div class="analisis-calidad-print">
+                    <div class="text-subtitle2 text-weight-bold q-mb-sm">ANALISIS DE CALIDAD</div>
+                    <TablaAnalisisDesplegable
+                      :tipo-grano-id="boletaSeleccionada?.granoId || 0"
+                      :impurezas="boletaSeleccionada?.impurezas || 0"
+                      :r1="boletaSeleccionada?.r1 || 0"
+                      :r2="boletaSeleccionada?.r2 || 0"
+                      :cafes-lisos="boletaSeleccionada?.cafesLisos || 0"
+                      :manchados="boletaSeleccionada?.manchados || 0"
+                      :queb-mxc="boletaSeleccionada?.quebMxc || 0"
+                      :helados="boletaSeleccionada?.helados || 0"
+                      :alimonados="boletaSeleccionada?.alimonados || 0"
+                      :revolcados="boletaSeleccionada?.revolcados || 0"
+                      :suma-r2="boletaSeleccionada?.sumaR2 || 0"
+                      :total-danos-num="calcularTotalDanos"
+                      :exportacion="boletaSeleccionada?.exportacion || 0"
+                      :calibre="boletaSeleccionada?.calibre || ''"
+                      :read-only="true"
+                      :frijol-data-inicial="frijolDataInicial"
+                      :camposConfig="camposConfigActual"
+                    />
+                  </div>
 
                   <!-- CAMPOS PERSONALIZADOS -->
                   <q-card v-if="camposPersonalizadosVisibles.length > 0" bordered class="bg-white q-mt-sm">
@@ -440,8 +433,8 @@
                     </q-card-section>
                   </q-card>
 
-                  <!-- Fotos -->
-                  <div class="q-mt-md">
+                  <!-- Fotos (solo pantalla, no impresión) -->
+                  <div class="no-print q-mt-md">
                     <div class="text-subtitle2 text-weight-bold q-mb-sm">
                       <q-icon name="photo_camera" class="q-mr-xs" />
                       FOTOS DEL ANALISIS
@@ -462,6 +455,23 @@
                     </div>
                     <div v-else class="text-grey-6 text-center q-pa-md bg-grey-3 rounded-borders">
                       Sin fotos disponibles
+                    </div>
+                  </div>
+
+                  <!-- Firmas -->
+                  <q-separator class="q-my-md" />
+                  <div class="row q-col-gutter-md">
+                    <div class="col-4 text-center">
+                      <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+                      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">ANALISTA</div>
+                    </div>
+                    <div class="col-4 text-center">
+                      <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+                      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">RECEPCIONISTA</div>
+                    </div>
+                    <div class="col-4 text-center">
+                      <div style="border: 1px solid #555; height: 72px; border-radius: 4px; margin-bottom: 6px"></div>
+                      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; border-top: 1px solid #555; padding-top: 3px">AUTORIZACIÓN</div>
                     </div>
                   </div>
                 </q-card-section>
@@ -574,9 +584,11 @@ import { useAuthStore } from 'src/stores/auth';
 import { useOfflineStore } from 'src/stores/offlineStore';
 import type { QTableColumn } from 'quasar';
 import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegable.vue';
+import { usePdfDescarga, boletaPrintCSS, buildPrintContent } from 'src/composables/usePdfDescarga';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const { descargarDesdeHTML, descargando: descargandoPDF } = usePdfDescarga();
 const offlineStore = useOfflineStore();
 const isOnline = ref(window.navigator.onLine);
 const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
@@ -761,15 +773,27 @@ const calcularTotalDanos = computed(() => {
 });
 
 const camposAnalisisConfig = ref<CampoConfig[]>([]);
+const camposBoletaGridConfig = ref<CampoConfig[]>([]);
+const configSistema = ref({
+  rfc: '',
+  nombre_empresa: '',
+  logo_url: '',
+  direccion: '',
+  telefono: '',
+  correo: '',
+  color_primario: '',
+  mensaje_ticket: '',
+  tiempo_autorizacion_auto: 30,
+});
 
 const camposConfigActual = computed(() => {
   const granoId = boletaSeleccionada.value?.granoId ?? null;
   return camposAnalisisConfig.value.filter(c => c.granoId === granoId);
 });
 
-function campoPantallaVisible(clave: string): boolean {
-  if (camposConfigActual.value.length === 0) return true;
-  const cfg = camposConfigActual.value.find(c => c.claveCampo === clave);
+function campoBOLETAGridVisible(clave: string): boolean {
+  if (camposBoletaGridConfig.value.length === 0) return true;
+  const cfg = camposBoletaGridConfig.value.find(c => c.claveCampo === clave);
   return !cfg || cfg.visible;
 }
 
@@ -804,13 +828,38 @@ async function cargarConfigCampos() {
       '/api/configuracion-recepcion',
       { params: { sedeId } },
     );
-    camposAnalisisConfig.value = (data.campos ?? [])
+    const allCampos = data.campos ?? [];
+    camposAnalisisConfig.value = allCampos
       .filter(c => c.pantalla === 'ANALISIS')
+      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+    camposBoletaGridConfig.value = allCampos
+      .filter(c => c.pantalla === 'BOLETA_GRID')
       .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
   } catch {
     // Si falla, se muestran todos los campos
   }
 }
+
+async function cargarConfigSistema() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get('/api/configuracion', { params: { sedeId } });
+    configSistema.value = {
+      rfc: data.rfc || '',
+      nombre_empresa: data.nombre_empresa || '',
+      logo_url: data.logo_url || '',
+      direccion: data.direccion || '',
+      telefono: data.telefono || '',
+      correo: data.correo || '',
+      color_primario: data.color_primario || '',
+      mensaje_ticket: data.mensaje_ticket || '',
+      tiempo_autorizacion_auto: data.tiempo_autorizacion_auto ?? 30,
+    };
+  } catch {
+    // Si falla, usa valores vacíos
+  }
+}
+
 
 // Datos de frijol parseados de datosAdicionales
 const frijolDataInicial = computed(() => {
@@ -1021,7 +1070,7 @@ async function confirmarPrecio(acepta: boolean) {
   }
 }
 
-function abrirVentanaImpresion(elementId: string, zoom = 0.65) {
+function abrirVentanaImpresion(elementId: string, zoom = 0.65, titulo = 'Boleta') {
   const el = document.getElementById(elementId);
   if (!el) return;
   const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
@@ -1033,28 +1082,32 @@ function abrirVentanaImpresion(elementId: string, zoom = 0.65) {
   if (!win) return;
   win.document.documentElement.innerHTML = `<head>
   <meta charset="utf-8">
+  <title>${titulo}</title>
   ${linkTags}
   ${styleTags}
-  <style>
-    @page { size: A4 portrait; margin: 8mm; }
-    body { margin: 0; background: white; }
-    #${elementId} { max-width: none !important; box-shadow: none !important; border: none !important; zoom: ${zoom}; width: 100%; }
-    .no-print { display: none !important; }
-    .overflow-hidden { overflow: visible !important; }
-    .bg-grey-3 { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    img { display: block !important; max-width: 100% !important; height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  </style>
+  ${boletaPrintCSS(elementId, zoom)}
 </head>
 <body>${el.outerHTML}</body>`;
   setTimeout(() => { win.focus(); win.print(); win.close(); }, 900);
 }
 
 function imprimirBoleta() {
-  abrirVentanaImpresion('boleta-page-print-area', 0.68);
+  const folio = boletaSeleccionada.value?.noBoleta ?? 'boleta';
+  abrirVentanaImpresion('boleta-page-print-area', 0.68, `Boleta-${folio}`);
 }
 
 function descargarBoleta() {
-  Notify.create({ type: 'info', message: 'Funcion de descarga en desarrollo' });
+  const folio = boletaSeleccionada.value?.noBoleta ?? 'boleta';
+  const el = document.getElementById('boleta-page-print-area');
+  if (!el) return;
+  const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map((l) => `<link rel="stylesheet" href="${(l as HTMLLinkElement).href}">`)
+    .join('');
+  const styleTags = Array.from(document.querySelectorAll('style'))
+    .map((s) => s.outerHTML)
+    .join('');
+  const html = `<html><head><meta charset="utf-8">${linkTags}${styleTags}${boletaPrintCSS('boleta-page-print-area', 1)}</head><body>${buildPrintContent(el)}</body></html>`;
+  void descargarDesdeHTML(html, `Boleta-${folio}`);
 }
 
 function exportarExcel() {
@@ -1100,7 +1153,7 @@ function exportarExcel() {
 onMounted(async () => {
   window.addEventListener('online', _syncOnline);
   window.addEventListener('offline', _syncOnline);
-  await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos()]);
+  await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos(), cargarConfigSistema()]);
 });
 
 onBeforeUnmount(() => {
@@ -1112,7 +1165,7 @@ onBeforeUnmount(() => {
 watch(
   () => authStore.sedeActivaId,
   async () => {
-    await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos()]);
+    await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos(), cargarConfigSistema()]);
   },
 );
 </script>

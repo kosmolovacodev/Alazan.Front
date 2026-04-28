@@ -29,7 +29,7 @@ export default route(function (/* { store } */) {
       return;
     }
 
-    const publicPages = ['/login'];
+    const publicPages = ['/login', '/firmar-bitacora'];
     const authRequired = !publicPages.includes(to.path);
     const hasToken = !!localStorage.getItem('jwt');
 

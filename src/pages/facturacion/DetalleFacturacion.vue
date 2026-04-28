@@ -353,6 +353,7 @@
                     :calibre="detalle.calibre || ''"
                     :read-only="true"
                     :frijol-data-inicial="frijolDataInicial"
+                    :camposConfig="camposConfigActual"
                   />
                 </q-card-section>
               </q-card>
@@ -382,6 +383,17 @@
                     v-model="datosFacturacion.importe"
                     readonly
                     bg-color="grey-2"
+                  />
+                </div>
+                <div class="col-12 col-md-8">
+                  <q-input
+                    dense
+                    outlined
+                    label="FOLIO FISCAL (UUID)"
+                    :model-value="xmlFolioFiscal || detalle?.folioFiscal || ''"
+                    readonly
+                    bg-color="grey-2"
+                    placeholder="Se extrae automáticamente del XML"
                   />
                 </div>
                 <div class="col-12 col-md-4">
@@ -625,7 +637,7 @@
                   dense
                   outlined
                   label="IMPORTE"
-                  :model-value="`$${formatMoney(detalle.importe)}`"
+                  :model-value="datosFacturacion.importe ? `$${datosFacturacion.importe}` : ''"
                   readonly
                 />
               </div>
@@ -634,7 +646,7 @@
                   dense
                   outlined
                   label="A PAGAR"
-                  :model-value="`$${formatMoney(detalle.aPagar)}`"
+                  :model-value="datosFacturacion.importe ? `$${aPagarCalculado}` : ''"
                   readonly
                 />
               </div>
@@ -712,7 +724,7 @@
               </div>
 
               <div class="col-12 col-md-6">
-                <label class="text-caption text-weight-bold">Constancia Situación Fiscal *</label>
+                <label class="text-caption text-weight-bold">Documento Fiscal *</label>
 
                 <div
                   v-if="expedienteGuardado?.constancia"
@@ -803,6 +815,45 @@
                 >
                   <template #prepend><q-icon name="cloud_upload" /></template>
                 </q-file>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="text-caption text-weight-bold">Carátula de Cuenta Bancaria *</label>
+
+                <div
+                  v-if="expedienteGuardado?.cuenta_bancaria"
+                  class="row items-center bg-grey-2 q-pa-sm rounded-borders"
+                >
+                  <q-icon name="account_balance" color="teal" size="sm" />
+                  <div class="q-ml-sm ellipsis" style="max-width: 150px">
+                    {{ expedienteGuardado.cuenta_bancaria.nombre }}
+                  </div>
+                  <q-space />
+                  <q-btn
+                    flat round dense color="green" icon="download"
+                    @click="descargarArchivo(expedienteGuardado.cuenta_bancaria.base64, expedienteGuardado.cuenta_bancaria.nombre)"
+                  />
+                  <q-btn
+                    flat round dense color="red" icon="delete"
+                    @click="confirmarEliminarDoc('cuenta_bancaria')"
+                  />
+                </div>
+
+                <q-file
+                  v-else
+                  dense outlined
+                  v-model="archivoCuentaBancaria"
+                  accept=".pdf"
+                >
+                  <template #prepend><q-icon name="cloud_upload" /></template>
+                </q-file>
+
+                <q-checkbox
+                  v-model="cuentaBancariaDatosCoincidenCheck"
+                  label="¿Datos coinciden con el productor?"
+                  color="green"
+                  class="q-mt-xs"
+                />
               </div>
 
               <div class="col-12 col-md-6">
@@ -1059,14 +1110,6 @@
             Expediente completo. Para modificar, elimina el documento correspondiente y vuelve a subirlo.
           </q-banner>
           <q-btn
-            color="purple-8"
-            :label="mostrarAgregarProductor ? 'Cerrar Productor Adicional' : 'Agregar Productor'"
-            :icon="mostrarAgregarProductor ? 'remove' : 'add'"
-            class="full-width"
-            :disable="expedienteCompleto"
-            @click="mostrarAgregarProductor = !mostrarAgregarProductor"
-          />
-          <q-btn
             color="green-7"
             label="Guardar"
             icon="save"
@@ -1095,7 +1138,7 @@ import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegabl
 // import { ocrPDFToText } from 'src/utils/pdfOcr';
 
 async function doEliminarDoc(
-  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro',
+  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria',
 ) {
   try {
     const sedeId = authStore.sedeActivaId || 0;
@@ -1109,10 +1152,17 @@ async function doEliminarDoc(
       if (tipo === 'identificacion') delete exp.identificacion;
       else if (tipo === 'constancia') delete exp.constancia;
       else if (tipo === 'opinion') delete exp.opinion;
+      else if (tipo === 'cuenta_bancaria') delete exp.cuenta_bancaria;
       else if (tipo === 'otro') delete exp.otro;
       else if (tipo === 'xml') {
         delete exp.xml;
         xmlGuardado.value = false;
+        xmlFacturaSubido.value = false;
+        xmlFile.value = null;
+        xmlFolioFiscal.value = '';
+        xmlRfcEmisor.value = '';
+        xmlFecha.value = '';
+        datosFacturacion.importe = '';
         datosFacturacion.pagoPredial = '';
         datosFacturacion.descPredial = '';
         datosFacturacion.descISR = '';
@@ -1126,7 +1176,7 @@ async function doEliminarDoc(
 }
 
 const confirmarEliminarDoc = (
-  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro',
+  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria',
 ) => {
   $q.dialog({
     title: 'Confirmar eliminación',
@@ -1230,6 +1280,8 @@ interface ExpedienteGuardado {
   identificacion?: ArchivoGuardado;
   constancia?: ArchivoGuardado;
   opinion?: ArchivoGuardado;
+  cuenta_bancaria?: ArchivoGuardado;
+  cuenta_bancaria_datos_coinciden?: boolean;
   actaConstitutiva?: ArchivoGuardado;
   otro?: ArchivoGuardado;
   contacto_adicional?: {
@@ -1377,6 +1429,41 @@ const xmlFacturaSubido = ref(false);
 const xmlGuardado = ref(false);
 const xmlFile = ref<File | null>(null);
 const nombreArchivoXml = ref('');
+const xmlFolioFiscal = ref('');
+const xmlRfcEmisor = ref('');
+const xmlFecha = ref('');
+
+// Carátula de Cuenta Bancaria
+const archivoCuentaBancaria = ref<File | null>(null);
+const cuentaBancariaDatosCoincidenCheck = ref(false);
+
+// Configuración de campos de análisis (visibilidad)
+interface CampoConfigFacturacion {
+  claveCampo: string;
+  visible: boolean;
+  nombreMostrar?: string;
+  granoId?: number | null;
+  pantalla?: string;
+}
+const camposAnalisisConfig = ref<CampoConfigFacturacion[]>([]);
+const camposConfigActual = computed(() => {
+  const granoId = detalle.value?.granoId ?? null;
+  return camposAnalisisConfig.value.filter(c => c.granoId === granoId);
+});
+async function cargarConfigCampos() {
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const { data } = await api.get<{ campos: (CampoConfigFacturacion & { pantalla: string })[] }>(
+      '/api/configuracion-recepcion',
+      { params: { sedeId } },
+    );
+    camposAnalisisConfig.value = (data.campos ?? [])
+      .filter(c => c.pantalla === 'ANALISIS')
+      .map(c => ({ ...c, visible: !!c.visible, granoId: c.granoId ?? null }));
+  } catch {
+    // Si falla, TablaAnalisisDesplegable mostrará todos los campos (comportamiento por defecto)
+  }
+}
 
 // Facturacion editable
 const datosFacturacion = reactive({
@@ -1415,9 +1502,8 @@ const ineChipInfo = computed(() => {
 const aPagarCalculado = computed(() => {
   const importe = parsearMonto(datosFacturacion.importe);
   const pagoPredial = parsearMonto(datosFacturacion.pagoPredial);
-  const descPredial = parsearMonto(datosFacturacion.descPredial);
   const descISR = parsearMonto(datosFacturacion.descISR);
-  return formatMoney(importe - pagoPredial - descPredial - descISR);
+  return formatMoney(importe - pagoPredial - descISR);
 });
 
 // Expediente completo: todos los docs requeridos guardados + info del productor completa
@@ -1426,6 +1512,7 @@ const expedienteCompleto = computed(() => {
     expedienteGuardado.value?.identificacion &&
     expedienteGuardado.value?.constancia &&
     expedienteGuardado.value?.opinion &&
+    expedienteGuardado.value?.cuenta_bancaria &&
     xmlGuardado.value &&
     datosProductor.nombre.trim() &&
     datosProductor.telefono.trim() &&
@@ -1521,16 +1608,18 @@ function onXmlFileSelected(file: File | null) {
       // Buscar cfdi:Comprobante con namespace CFDI v4 o v3
       const nsV4 = 'http://www.sat.gob.mx/cfd/4';
       const nsV3 = 'http://www.sat.gob.mx/cfd/3';
+      const nsTfd = 'http://www.sat.gob.mx/TimbreFiscalDigital';
       const comprobante =
         xmlDoc.getElementsByTagNameNS(nsV4, 'Comprobante')[0] ||
         xmlDoc.getElementsByTagNameNS(nsV3, 'Comprobante')[0] ||
         xmlDoc.documentElement;
 
-      // Intentar Importe primero, luego Total, luego SubTotal
-      const valorStr =
-        comprobante.getAttribute('Importe') ||
-        comprobante.getAttribute('Total') ||
-        comprobante.getAttribute('SubTotal');
+      // Leer Importe desde cfdi:Concepto (primer concepto)
+      const concepto =
+        comprobante.getElementsByTagNameNS(nsV4, 'Concepto')[0] ||
+        comprobante.getElementsByTagNameNS(nsV3, 'Concepto')[0] ||
+        comprobante.getElementsByTagName('cfdi:Concepto')[0];
+      const valorStr = concepto?.getAttribute('Importe') || comprobante.getAttribute('SubTotal');
 
       if (valorStr) {
         const num = parseFloat(valorStr);
@@ -1539,9 +1628,65 @@ function onXmlFileSelected(file: File | null) {
         }
       }
 
+      // Extraer Fecha del comprobante
+      xmlFecha.value = comprobante.getAttribute('Fecha') || '';
+
+      // Extraer RFC del Emisor
+      const emisor =
+        comprobante.getElementsByTagNameNS(nsV4, 'Emisor')[0] ||
+        comprobante.getElementsByTagNameNS(nsV3, 'Emisor')[0] ||
+        comprobante.getElementsByTagName('cfdi:Emisor')[0];
+      xmlRfcEmisor.value = emisor?.getAttribute('Rfc') || '';
+
+      // Extraer UUID (Folio Fiscal) del TimbreFiscalDigital
+      const timbre = xmlDoc.getElementsByTagNameNS(nsTfd, 'TimbreFiscalDigital')[0];
+      xmlFolioFiscal.value = timbre?.getAttribute('UUID') || '';
+
+      // Extraer Pago Predial y Desc. Predial desde impuestos locales (implocal)
+      const nsImplocal = 'http://www.sat.gob.mx/implocal';
+      const nodosRetencionLocal = xmlDoc.getElementsByTagNameNS(nsImplocal, 'RetencionesLocales');
+      for (let i = 0; i < nodosRetencionLocal.length; i++) {
+        const nodo = nodosRetencionLocal[i];
+        const nombre = nodo?.getAttribute('ImpLocRetenido') || '';
+        if (nombre.toUpperCase().includes('PREDIAL')) {
+          const importePredial = parseFloat(nodo?.getAttribute('Importe') || '0');
+          if (!isNaN(importePredial)) datosFacturacion.pagoPredial = formatMoney(importePredial);
+          const tasaPredial = nodo?.getAttribute('TasadeRetencion') || '';
+          if (tasaPredial) datosFacturacion.descPredial = tasaPredial;
+          break;
+        }
+      }
+
+      // Extraer Desc. ISR desde retenciones federales (Impuesto 001 = ISR)
+      const nodosRetencionFed =
+        comprobante.getElementsByTagNameNS(nsV4, 'Retencion').length > 0
+          ? comprobante.getElementsByTagNameNS(nsV4, 'Retencion')
+          : comprobante.getElementsByTagNameNS(nsV3, 'Retencion');
+      for (let i = 0; i < nodosRetencionFed.length; i++) {
+        const nodo = nodosRetencionFed[i];
+        if (nodo?.getAttribute('Impuesto') === '001') {
+          const importeISR = parseFloat(nodo?.getAttribute('Importe') || '0');
+          if (!isNaN(importeISR)) datosFacturacion.descISR = formatMoney(importeISR);
+          break;
+        }
+      }
+
+      // Validar RFC del Emisor contra el RFC registrado — bloquear si no coincide
+      const rfcActual = rfcLocal.value || props.rfc;
+      if (xmlRfcEmisor.value && rfcActual && rfcActual !== 'Pendiente RFC' && xmlRfcEmisor.value !== rfcActual) {
+        const rfcDelXml = xmlRfcEmisor.value;
+        xmlFile.value = null;
+        xmlFolioFiscal.value = '';
+        xmlRfcEmisor.value = '';
+        xmlFecha.value = '';
+        datosFacturacion.importe = '';
+        notifyError(`XML rechazado. RFC del Emisor (${rfcDelXml}) no coincide con el RFC registrado (${rfcActual}). Verifique la factura.`);
+        return;
+      }
+
       xmlFacturaSubido.value = true;
       notifyOk(
-        `XML cargado: ${file.name}${datosFacturacion.importe ? `. IMPORTE: $${datosFacturacion.importe}` : ''}`,
+        `XML cargado: ${file.name}${datosFacturacion.importe ? `. IMPORTE: $${datosFacturacion.importe}` : ''}${xmlFolioFiscal.value ? `. UUID: ${xmlFolioFiscal.value.substring(0, 8)}...` : ''}`,
       );
     } catch {
       xmlFacturaSubido.value = true;
@@ -1589,6 +1734,7 @@ async function handleGuardarXmlFactura() {
       descPredial: datosFacturacion.descPredial,
       descISR: datosFacturacion.descISR,
       diasHabilesPago: datosFacturacion.diasHabilesPago,
+      folioFiscal: xmlFolioFiscal.value || undefined,
     });
 
     xmlGuardado.value = true;
@@ -1640,9 +1786,11 @@ async function handleGuardar() {
   if (!archivoIdentificacion.value && !expedienteGuardado.value?.identificacion)
     faltantes.push('Identificacion Oficial');
   if (!archivoConstancia.value && !expedienteGuardado.value?.constancia)
-    faltantes.push('Constancia de Situacion Fiscal');
+    faltantes.push('Documento Fiscal');
   if (!archivoOpinion.value && !expedienteGuardado.value?.opinion)
     faltantes.push('Opinion de Cumplimiento');
+  if (!archivoCuentaBancaria.value && !expedienteGuardado.value?.cuenta_bancaria)
+    faltantes.push('Caratula de Cuenta Bancaria');
 
   if (faltantes.length) {
     notifyError(`Documentos faltantes: ${faltantes.join(', ')}`);
@@ -1650,18 +1798,19 @@ async function handleGuardar() {
   }
 
   if (errorConstancia.value || errorOpinion.value) {
-    notifyError('No se puede guardar con documentos vencidos (> 30 dias).');
+    notifyError('No se puede guardar con documentos vencidos (> 90 dias).');
     return;
   }
 
   try {
     // Convertir archivos nuevos a Base64 en paralelo
-    const [identBase64, constBase64, opBase64, otroBase64, xmlBase64] = await Promise.all([
+    const [identBase64, constBase64, opBase64, cuentaBase64, otroBase64, xmlBase64] = await Promise.all([
       archivoIdentificacion.value
         ? fileToBase64(archivoIdentificacion.value)
         : Promise.resolve(null),
       archivoConstancia.value ? fileToBase64(archivoConstancia.value) : Promise.resolve(null),
       archivoOpinion.value ? fileToBase64(archivoOpinion.value) : Promise.resolve(null),
+      archivoCuentaBancaria.value ? fileToBase64(archivoCuentaBancaria.value) : Promise.resolve(null),
       archivoOtro.value ? fileToBase64(archivoOtro.value) : Promise.resolve(null),
       xmlFile.value && !xmlGuardado.value ? fileToBase64(xmlFile.value) : Promise.resolve(null),
     ]);
@@ -1692,6 +1841,9 @@ async function handleGuardar() {
       opinionBase64: opBase64 ?? undefined,
       opinionNombre: archivoOpinion.value?.name,
       fechaOpinion: fechaOpinionStr.value || undefined,
+      cuentaBancariaBase64: cuentaBase64 ?? undefined,
+      cuentaBancariaNombre: archivoCuentaBancaria.value?.name,
+      cuentaBancariaDatosCoiniciden: cuentaBancariaDatosCoincidenCheck.value,
       otroBase64: otroBase64 ?? undefined,
       otroNombre: archivoOtro.value?.name,
     });
@@ -1718,11 +1870,11 @@ function validarFechaDoc(fechaStr: string, errorRef: { value: string }, label: s
   hoy.setHours(0, 0, 0, 0);
   const diffDias = Math.floor((hoy.getTime() - fecha.getTime()) / (1000 * 60 * 60 * 24));
   errorRef.value =
-    diffDias > 30 ? `${label} vencida (${diffDias} dias). Maximo permitido: 30 dias.` : '';
+    diffDias > 90 ? `${label} vencida (${diffDias} dias). Maximo permitido: 90 dias.` : '';
 }
 
 const validarFechaConstancia = () =>
-  validarFechaDoc(fechaConstanciaStr.value, errorConstancia, 'Constancia de Situacion Fiscal');
+  validarFechaDoc(fechaConstanciaStr.value, errorConstancia, 'Documento Fiscal');
 const validarFechaOpinion = () =>
   validarFechaDoc(fechaOpinionStr.value, errorOpinion, 'Opinion de Cumplimiento');
 
@@ -1888,6 +2040,28 @@ async function leerFechaDePDF(
   }
 }
 
+function buscarRfcEnTexto(text: string): string | null {
+  const m = text.match(/[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}/);
+  return m ? m[0] : null;
+}
+
+async function leerRfcDePDF(file: File): Promise<string | null> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const textLatin = new TextDecoder('iso-8859-1').decode(buffer);
+    const rfc1 = buscarRfcEnTexto(textLatin);
+    if (rfc1) return rfc1;
+    const textoStreams = await extraerTextoPDFStreams(new Uint8Array(buffer));
+    if (textoStreams) {
+      const rfc2 = buscarRfcEnTexto(textoStreams);
+      if (rfc2) return rfc2;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function onConstanciaSelected(file: File | null) {
   if (!file) return;
   ocrCargandoConstancia.value = true;
@@ -1903,13 +2077,19 @@ async function onConstanciaSelected(file: File | null) {
         archivoConstancia.value = null;
         fechaConstanciaStr.value = '';
         errorConstancia.value = '';
-        notifyError(`Constancia rechazada. Fecha detectada: ${fecha} — Vencida (más de 30 días). Máximo permitido: 30 días.`);
+        notifyError(`Documento Fiscal rechazado. Fecha detectada: ${fecha} — Vencida (más de 90 días). Máximo permitido: 90 días.`);
       } else {
-        notifyOk(`Constancia cargada. Fecha detectada automaticamente: ${fecha}`);
+        notifyOk(`Documento Fiscal cargado. Fecha detectada automaticamente: ${fecha}`);
+        // Validar RFC del documento contra el RFC registrado
+        const rfcEncontrado = await leerRfcDePDF(file);
+        const rfcActual = rfcLocal.value || props.rfc;
+        if (rfcEncontrado && rfcActual && rfcActual !== 'Pendiente RFC' && rfcEncontrado !== rfcActual) {
+          $q.notify({ type: 'warning', icon: 'warning', message: `RFC en el Documento Fiscal (${rfcEncontrado}) no coincide con el RFC registrado (${rfcActual}). Verifique el documento.`, timeout: 7000 });
+        }
       }
     } else {
       archivoConstancia.value = null;
-      notifyError('Constancia rechazada. No se pudo detectar la fecha. Verifique que el documento sea válido.');
+      notifyError('Documento Fiscal rechazado. No se pudo detectar la fecha. Verifique que el documento sea válido.');
     }
   } finally {
     ocrCargandoConstancia.value = false;
@@ -1931,7 +2111,7 @@ async function onOpinionSelected(file: File | null) {
         archivoOpinion.value = null;
         fechaOpinionStr.value = '';
         errorOpinion.value = '';
-        notifyError(`Opinión rechazada. Fecha detectada: ${fecha} — Vencida (más de 30 días). Máximo permitido: 30 días.`);
+        notifyError(`Opinión rechazada. Fecha detectada: ${fecha} — Vencida (más de 90 días). Máximo permitido: 90 días.`);
       } else {
         notifyOk(`Opinion de Cumplimiento cargada. Fecha detectada automaticamente: ${fecha}`);
       }
@@ -2139,6 +2319,7 @@ async function cargarExpediente(ticket: string) {
       exp.identificacion ||
       exp.constancia ||
       exp.opinion ||
+      exp.cuenta_bancaria ||
       exp.otro ||
       exp.contacto_adicional?.nombre
     );
@@ -2165,6 +2346,11 @@ async function cargarExpediente(ticket: string) {
       if (ca.telefono && !datosProductor.contactoTelefono)
         datosProductor.contactoTelefono = ca.telefono;
       if (ca.correo && !datosProductor.contactoCorreo) datosProductor.contactoCorreo = ca.correo;
+    }
+
+    // Checkbox carátula de cuenta bancaria
+    if (exp.cuenta_bancaria_datos_coinciden !== undefined) {
+      cuentaBancariaDatosCoincidenCheck.value = exp.cuenta_bancaria_datos_coinciden;
     }
 
     // Fechas de documentos (se llenan desde DB o auto-deteccion PDF)
@@ -2213,6 +2399,7 @@ function notifyError(message: string) {
    Init
 ═══════════════════════════ */
 onMounted(() => {
+  void cargarConfigCampos();
   if (props.tickets.length > 0) {
     const firstTicket = props.tickets[0];
     if (firstTicket) {

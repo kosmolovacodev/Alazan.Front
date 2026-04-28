@@ -439,6 +439,15 @@
                   color="blue-8"
                 />
               </q-banner>
+
+              <q-input
+                v-if="campoEditando.tipoDato === 'seleccionar'"
+                v-model="campoEditando.opciones"
+                label="Opciones (separadas por coma)"
+                outlined dense
+                placeholder="Ej: S,N  o  Rojo,Verde,Azul"
+                hint="Cada opción separada por coma"
+              />
             </div>
           </q-card-section>
           <q-card-actions align="right" class="text-primary">
@@ -514,6 +523,15 @@
                 </div>
               </q-banner>
 
+              <q-input
+                v-if="nuevoCampo.tipoDato === 'seleccionar'"
+                v-model="nuevoCampo.opciones"
+                label="Opciones (separadas por coma)"
+                outlined dense
+                placeholder="Ej: S,N  o  Rojo,Verde,Azul"
+                hint="Cada opción separada por coma"
+              />
+
               <div class="row q-gutter-md">
                 <q-checkbox v-model="nuevoCampo.visible" label="Visible" />
                 <q-checkbox v-model="nuevoCampo.obligatorio" label="Obligatorio" />
@@ -579,6 +597,7 @@ interface CampoConfig {
   granoId?: number | null;
   tipoDato: string;
   afectaExportacion: boolean;
+  opciones?: string | null;
 }
 
 const columnsCampos: QTableColumn[] = [
@@ -663,7 +682,7 @@ const camposPreliquidacion = ref<CampoConfig[]>([])
 
 const showDialogNuevoCampo = ref(false)
 const showDialogEditarCampo = ref(false)
-const campoEditando = ref<{ id: number; nombreMostrar: string; tipoDato: string; afectaExportacion: boolean }>({ id: 0, nombreMostrar: '', tipoDato: 'texto', afectaExportacion: false })
+const campoEditando = ref<{ id: number; nombreMostrar: string; tipoDato: string; afectaExportacion: boolean; opciones: string }>({ id: 0, nombreMostrar: '', tipoDato: 'texto', afectaExportacion: false, opciones: '' })
 const tabActual = ref('BASCULA')
 
 // --- ANÁLISIS: selector de grano ---
@@ -694,6 +713,7 @@ const opcionesTipoDato = [
   { label: 'Texto', value: 'texto' },
   { label: 'Número', value: 'numero' },
   { label: 'Porcentaje (%)', value: 'porcentaje' },
+  { label: 'Selección (dropdown)', value: 'seleccionar' },
 ]
 
 const nuevoCampo = ref<{
@@ -706,6 +726,7 @@ const nuevoCampo = ref<{
   granoId: number | null;
   tipoDato: string;
   afectaExportacion: boolean;
+  opciones: string;
 }>({
   pantalla: 'BASCULA',
   nombreMostrar: '',
@@ -716,6 +737,7 @@ const nuevoCampo = ref<{
   granoId: null,
   tipoDato: 'texto',
   afectaExportacion: false,
+  opciones: '',
 })
 
 const abrirEdicion = (campo: CampoConfig) => {
@@ -724,6 +746,7 @@ const abrirEdicion = (campo: CampoConfig) => {
     nombreMostrar: campo.nombreMostrar,
     tipoDato: campo.tipoDato ?? 'texto',
     afectaExportacion: campo.afectaExportacion ?? false,
+    opciones: campo.opciones ?? '',
   }
   showDialogEditarCampo.value = true
 }
@@ -736,6 +759,7 @@ const confirmarEdicion = () => {
       lista.value[idx]!.nombreMostrar = campoEditando.value.nombreMostrar
       lista.value[idx]!.tipoDato = campoEditando.value.tipoDato
       lista.value[idx]!.afectaExportacion = campoEditando.value.afectaExportacion
+      lista.value[idx]!.opciones = campoEditando.value.opciones
       break
     }
   }
@@ -780,6 +804,7 @@ const abrirDialogoNuevoCampo = () => {
     granoId: tabActual.value === 'ANALISIS' ? granoFiltroAnalisis.value : null,
     tipoDato: 'texto',
     afectaExportacion: false,
+    opciones: '',
   }
   showDialogNuevoCampo.value = true
 }

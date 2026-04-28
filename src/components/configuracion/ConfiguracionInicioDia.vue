@@ -176,7 +176,7 @@
             row-key="usuario_id"
             flat
             dense
-            :pagination="{ rowsPerPage: 20 }"
+            :pagination="{ rowsPerPage: 0 }"
             no-data-label="Sin asistencias para esta fecha"
           >
             <template #body-cell-asistio="{ row }">

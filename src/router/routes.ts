@@ -64,6 +64,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/bodega/BodegaPage.vue'),
       },
       {
+        path: 'inventario-silos',
+        meta: { permiso: 'Inventario - Silos' },
+        component: () => import('pages/inventario/DashboardSilosPage.vue'),
+      },
+      {
         path: 'embarque',
         meta: { permiso: 'Instrucciones de Embarque' },
         component: () => import('pages/embarque/InstruccionesEmbarquePage.vue'),
@@ -102,7 +107,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/login',
-    component: () => import('pages/LoginPage.vue'), // El login NO usa el MainLayout
+    component: () => import('pages/LoginPage.vue'),
+  },
+  {
+    path: '/firmar-bitacora',
+    component: () => import('pages/bitacoras/FirmarBitacoraPage.vue'),
   },
   {
     path: '/:catchAll(.*)*',

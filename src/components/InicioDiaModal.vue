@@ -293,11 +293,26 @@ const suplementoAnalista = ref<{ label: string; value: number } | null>(null);
 // ── Hora viva ──────────────────────────────────────────────────────────────
 const horaActual = ref('');
 let timerHora: ReturnType<typeof setInterval> | null = null;
+let timerVerificar: ReturnType<typeof setInterval> | null = null;
+
 const actualizarHora = () => {
   horaActual.value = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 };
-onMounted(() => { actualizarHora(); timerHora = setInterval(actualizarHora, 30_000); void cargar(); });
-onBeforeUnmount(() => { if (timerHora) clearInterval(timerHora); });
+
+onMounted(() => {
+  actualizarHora();
+  timerHora = setInterval(actualizarHora, 30_000);
+  // Auto-verify every 30 s for users who cannot act (analistas waiting for supervisor/asistente)
+  timerVerificar = setInterval(() => {
+    if (!puedeActuar.value && !cargando.value) void cargar();
+  }, 30_000);
+  void cargar();
+});
+
+onBeforeUnmount(() => {
+  if (timerHora) clearInterval(timerHora);
+  if (timerVerificar) clearInterval(timerVerificar);
+});
 
 const fechaFormateada = computed(() =>
   new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
