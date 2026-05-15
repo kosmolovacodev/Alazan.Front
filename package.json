@@ -1,8 +1,8 @@
 {
   "name": "alazan-frontend",
   "version": "0.0.1",
-  "description": "Sistema de Recepcion de Granos",
-  "productName": "Sistema de Recepcion de Granos - Alazan",
+  "description": "Sistema de Recepcion de Granos AgroAlazan",
+  "productName": "AgroAlazan - Sistema de Recepcion de Granos",
   "author": "kosmoMX <somadicontacto@gmail.com>",
   "type": "module",
   "private": true,

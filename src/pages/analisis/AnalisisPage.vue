@@ -740,8 +740,9 @@ async function cargarPendientes() {
   if (!window.navigator.onLine) return; // Sin red, trabajar con lo que hay en memoria
   loading.value = true;
   try {
+    const sedeId = authStore.sedeActivaId ?? 0;
     const response = await api.get('/api/analisis/pendientes-analisis', {
-      params: { estatus: 'TODOS' },
+      params: { sedeId, estatus: 'TODOS' },
     });
     listaTodos.value = response.data;
     currentIndex.value = 0;

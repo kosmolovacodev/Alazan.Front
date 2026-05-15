@@ -6,11 +6,33 @@
     ═══════════════════════════════════════════════════ -->
     <template v-if="nivel === 1">
       <div class="q-mb-lg">
-        <div class="text-h5 text-weight-bold text-grey-9">Bitácoras de Control</div>
-        <div class="text-caption text-grey-6 q-mt-xs">Selecciona una sección para ver sus bitácoras</div>
+        <div class="row items-center no-wrap">
+          <div class="col">
+            <div class="text-h5 text-weight-bold text-grey-9">Bitácoras de Control</div>
+            <div class="text-caption text-grey-6 q-mt-xs">Selecciona una sección para ver sus bitácoras</div>
+          </div>
+          <q-btn flat round icon="history" color="grey-7" @click="abrirHistorial">
+            <q-tooltip>Historial de documentos generados</q-tooltip>
+          </q-btn>
+        </div>
       </div>
 
-      <div class="row q-col-gutter-md">
+      <!-- Skeletons mientras carga -->
+      <div v-if="cargandoSecciones" class="row q-col-gutter-md">
+        <div v-for="n in 3" :key="n" class="col-12 col-sm-6 col-md-4">
+          <q-card flat bordered class="q-pa-md">
+            <div class="row items-center no-wrap q-gutter-md">
+              <q-skeleton type="QAvatar" size="52px" />
+              <div class="col">
+                <q-skeleton type="text" width="60%" class="q-mb-xs" />
+                <q-skeleton type="text" width="80%" />
+              </div>
+            </div>
+          </q-card>
+        </div>
+      </div>
+
+      <div v-else class="row q-col-gutter-md">
         <div v-for="sec in secciones" :key="sec.codigo" class="col-12 col-sm-6 col-md-4">
           <div class="bit-sec-card" @click="entrarSeccion(sec)">
             <div class="row items-center no-wrap q-gutter-md">
@@ -167,17 +189,32 @@
             <q-btn v-if="verificandoDocumento" flat dense loading
               style="min-width:110px; border-radius:8px" color="grey-6" />
 
-            <!-- No existe documento en el período → permitir generar -->
-            <q-btn v-else-if="!documentoActivo" unelevated icon="description" label="Generar"
-              style="background:#2e7d32; color:#fff; border-radius:8px"
-              :loading="generando"
-              @click="generarDocumento" />
+            <!-- Rol inocuidad: solo puede VER si ya existe documento, no generar -->
+            <template v-else-if="esInocuidad">
+              <q-btn v-if="documentoActivo" unelevated icon="visibility" label="Ver Documento"
+                style="background:#1565c0; color:#fff; border-radius:8px"
+                :loading="generando"
+                @click="generarDocumento" />
+            </template>
 
-            <!-- Ya existe documento → solo "Ver Documento" -->
-            <q-btn v-else unelevated icon="visibility" label="Ver Documento"
-              style="background:#1565c0; color:#fff; border-radius:8px"
-              :loading="generando"
-              @click="generarDocumento" />
+            <!-- Flujo normal: generar o ver -->
+            <template v-else>
+              <q-btn v-if="!documentoActivo" unelevated icon="description" label="Generar"
+                style="background:#2e7d32; color:#fff; border-radius:8px"
+                :loading="generando"
+                @click="generarDocumento" />
+              <q-btn v-else unelevated icon="visibility" label="Ver Documento"
+                style="background:#1565c0; color:#fff; border-radius:8px"
+                :loading="generando"
+                @click="generarDocumento" />
+            </template>
+
+            <!-- Historial de PDFs generados (visible para todos) -->
+            <q-btn flat round dense icon="history" color="grey-7" class="q-ml-xs"
+              @click="abrirHistorialBitacora">
+              <q-tooltip>Reportes generados de esta bitácora</q-tooltip>
+            </q-btn>
+
             <q-space />
             <q-input v-model="buscar" dense outlined placeholder="Buscar..."
               style="min-width:220px; max-width:300px" clearable>
@@ -378,13 +415,17 @@
       <q-card>
         <q-bar class="bg-grey-2 q-pa-sm">
           <q-btn flat round dense icon="close" @click="modalDocumento = false" />
-          <span class="text-subtitle2 q-ml-sm">{{ bitacoraActiva?.nombre }} — {{ hoyStr }}</span>
+          <span class="text-subtitle2 q-ml-sm">
+            {{ viendoHistorial ? histDocNombre : (bitacoraActiva?.nombre ?? '') }}
+            &mdash;
+            {{ viendoHistorial ? formatFecha(histDocFecha) : hoyStr }}
+          </span>
           <q-space />
           <q-badge :color="colorStatus">
             {{ etiquetaStatus }}
           </q-badge>
           <q-btn
-            v-if="!documentoTotalmenteFirmado"
+            v-if="!viendoHistorial && !documentoTotalmenteFirmado"
             flat dense icon="restart_alt" color="negative" class="q-ml-sm"
             :loading="reiniciando"
             @click="reiniciarDocumento"
@@ -419,11 +460,11 @@
                   {{ configSistema.nombre_empresa || 'BODEGA DE GRANOS EL ALAZAN Y EL ROCIO S.A. DE C.V.' }}
                 </div>
                 <div v-if="configSistema.rfc" class="text-caption">RFC: {{ configSistema.rfc }}</div>
-                <div class="text-h6 q-mt-xs">{{ bitacoraActiva?.nombre }}</div>
+                <div class="text-h6 q-mt-xs">{{ viendoHistorial ? histDocNombre : (bitacoraActiva?.nombre ?? '') }}</div>
               </td>
               <td width="160" class="text-caption text-right">
-                Código: {{ bitacoraActiva?.codigo }}<br/>
-                Fecha: {{ hoyStr }}
+                Código: {{ viendoHistorial ? '' : (bitacoraActiva?.codigo ?? '') }}<br/>
+                Fecha: {{ viendoHistorial ? formatFecha(histDocFecha) : hoyStr }}
               </td>
             </tr>
           </table>
@@ -438,7 +479,7 @@
             <tbody>
               <tr v-for="(fila, idx) in filasDocumento" :key="idx">
                 <td v-for="col in columnasDocumento" :key="col.campo">
-                  {{ fila[col.campo] ?? '' }}
+                  {{ col.campo === 'fecha' ? formatFecha(fila[col.campo]) : (fila[col.campo] ?? '') }}
                 </td>
               </tr>
               <tr v-if="!filasDocumento.length">
@@ -514,6 +555,149 @@
           <q-btn unelevated color="positive" label="Confirmar"
             :loading="firmandoNip" @click="confirmarFirma" />
         </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- ══════════════════════════════════════════════════
+         MODAL — Historial de documentos generados
+    ═══════════════════════════════════════════════════ -->
+    <q-dialog v-model="modalHistorial" maximized transition-show="slide-up">
+      <q-card>
+        <q-bar class="bg-grey-2 q-pa-sm">
+          <q-btn flat round dense icon="close" @click="modalHistorial = false" />
+          <span class="text-subtitle2 q-ml-sm">
+            <template v-if="histCodigoBitacora">
+              Reportes — {{ histNombreBitacora }}
+            </template>
+            <template v-else>
+              Historial de Documentos Generados
+            </template>
+          </span>
+          <q-space />
+        </q-bar>
+
+        <!-- Filtros -->
+        <div class="row items-center q-pa-md q-gutter-sm">
+          <q-input v-model="histDesde" type="date" label="Desde" outlined dense
+            style="width:150px" />
+          <q-input v-model="histHasta" type="date" label="Hasta" outlined dense
+            style="width:150px" />
+          <!-- Filtro estado: solo en vista global -->
+          <q-select v-if="!histCodigoBitacora"
+            v-model="histStatus" :options="['Pendiente','En proceso','Firmado']"
+            label="Estado" outlined dense clearable style="width:160px" />
+          <!-- Buscador: solo en vista global -->
+          <q-input v-if="!histCodigoBitacora"
+            v-model="histBuscar" placeholder="Buscar..." outlined dense clearable
+            style="width:220px">
+            <template v-slot:append><q-icon name="search" color="grey-5" /></template>
+          </q-input>
+          <q-btn unelevated color="primary" icon="search" label="Buscar"
+            :loading="cargandoHistorial" @click="cargarHistorial" />
+        </div>
+
+        <!-- Vista simplificada: historial de una bitácora específica -->
+        <template v-if="histCodigoBitacora">
+          <div class="q-px-md q-pb-lg">
+            <div v-if="cargandoHistorial" class="flex flex-center q-pa-xl">
+              <q-spinner size="40px" color="primary" />
+            </div>
+            <template v-else>
+              <div v-if="historial.length === 0"
+                class="text-center q-pa-xl text-grey-5">
+                <q-icon name="picture_as_pdf" size="48px" class="q-mb-sm" />
+                <div class="text-body2">Sin documentos en este rango de fechas</div>
+              </div>
+              <div v-else class="row q-col-gutter-md">
+                <div v-for="doc in historial" :key="doc.id" class="col-12 col-sm-6 col-md-4 col-lg-3">
+                  <q-card flat bordered class="hist-pdf-card">
+                    <q-card-section class="q-pa-md">
+                      <div class="row items-center no-wrap q-gutter-sm q-mb-sm">
+                        <q-icon name="picture_as_pdf" color="red-7" size="28px" />
+                        <div class="col">
+                          <div class="text-subtitle2 text-weight-bold text-grey-9">
+                            {{ formatFecha(doc.fecha) }}
+                          </div>
+                          <div class="text-caption text-grey-5">{{ doc.codigoBitacora }}</div>
+                        </div>
+                      </div>
+                      <div class="row items-center justify-between q-mt-xs">
+                        <q-badge :color="colorStatusDoc(doc.status)" class="text-caption">
+                          {{ doc.status }}
+                        </q-badge>
+                        <span class="text-caption text-grey-5">
+                          {{ doc.firmasCompletadas }}/{{ doc.totalFirmas }} firmas
+                        </span>
+                      </div>
+                      <div v-if="doc.generadoPor" class="text-caption text-grey-5 q-mt-xs">
+                        Por: {{ doc.generadoPor }}
+                      </div>
+                    </q-card-section>
+                    <q-separator />
+                    <q-card-actions align="right">
+                      <q-btn flat dense icon="visibility" color="blue-grey" size="sm"
+                        label="Ver" @click="verDocumentoHistorial(doc)" />
+                      <q-btn unelevated dense icon="download" color="primary" size="sm"
+                        label="Descargar"
+                        :loading="generandoPdfId === doc.id"
+                        @click="descargarPdfHistorial(doc)" />
+                    </q-card-actions>
+                  </q-card>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Vista completa: historial global de todas las bitácoras -->
+        <template v-else>
+          <div class="q-px-md q-pb-lg">
+            <q-table
+              :rows="historialFiltrado"
+              :columns="historialColumnas"
+              row-key="id"
+              flat
+              dense
+              :loading="cargandoHistorial"
+              no-data-label="Sin documentos en este rango de fechas"
+              :rows-per-page-options="[25, 50, 100]"
+            >
+              <template v-slot:body-cell-fecha="props">
+                <q-td :props="props">{{ formatFecha(props.row.fecha) }}</q-td>
+              </template>
+              <template v-slot:body-cell-status="props">
+                <q-td :props="props">
+                  <q-badge :color="colorStatusDoc(props.row.status)">{{ props.row.status }}</q-badge>
+                </q-td>
+              </template>
+              <template v-slot:body-cell-firmas="props">
+                <q-td :props="props">
+                  {{ props.row.firmasCompletadas }}/{{ props.row.totalFirmas }}
+                </q-td>
+              </template>
+              <template v-slot:body-cell-acciones="props">
+                <q-td :props="props">
+                  <div class="row q-gutter-xs no-wrap items-center">
+                    <q-btn v-if="props.row.pdfUrl" flat round dense icon="download"
+                      color="primary" size="sm"
+                      @click="descargarPdfHistorial(props.row)">
+                      <q-tooltip>Descargar PDF</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="picture_as_pdf" color="grey-7" size="sm"
+                      :loading="generandoPdfId === props.row.id"
+                      @click="generarPdfDocumento(props.row)">
+                      <q-tooltip>{{ props.row.pdfUrl ? 'Regenerar PDF' : 'Generar PDF' }}</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="visibility" color="blue-grey" size="sm"
+                      @click="verDocumentoHistorial(props.row)">
+                      <q-tooltip>Ver documento</q-tooltip>
+                    </q-btn>
+                  </div>
+                </q-td>
+              </template>
+            </q-table>
+          </div>
+        </template>
       </q-card>
     </q-dialog>
 
@@ -600,8 +784,32 @@ interface FirmaDoc {
   firmadoEn: string | null;
 }
 
+interface HistorialDoc {
+  id: number;
+  codigoBitacora: string;
+  nombreBitacora: string;
+  seccionCodigo: string;
+  nombreSeccion: string;
+  seccionColor: string;
+  sedeId: number;
+  fecha: string;
+  status: string;
+  generadoPor: string | null;
+  creadoEn: string | null;
+  pdfPath: string | null;
+  pdfUrl: string | null;
+  totalFirmas: number;
+  firmasCompletadas: number;
+}
+
+// ── Rol inocuidad ─────────────────────────────────────────────
+const esInocuidad = computed(() =>
+  authStore.user?.nombre_rol?.toLowerCase().includes('inocuidad') ?? false
+);
+
 // ── Estado de secciones (cargado desde API) ───────────────────
-const secciones = ref<SeccionDef[]>([]);
+const secciones          = ref<SeccionDef[]>([]);
+const cargandoSecciones  = ref(false);
 
 // ── Estado de navegación ──────────────────────────────────────
 const nivel          = ref<1 | 2 | 3>(1);
@@ -755,6 +963,7 @@ async function generarDocumento() {
       codigoBitacora: bitacoraActiva.value.codigo,
       sedeId: sedeId.value,
       fecha: new Date().toISOString().substring(0, 10),
+      generadoPor: authStore.user?.nombre_completo ?? '',
     });
     documentoActivo.value   = { id: res.data.documentoId as number, status: res.data.status as string };
     filasDocumento.value    = Array.isArray(res.data.filas)    ? res.data.filas    : [];
@@ -874,6 +1083,7 @@ function inferirRolesAcceso(sec: SeccionDef): string | null {
 
 function puedeVerSeccion(sec: SeccionDef): boolean {
   if (authStore.esAdminGlobal) return true;
+  if (esInocuidad.value) return true; // inocuidad ve todas las secciones
   const userRol = authStore.user?.nombre_rol?.toLowerCase() ?? '';
   if (!userRol) return true;
   // Roles genéricos sin sufijo de área (GERENTE, SUPERVISOR, ADMIN…) ven todo.
@@ -889,6 +1099,7 @@ function puedeVerSeccion(sec: SeccionDef): boolean {
 
 // ── API — Secciones ───────────────────────────────────────────
 async function cargarSecciones() {
+  cargandoSecciones.value = true;
   try {
     const { data } = await api.get<SeccionDef[]>('/api/bitacoras/secciones', {
       params: { sedeId: sedeId.value },
@@ -898,6 +1109,8 @@ async function cargarSecciones() {
       .map(s => ({ ...s, bitacoras: [] }));
   } catch {
     Notify.create({ type: 'negative', message: 'Error al cargar secciones' });
+  } finally {
+    cargandoSecciones.value = false;
   }
 }
 
@@ -1017,9 +1230,160 @@ async function guardarRegistro() {
 
 
 
+// ── Variables para apertura del modal desde historial ─────────
+const viendoHistorial  = ref(false);
+const histDocNombre    = ref('');
+const histDocFecha     = ref('');
+
+watch(modalDocumento, (val) => {
+  if (!val) viendoHistorial.value = false;
+});
+
+// ── Historial de documentos generados ────────────────────────
+const modalHistorial      = ref(false);
+const histDesde           = ref('');
+const histHasta           = ref('');
+const histStatus          = ref<string | null>(null);
+const histBuscar          = ref('');
+const histCodigoBitacora  = ref<string | null>(null); // null = todas
+const histNombreBitacora  = ref('');                  // para el título del dialog
+const historial           = ref<HistorialDoc[]>([]);
+const cargandoHistorial   = ref(false);
+const generandoPdfId      = ref<number | null>(null);
+
+const historialColumnas = [
+  { name: 'fecha',       label: 'Fecha',       field: 'fecha',        align: 'left' as const,   sortable: true },
+  { name: 'seccion',     label: 'Sección',     field: 'nombreSeccion',align: 'left' as const,   sortable: true },
+  { name: 'bitacora',    label: 'Bitácora',    field: 'nombreBitacora',align: 'left' as const,  sortable: true },
+  { name: 'status',      label: 'Estado',      field: 'status',       align: 'center' as const, sortable: true },
+  { name: 'firmas',      label: 'Firmas',      field: 'firmasCompletadas', align: 'center' as const },
+  { name: 'generadoPor', label: 'Generado por',field: 'generadoPor',  align: 'left' as const },
+  { name: 'acciones',    label: 'Acciones',    field: 'id',           align: 'center' as const },
+];
+
+const historialFiltrado = computed(() => {
+  const q = histBuscar.value.toLowerCase();
+  if (!q) return historial.value;
+  return historial.value.filter(d =>
+    d.nombreBitacora.toLowerCase().includes(q) ||
+    d.nombreSeccion.toLowerCase().includes(q) ||
+    d.codigoBitacora.toLowerCase().includes(q) ||
+    (d.generadoPor?.toLowerCase().includes(q) ?? false)
+  );
+});
+
+function colorStatusDoc(status: string): string {
+  if (status === 'Firmado')     return 'positive';
+  if (status === 'En proceso')  return 'orange-8';
+  return 'grey-6';
+}
+
+function initFechasFiltro() {
+  if (!histDesde.value) {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    histDesde.value = d.toISOString().substring(0, 10);
+  }
+  if (!histHasta.value) {
+    histHasta.value = new Date().toISOString().substring(0, 10);
+  }
+}
+
+// Abre historial global (desde nivel 1)
+async function abrirHistorial() {
+  histCodigoBitacora.value = null;
+  histNombreBitacora.value = '';
+  histStatus.value = null;
+  initFechasFiltro();
+  modalHistorial.value = true;
+  await cargarHistorial();
+}
+
+// Abre historial filtrado a una bitácora específica (desde nivel 3)
+async function abrirHistorialBitacora() {
+  if (!bitacoraActiva.value) return;
+  histCodigoBitacora.value = bitacoraActiva.value.codigo;
+  histNombreBitacora.value = bitacoraActiva.value.nombre;
+  histStatus.value = null;
+  histDesde.value = '';
+  histHasta.value = '';
+  initFechasFiltro();
+  modalHistorial.value = true;
+  await cargarHistorial();
+}
+
+async function cargarHistorial() {
+  cargandoHistorial.value = true;
+  try {
+    const { data } = await api.get('/api/bitacoras/historial', {
+      params: {
+        sedeId:          sedeId.value,
+        desde:           histDesde.value            || undefined,
+        hasta:           histHasta.value            || undefined,
+        status:          histStatus.value           || undefined,
+        codigoBitacora:  histCodigoBitacora.value   || undefined,
+      },
+    });
+    historial.value = Array.isArray(data) ? data : [];
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al cargar historial' });
+  } finally {
+    cargandoHistorial.value = false;
+  }
+}
+
+async function generarPdfDocumento(doc: HistorialDoc) {
+  generandoPdfId.value = doc.id;
+  try {
+    const res = await api.post(`/api/bitacoras/documentos/${doc.id}/generar-pdf`, {
+      generadoPor:   authStore.user?.nombre_completo ?? '',
+      nombreSede:    authStore.nombreSedeActiva,
+      nombreEmpresa: configSistema.value.nombre_empresa,
+      rfc:           configSistema.value.rfc,
+    });
+    const url     = res.data.pdfUrl as string;
+    const relPath = res.data.pdfPath as string;
+    const idx = historial.value.findIndex(d => d.id === doc.id);
+    if (idx >= 0) {
+      const item = historial.value[idx];
+      if (item) {
+        item.pdfUrl  = url;
+        item.pdfPath = relPath;
+      }
+    }
+    window.open(url, '_blank');
+    Notify.create({ type: 'positive', message: 'PDF generado correctamente', timeout: 2500 });
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al generar PDF' });
+  } finally {
+    generandoPdfId.value = null;
+  }
+}
+
+// Siempre regenera para que refleje datos actuales y la nueva plantilla
+function descargarPdfHistorial(doc: HistorialDoc) {
+  void generarPdfDocumento(doc);
+}
+
+async function verDocumentoHistorial(doc: HistorialDoc) {
+  try {
+    const { data } = await api.get(`/api/bitacoras/documentos/${doc.id}/detalle`);
+    documentoActivo.value    = { id: doc.id, status: doc.status };
+    filasDocumento.value     = Array.isArray(data.filas)    ? data.filas    : [];
+    columnasDocumento.value  = Array.isArray(data.columnas) ? data.columnas : [];
+    firmasDocumento.value    = Array.isArray(data.firmas)   ? data.firmas   : [];
+    histDocNombre.value      = doc.nombreBitacora;
+    histDocFecha.value       = doc.fecha;
+    viendoHistorial.value    = true;
+    modalHistorial.value     = false;
+    modalDocumento.value     = true;
+  } catch {
+    Notify.create({ type: 'negative', message: 'Error al cargar el documento' });
+  }
+}
+
 onMounted(async () => {
-  await cargarSecciones();
-  void cargarConfigSistema();
+  await Promise.all([cargarSecciones(), cargarConfigSistema()]);
 
   const { doc, sec, bit } = route.query;
   if (doc && sec && bit) {

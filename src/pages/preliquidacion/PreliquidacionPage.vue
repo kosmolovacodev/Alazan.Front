@@ -1529,7 +1529,7 @@ const preliquidacionDocumentos = ref<PreliquidacionDoc[]>([]);
 const docActualIdx = ref(0);
 const docActual = computed(() => preliquidacionDocumentos.value[docActualIdx.value] || null);
 
-// Filtros
+// Filtros — por defecto muestra solo el día de hoy
 const filtros = reactive({
   ticket: '',
   boleta: '',
@@ -1837,7 +1837,18 @@ function fmtMoney(val: number | string | undefined | null): string {
 async function cargarRegistros() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/preliquidacion');
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const hoy = new Date().toLocaleDateString('en-CA');
+    const params: Record<string, unknown> = { sedeId };
+
+    if (filtros.hoy) {
+      params.fecha = hoy;
+    } else if (filtros.fechaInicio || filtros.fechaFin) {
+      if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+      if (filtros.fechaFin)    params.fechaHasta = filtros.fechaFin;
+    }
+
+    const { data } = await api.get('/api/preliquidacion', { params });
     registros.value = data;
   } catch (error) {
     console.error('Error al cargar registros:', error);
@@ -1849,7 +1860,18 @@ async function cargarRegistros() {
 
 async function cargarResumen() {
   try {
-    const { data } = await api.get('/api/preliquidacion/resumen');
+    const sedeId = authStore.sedeActivaId ?? 0;
+    const hoy = new Date().toLocaleDateString('en-CA');
+    const params: Record<string, unknown> = { sedeId };
+
+    if (filtros.hoy) {
+      params.fecha = hoy;
+    } else if (filtros.fechaInicio || filtros.fechaFin) {
+      if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+      if (filtros.fechaFin)    params.fechaHasta = filtros.fechaFin;
+    }
+
+    const { data } = await api.get('/api/preliquidacion/resumen', { params });
     resumen.value = data;
   } catch (error) {
     console.error('Error al cargar resumen:', error);
@@ -2653,6 +2675,8 @@ function limpiarFiltros() {
   filtros.hoy = false;
   filtros.fechaInicio = '';
   filtros.fechaFin = '';
+  void cargarRegistros();
+  void cargarResumen();
 }
 
 function exportarExcel() {

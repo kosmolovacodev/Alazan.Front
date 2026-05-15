@@ -30,16 +30,20 @@ interface AuthState {
   token: string | null;
 }
 
+function parseSedes(): Sede[] {
+  try { return JSON.parse(localStorage.getItem('alazan_sedes') || '[]') as Sede[]; }
+  catch { return []; }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: JSON.parse(localStorage.getItem('alazan_user') || 'null') as User | null,
     token: localStorage.getItem('jwt') || null,
     isLoggedIn: !!localStorage.getItem('alazan_user'),
-    // Aseguramos que se recupere como número o null
     sedeActivaId: localStorage.getItem('alazan_sede_activa')
       ? Number(localStorage.getItem('alazan_sede_activa'))
       : null,
-    listaSedes: [] as Sede[],
+    listaSedes: parseSedes(),
   }),
 
   getters: {
@@ -131,8 +135,8 @@ export const useAuthStore = defineStore('auth', {
     async cargarSedes() {
       try {
         const { data } = await api.get('/api/catalogos/sedes');
-        // Tu filtro original de activos
         this.listaSedes = (data as Sede[]).filter((s) => !!s.activo);
+        localStorage.setItem('alazan_sedes', JSON.stringify(this.listaSedes));
 
         if (this.esAdminGlobal && (!this.sedeActivaId || this.sedeActivaId === 0)) {
           const primeraSede = this.listaSedes[0];
@@ -161,6 +165,7 @@ export const useAuthStore = defineStore('auth', {
 
       localStorage.removeItem('alazan_user');
       localStorage.removeItem('alazan_sede_activa');
+      localStorage.removeItem('alazan_sedes');
       localStorage.removeItem('jwt');
 
       // Redirección forzada al login

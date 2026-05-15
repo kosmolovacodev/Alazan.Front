@@ -64,7 +64,7 @@
         </q-card-section>
 
         <q-card-section class="text-center q-pa-none q-pb-md">
-          <div class="text-caption text-grey-6">v1.0.0-net9 | © 2026 Alazán</div>
+          <div class="text-caption text-grey-6">v1.0.0-net9 | © 2026 AgroAlazan</div>
         </q-card-section>
       </q-card>
     </div>

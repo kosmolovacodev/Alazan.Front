@@ -52,6 +52,9 @@
             <q-item-label caption class="text-grey-6">
               {{ n.nombreSeccion }}
             </q-item-label>
+            <q-item-label caption class="text-grey-5" style="font-size:11px">
+              {{ formatFecha(n.fecha) }}
+            </q-item-label>
             <q-item-label caption>
               <q-chip dense outline color="orange-8" size="xs" icon="draw" :label="n.etiqueta" />
             </q-item-label>
@@ -92,6 +95,13 @@ interface Notificacion {
 const authStore         = useAuthStore();
 const notifStore        = useNotificacionesStore();
 const router            = useRouter();
+
+function formatFecha(val: string | null | undefined): string {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 const notificaciones    = ref<Notificacion[]>([]);
 const cargando          = ref(false);
 let   pollTimer: ReturnType<typeof setInterval> | null = null;

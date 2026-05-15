@@ -38,6 +38,7 @@ import type { BoletaPrecio } from 'src/types/precio';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { useOfflineStore } from 'src/stores/offlineStore';
+import { useAuthStore } from 'src/stores/auth';
 
 // Tipos para los catálogos
 interface CalibreDescuento {
@@ -65,6 +66,7 @@ interface DescuentoPrecio {
 
 // Estado
 const offlineStore = useOfflineStore();
+const authStore    = useAuthStore();
 const isOnline = ref(window.navigator.onLine);
 const boletasPrecios = ref<BoletaPrecio[]>([]);
 const tickTiempo = ref(0);
@@ -128,7 +130,9 @@ const cargarCatalogos = async (granoId?: number) => {
 // Cargar boletas desde el backend
 const cargarBoletas = async () => {
   try {
-    const { data } = await api.get('/api/precio');
+    const { data } = await api.get('/api/precio', {
+      params: { sedeId: authStore.sedeActivaId ?? 0 }
+    });
     boletasPrecios.value = data;
   } catch (error) {
     console.error('Error al cargar boletas:', error);

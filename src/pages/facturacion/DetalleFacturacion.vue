@@ -373,16 +373,75 @@
 
               <q-separator class="q-my-md" />
 
+              <!-- ═══ 5d2. Orden de Compra MBA3 ═══ -->
+              <div class="text-subtitle2 text-weight-medium q-mb-sm">Orden de Compra (MBA3)</div>
+              <div v-if="cargandoOcs" class="text-caption text-grey q-mb-md">
+                Consultando MBA3...
+              </div>
+              <div v-else-if="ocVigentes.length === 0" class="q-mb-md">
+                <q-chip color="orange" text-color="white" icon="warning" dense>
+                  Sin OC registrada en MBA3 para este productor
+                </q-chip>
+              </div>
+              <div v-else class="row q-col-gutter-md q-mb-md">
+                <!-- Auto-vinculada: mostrar fijo, sin selector -->
+                <template v-if="ocSeleccionada?.ordenCompraInternaId != null">
+                  <div class="col-12">
+                    <q-chip color="positive" text-color="white" icon="link" dense class="q-mb-xs">
+                      OC vinculada automáticamente · {{ ocSeleccionada.folioInterno }}
+                    </q-chip>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input dense outlined readonly label="N° OC MBA3" :model-value="String(ocSeleccionada.contratoId)" />
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input dense outlined readonly label="KG EN OC" :model-value="ocSeleccionada.kilos != null ? `${formatNumber(ocSeleccionada.kilos)} kg` : '—'" />
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input dense outlined readonly label="IMPORTE OC" :model-value="`$${formatMoney(ocSeleccionada.importe)}`" />
+                  </div>
+                </template>
+
+                <!-- Sin auto-match: selector manual -->
+                <template v-else>
+                  <div class="col-12">
+                    <q-select
+                      dense
+                      outlined
+                      label="SELECCIONAR ORDEN DE COMPRA"
+                      v-model="ocSeleccionada"
+                      :options="ocVigentes"
+                      :option-label="(o: OcVigente) => `OC ${o.contratoId} — ${o.kilos != null ? formatNumber(o.kilos) + ' kg' : 'sin kg'} — $${formatMoney(o.importe)} [${o.status ?? ''}]`"
+                      clearable
+                    />
+                  </div>
+                  <template v-if="ocSeleccionada">
+                    <div class="col-12 col-md-4">
+                      <q-input dense outlined readonly label="N° OC" :model-value="String(ocSeleccionada.contratoId)" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <q-input dense outlined readonly label="KG EN OC" :model-value="ocSeleccionada.kilos != null ? `${formatNumber(ocSeleccionada.kilos)} kg` : '—'" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <q-input dense outlined readonly label="IMPORTE OC" :model-value="`$${formatMoney(ocSeleccionada.importe)}`" />
+                    </div>
+                  </template>
+                </template>
+              </div>
+
+              <q-separator class="q-my-md" />
+
               <!-- ═══ 5e. Campos de Facturacion ═══ -->
               <div class="row q-col-gutter-md q-mt-sm">
                 <div class="col-12 col-md-4">
                   <q-input
                     dense
                     outlined
-                    label="IMPORTE (bloqueado - desde XML)"
+                    :label="xmlGuardado ? 'IMPORTE (desde XML)' : 'IMPORTE'"
                     v-model="datosFacturacion.importe"
-                    readonly
-                    bg-color="grey-2"
+                    :readonly="xmlGuardado"
+                    :bg-color="xmlGuardado ? 'grey-2' : undefined"
+                    placeholder="Ingrese importe"
                   />
                 </div>
                 <div class="col-12 col-md-8">
@@ -509,6 +568,75 @@
                     icon="save"
                     class="full-width q-mt-sm"
                     @click="handleGuardarXmlFactura"
+                  />
+                </div>
+              </div>
+
+              <!-- ═══ FACTURA DIGITAL (PDF) ═══ -->
+              <div class="factura-proveedor-box q-mt-md q-pa-md">
+                <div class="text-weight-medium text-center q-mb-xs">FACTURA DIGITAL (PDF)</div>
+
+                <div
+                  v-if="expedienteGuardado?.factura_pdf || pdfGuardado"
+                  class="column items-center q-gutter-sm"
+                >
+                  <q-banner
+                    dense
+                    class="bg-green-1 text-green-9 rounded-borders full-width text-center"
+                  >
+                    <q-icon name="check_circle" size="sm" /> PDF ya registrado.
+                  </q-banner>
+                  <q-btn
+                    v-if="expedienteGuardado?.factura_pdf"
+                    outline
+                    color="green-8"
+                    icon="download"
+                    :label="`Descargar: ${expedienteGuardado.factura_pdf.nombre}`"
+                    @click="descargarArchivo(expedienteGuardado.factura_pdf.base64, expedienteGuardado.factura_pdf.nombre)"
+                  />
+                  <q-btn
+                    v-if="expedienteGuardado?.factura_pdf"
+                    flat
+                    color="red-7"
+                    icon="delete"
+                    label="Eliminar PDF y volver a subir"
+                    size="sm"
+                    @click="confirmarEliminarDoc('factura_pdf')"
+                  />
+                </div>
+
+                <div v-else>
+                  <div class="text-caption text-grey-6 text-center q-mb-sm">
+                    Suba el PDF de la factura del proveedor.
+                  </div>
+                  <q-file
+                    dense
+                    outlined
+                    label="Cargar PDF"
+                    v-model="pdfFile"
+                    accept=".pdf"
+                    @update:model-value="onPdfFileSelected"
+                  >
+                    <template v-slot:prepend><q-icon name="picture_as_pdf" /></template>
+                  </q-file>
+
+                  <div v-if="pdfPreviewUrl" class="q-mt-sm rounded-borders overflow-hidden" style="border: 1px solid #ccc;">
+                    <iframe
+                      :src="pdfPreviewUrl"
+                      width="100%"
+                      height="480"
+                      style="display:block; border:none;"
+                      title="Vista previa PDF"
+                    />
+                  </div>
+
+                  <q-btn
+                    v-if="pdfFile && !pdfGuardado"
+                    color="orange-7"
+                    label="Guardar PDF"
+                    icon="save"
+                    class="full-width q-mt-sm"
+                    @click="handleGuardarPdfFactura"
                   />
                 </div>
               </div>
@@ -1129,7 +1257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted, watch } from 'vue';
+import { computed, reactive, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth';
@@ -1138,7 +1266,7 @@ import TablaAnalisisDesplegable from 'src/pages/analisis/TablaAnalisisDesplegabl
 // import { ocrPDFToText } from 'src/utils/pdfOcr';
 
 async function doEliminarDoc(
-  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria',
+  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria' | 'factura_pdf',
 ) {
   try {
     const sedeId = authStore.sedeActivaId || 0;
@@ -1154,6 +1282,11 @@ async function doEliminarDoc(
       else if (tipo === 'opinion') delete exp.opinion;
       else if (tipo === 'cuenta_bancaria') delete exp.cuenta_bancaria;
       else if (tipo === 'otro') delete exp.otro;
+      else if (tipo === 'factura_pdf') {
+        delete exp.factura_pdf;
+        pdfGuardado.value = false;
+        pdfFile.value = null;
+      }
       else if (tipo === 'xml') {
         delete exp.xml;
         xmlGuardado.value = false;
@@ -1176,7 +1309,7 @@ async function doEliminarDoc(
 }
 
 const confirmarEliminarDoc = (
-  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria',
+  tipo: 'identificacion' | 'constancia' | 'opinion' | 'xml' | 'otro' | 'cuenta_bancaria' | 'factura_pdf',
 ) => {
   $q.dialog({
     title: 'Confirmar eliminación',
@@ -1238,6 +1371,21 @@ interface DetalleData {
   sedeId?: number;
   tiene_factura_xml?: number;
   tiene_documentos?: number;
+  productorId?: number;
+}
+
+interface OcVigente {
+  ocId: number;
+  contratoId: number;
+  contratoIdCorp: string | null;
+  fechaPedido: string | null;
+  kilos: number | null;
+  importe: number;
+  status: string | null;
+  referencia: string | null;
+  ordenCompraInternaId: number | null;
+  folioInterno: string | null;
+  preliquidacionId: number | null;
 }
 
 interface ValidacionINE {
@@ -1284,6 +1432,7 @@ interface ExpedienteGuardado {
   cuenta_bancaria_datos_coinciden?: boolean;
   actaConstitutiva?: ArchivoGuardado;
   otro?: ArchivoGuardado;
+  factura_pdf?: ArchivoGuardado;
   contacto_adicional?: {
     nombre?: string;
     telefono?: string;
@@ -1317,6 +1466,11 @@ const authStore = useAuthStore();
 const cargando = ref(false);
 const detalle = ref<DetalleData | null>(null);
 const ticketActivo = ref(0);
+
+// OC MBA3
+const ocVigentes = ref<OcVigente[]>([]);
+const ocSeleccionada = ref<OcVigente | null>(null);
+const cargandoOcs = ref(false);
 
 // Expansion panels
 const expandidoInfoGeneral = ref(true);
@@ -1428,6 +1582,23 @@ const expedienteGuardado = ref<ExpedienteGuardado | null>(null);
 const xmlFacturaSubido = ref(false);
 const xmlGuardado = ref(false);
 const xmlFile = ref<File | null>(null);
+
+// PDF Factura Digital
+const pdfFile = ref<File | null>(null);
+const pdfGuardado = ref(false);
+const pdfPreviewUrl = ref<string | null>(null);
+
+function onPdfFileSelected(file: File | null) {
+  if (pdfPreviewUrl.value) {
+    URL.revokeObjectURL(pdfPreviewUrl.value);
+    pdfPreviewUrl.value = null;
+  }
+  if (file) pdfPreviewUrl.value = URL.createObjectURL(file);
+}
+
+onUnmounted(() => {
+  if (pdfPreviewUrl.value) URL.revokeObjectURL(pdfPreviewUrl.value);
+});
 const nombreArchivoXml = ref('');
 const xmlFolioFiscal = ref('');
 const xmlRfcEmisor = ref('');
@@ -1539,7 +1710,8 @@ async function cargarDetalle(ticket: string) {
       xmlGuardado.value = !!detalle.value.tieneFacturaXML;
       xmlFacturaSubido.value = !!detalle.value.tieneFacturaXML;
 
-      if (detalle.value.importe) {
+      // Solo restaurar importe si ya hay un XML guardado; si no, esperar a que suba el XML
+      if (detalle.value.importe && detalle.value.tieneFacturaXML) {
         datosFacturacion.importe = formatMoney(detalle.value.importe);
       }
 
@@ -1553,12 +1725,35 @@ async function cargarDetalle(ticket: string) {
 
       // Poblar atiende en boleta
       datosBoletaEditables.atiende = detalle.value.atiende || '';
+
+      // Cargar OCs del productor desde MBA3
+      void cargarOcsProductor(detalle.value.productorId);
     }
   } catch (error) {
     console.error('Error al cargar detalle:', error);
     notifyError('Error al cargar detalle del ticket');
   } finally {
     cargando.value = false;
+  }
+}
+
+async function cargarOcsProductor(productorId?: number) {
+  ocVigentes.value = [];
+  ocSeleccionada.value = null;
+  if (!productorId) return;
+  cargandoOcs.value = true;
+  try {
+    const { data } = await api.get<{ ocs: OcVigente[]; aviso?: string }>(
+      `/api/facturacion/oc-vigentes/${productorId}`,
+    );
+    ocVigentes.value = data.ocs ?? [];
+    // Auto-seleccionar si el sistema encontró match por peso_neto_kg
+    const matched = ocVigentes.value.find(oc => oc.ordenCompraInternaId != null);
+    if (matched) ocSeleccionada.value = matched;
+  } catch {
+    ocVigentes.value = [];
+  } finally {
+    cargandoOcs.value = false;
   }
 }
 
@@ -1744,6 +1939,31 @@ async function handleGuardarXmlFactura() {
     if (props.tickets[0]) await cargarExpediente(props.tickets[0]);
   } catch {
     notifyError('Error al guardar el XML. Intente de nuevo.');
+  }
+}
+
+async function handleGuardarPdfFactura() {
+  if (!pdfFile.value) {
+    notifyError('Debe seleccionar el PDF de la factura.');
+    return;
+  }
+
+  try {
+    const pdfBase64 = await fileToBase64(pdfFile.value);
+    const sedeId = authStore.sedeActivaId || 0;
+
+    await api.post('/api/facturacion/guardar-factura-pdf', {
+      tickets: props.tickets,
+      sedeId,
+      pdfBase64,
+      pdfNombre: pdfFile.value.name,
+    });
+
+    pdfGuardado.value = true;
+    notifyOk(`PDF guardado: ${pdfFile.value.name}`);
+    if (props.tickets[0]) await cargarExpediente(props.tickets[0]);
+  } catch {
+    notifyError('Error al guardar el PDF. Intente de nuevo.');
   }
 }
 

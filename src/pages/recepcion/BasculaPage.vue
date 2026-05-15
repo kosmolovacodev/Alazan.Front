@@ -488,8 +488,9 @@ const cargarDatos = async () => {
   if (!isOnline.value) return;
   loading.value = true;
   try {
+    const sedeIdActual = authStore.sedeActivaId ?? 0;
     const [resRegistros, resGranos, resTicket, resChoferes, resUltimoGrano] = await Promise.all([
-      api.get('/api/bascula/registros'),
+      api.get('/api/bascula/registros', { params: { sedeId: sedeIdActual } }),
       api.get('/api/catalogos/granos'),
       api.get('/api/bascula/ultimo-ticket'),
       api.get('/api/bascula/choferes'),

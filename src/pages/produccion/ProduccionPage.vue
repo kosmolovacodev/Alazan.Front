@@ -194,7 +194,7 @@
             <q-td align="center">
               <q-btn flat dense round icon="visibility" color="grey-5" size="sm"
                 @click="irResultado(props.row)" />
-              <q-btn flat dense round icon="edit_note" color="orange-6" size="sm"
+              <q-btn v-if="props.row.status !== 'Resultado Registrado'" flat dense round icon="edit_note" color="orange-6" size="sm"
                 @click="irEditarOrden(props.row)" />
             </q-td>
           </template>
@@ -339,13 +339,19 @@
           <q-badge color="grey-4" text-color="grey-7" label="Configuración global" class="q-pa-xs text-caption" />
         </div>
 
-        <!-- Fila 1: No. Orden + Fecha -->
+        <!-- Fila 1: Folio (auto) + Fecha -->
         <div class="row q-col-gutter-lg q-mb-lg">
           <div class="col-12 col-md-6">
-            <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">
-              Orden de Producción <span class="text-red-5">*</span>
-            </div>
-            <q-input v-model="formOrden.noOrden" outlined dense placeholder="Ej. OP-2025-001" />
+            <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Orden de Producción</div>
+            <q-input
+              :model-value="ordenEditandoId ? formOrden.noOrden : (siguienteFolio || `OP-${anioActual}-NNNN`)"
+              outlined dense readonly bg-color="grey-2"
+              :hint="ordenEditandoId ? '' : 'Se asignará automáticamente al guardar'"
+            >
+              <template v-if="!ordenEditandoId" #prepend>
+                <q-icon name="auto_awesome" color="orange-4" size="xs" />
+              </template>
+            </q-input>
           </div>
           <div class="col-12 col-md-6">
             <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">
@@ -480,13 +486,6 @@
       <!-- ── 2. DEFINICIÓN DE TRENES ── -->
       <div class="row items-center justify-between q-mb-md">
         <div class="text-h6 text-weight-bold text-grey-9">Definición de Trenes</div>
-        <q-btn
-          :disable="trenes.length >= 4"
-          unelevated color="orange-7"
-          icon="add" label="Agregar Tren"
-          style="border-radius:8px"
-          @click="agregarTren"
-        />
       </div>
 
       <!-- Tarjetas de Trenes -->
@@ -641,6 +640,17 @@
         </q-card-section>
         <q-separator />
         <q-card-section>
+          <!-- Fila informativa: fecha creación + Total MP -->
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-auto">
+              <div class="text-caption text-weight-bold text-grey-6 q-mb-xs">Fecha de Creación</div>
+              <div class="text-body2 text-grey-8">{{ ordenActual?.fechaCreacion ? ordenActual.fechaCreacion.substring(0, 16).replace('T', ' ') : '—' }}</div>
+            </div>
+            <div class="col-auto">
+              <div class="text-caption text-weight-bold text-grey-6 q-mb-xs">Total MP Suministrada</div>
+              <div class="text-body2 text-weight-bold text-orange-8">{{ fmtNum(trenesActuales.reduce((s, t) => s + (t.totalMpKg ?? 0), 0)) }} kg</div>
+            </div>
+          </div>
           <div class="row q-col-gutter-md">
             <div class="col-6 col-md-3">
               <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Fecha Inicio <span class="text-red-5">*</span></div>
@@ -746,11 +756,13 @@
                 </td>
                 <td>
                   <q-select v-model="s.tipo" :options="cats.subproductos.map(x => x.nombre)"
-                    dense borderless :disable="resultadoReadonly" />
+                    dense borderless :disable="resultadoReadonly"
+                    @update:model-value="s.tipo === 'Polibolsa' && (s.peso = (s.polibolsa ?? 0) * 1000)" />
                 </td>
                 <td><q-input v-model.number="s.sacos" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
-                <td><q-input v-model.number="s.polibolsa" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
-                <td><q-input v-model.number="s.peso" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
+                <td><q-input v-model.number="s.polibolsa" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly"
+                  @update:model-value="s.tipo === 'Polibolsa' && (s.peso = (s.polibolsa ?? 0) * 1000)" /></td>
+                <td><q-input v-model.number="s.peso" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly || s.tipo === 'Polibolsa'" /></td>
                 <td><q-input v-model="s.observaciones" dense borderless :disable="resultadoReadonly" /></td>
                 <td align="center">
                   <q-btn v-if="!resultadoReadonly" flat dense round icon="delete" color="negative" size="xs"
@@ -795,11 +807,13 @@
                 </td>
                 <td>
                   <q-select v-model="d.tipo" :options="cats.desechos.map(x => x.nombre)"
-                    dense borderless :disable="resultadoReadonly" />
+                    dense borderless :disable="resultadoReadonly"
+                    @update:model-value="d.tipo === 'Polibolsa' && (d.peso = (d.polibolsa ?? 0) * 1000)" />
                 </td>
                 <td><q-input v-model.number="d.sacos" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
-                <td><q-input v-model.number="d.polibolsa" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
-                <td><q-input v-model.number="d.peso" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly" /></td>
+                <td><q-input v-model.number="d.polibolsa" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly"
+                  @update:model-value="d.tipo === 'Polibolsa' && (d.peso = (d.polibolsa ?? 0) * 1000)" /></td>
+                <td><q-input v-model.number="d.peso" type="number" min="0" dense borderless input-class="text-right" :disable="resultadoReadonly || d.tipo === 'Polibolsa'" /></td>
                 <td><q-input v-model="d.observaciones" dense borderless :disable="resultadoReadonly" /></td>
                 <td align="center">
                   <q-btn v-if="!resultadoReadonly" flat dense round icon="delete" color="negative" size="xs"
@@ -926,7 +940,8 @@
 
       <!-- ── BOTONES ── -->
       <div class="row q-gutter-sm justify-end q-mt-md q-mb-xl">
-        <q-btn flat color="grey-7" label="Cancelar" @click="vista = 'historial'" />
+        <q-btn v-if="!resultadoReadonly" flat color="grey-7" label="Cancelar" @click="vista = 'historial'" />
+        <q-btn v-if="resultadoReadonly" flat color="grey-7" label="Cerrar" @click="vista = 'historial'" />
         <q-btn v-if="!resultadoReadonly" unelevated color="orange-7" icon="save" label="Guardar Resultado"
           style="border-radius:8px" @click="guardarResultado" />
       </div>
@@ -1037,6 +1052,9 @@
         <q-btn flat round icon="arrow_back" @click="vista = 'analisis-historial'" />
         <div class="text-h5 text-grey-8 text-weight-bold">Captura de Análisis de Calidad</div>
         <q-space />
+        <span v-if="!analisisReadonly && autosaveStatus" class="text-caption text-grey-5 q-mr-sm">
+          <q-icon name="cloud_done" size="14px" class="q-mr-xs" />{{ autosaveStatus }}
+        </span>
         <q-badge v-if="analisisReadonly" color="positive" label="Guardado · Solo lectura"
           class="text-subtitle2 q-px-md q-py-sm" style="border-radius:6px" />
         <q-btn v-else unelevated color="green-7" icon="save" label="Guardar Análisis"
@@ -1136,47 +1154,63 @@
 
       <!-- BLOQUE 3: Parrillas -->
       <q-card bordered flat class="shadow-1">
-        <q-card-section class="bg-purple-7 text-white text-weight-bold q-py-sm">
-          Parrillas
+        <q-card-section class="bg-purple-7 text-white text-weight-bold q-py-sm row items-center justify-between">
+          <span>Parrillas</span>
         </q-card-section>
         <q-card-section>
           <div class="row q-col-gutter-lg">
             <!-- Completas -->
             <div class="col-12 col-md-6">
-              <div class="text-subtitle2 text-blue-9 text-weight-bold q-mb-sm">Completas</div>
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="text-subtitle2 text-blue-9 text-weight-bold">Completas</div>
+                <q-btn unelevated color="blue-7" icon="add" label="Agregar" size="sm"
+                  @click="parrillaCompletas.push({ calibre: '', cantidad: 0, kg: 0 })" />
+              </div>
               <div v-for="(c, idx) in parrillaCompletas" :key="idx"
                 class="row q-col-gutter-sm q-mb-xs items-center bg-blue-1 rounded-borders q-pa-xs">
                 <div class="col">
-                  <q-input v-model="c.calibre" dense outlined label="Calibre" placeholder="Ej. 7-8 mm"
-                    :disable="analisisReadonly" />
+                  <q-input v-model="c.calibre" dense outlined label="Calibre" placeholder="Ej. 7-8 mm" />
                 </div>
                 <div class="col-3">
-                  <q-input v-model.number="c.cantidad" type="number" min="0" dense outlined label="Cantidad"
-                    :disable="analisisReadonly" />
+                  <q-input v-model.number="c.cantidad" type="number" min="0" dense outlined label="Cantidad" />
                 </div>
                 <div class="col-3">
-                  <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG"
-                    :disable="analisisReadonly" />
+                  <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG" />
                 </div>
+                <div class="col-auto">
+                  <q-btn flat dense round icon="delete" color="negative"
+                    @click="parrillaCompletas.splice(idx, 1)" />
+                </div>
+              </div>
+              <div v-if="!parrillaCompletas.length" class="text-grey-5 text-caption q-mt-xs">
+                Sin filas — clic en Agregar
               </div>
             </div>
             <!-- Incompletas -->
             <div class="col-12 col-md-6">
-              <div class="text-subtitle2 text-orange-9 text-weight-bold q-mb-sm">Incompletas</div>
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="text-subtitle2 text-orange-9 text-weight-bold">Incompletas</div>
+                <q-btn unelevated color="orange-7" icon="add" label="Agregar" size="sm"
+                  @click="parrillaIncompletas.push({ calibre: '', cantidad: 0, kg: 0 })" />
+              </div>
               <div v-for="(c, idx) in parrillaIncompletas" :key="idx"
                 class="row q-col-gutter-sm q-mb-xs items-center bg-orange-1 rounded-borders q-pa-xs">
                 <div class="col">
-                  <q-input v-model="c.calibre" dense outlined label="Calibre" placeholder="Ej. 7-8 mm"
-                    :disable="analisisReadonly" />
+                  <q-input v-model="c.calibre" dense outlined label="Calibre" placeholder="Ej. 7-8 mm" />
                 </div>
                 <div class="col-3">
-                  <q-input v-model.number="c.cantidad" type="number" min="0" dense outlined label="Cantidad"
-                    :disable="analisisReadonly" />
+                  <q-input v-model.number="c.cantidad" type="number" min="0" dense outlined label="Cantidad" />
                 </div>
                 <div class="col-3">
-                  <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG"
-                    :disable="analisisReadonly" />
+                  <q-input v-model.number="c.kg" type="number" min="0" dense outlined label="KG" />
                 </div>
+                <div class="col-auto">
+                  <q-btn flat dense round icon="delete" color="negative"
+                    @click="parrillaIncompletas.splice(idx, 1)" />
+                </div>
+              </div>
+              <div v-if="!parrillaIncompletas.length" class="text-grey-5 text-caption q-mt-xs">
+                Sin filas — clic en Agregar
               </div>
             </div>
           </div>
@@ -1191,26 +1225,39 @@
           <q-toolbar-title>Crear Nuevo Análisis de Calidad</q-toolbar-title>
           <q-btn flat round dense icon="close" v-close-popup />
         </q-toolbar>
-        <q-card-section>
+        <q-card-section class="q-pb-xs">
+          <!-- Banner orden pendiente -->
+          <q-banner v-if="ordenPendienteEncontrada" class="bg-orange-1 text-orange-9 q-mb-md" dense rounded>
+            <template #avatar><q-icon name="assignment_turned_in" color="orange-7" /></template>
+            Pre-llenado desde orden pendiente: <strong>{{ ordenPendienteEncontrada.folio }}</strong>
+          </q-banner>
+
           <div class="row q-col-gutter-md">
             <div class="col-6">
               <q-input
                 v-model="formAnalisis.noOrden"
                 outlined dense label="Orden"
-                clearable
+                :readonly="!!ordenPendienteEncontrada"
+                :bg-color="ordenPendienteEncontrada ? 'grey-2' : undefined"
               />
             </div>
             <div class="col-6">
-              <q-input v-model="formAnalisis.fecha" outlined dense label="Fecha *" type="date" />
+              <q-input v-model="formAnalisis.fecha" outlined dense label="Fecha *" type="date"
+                :readonly="!!ordenPendienteEncontrada"
+                :bg-color="ordenPendienteEncontrada ? 'grey-2' : undefined" />
             </div>
             <div class="col-6">
               <q-select v-model="formAnalisis.envasado"
                 :options="cats.presentacion.map((p: { nombre: string }) => p.nombre)"
-                outlined dense label="Envasado *" />
+                outlined dense label="Envasado *"
+                :readonly="!!(ordenPendienteEncontrada && formAnalisis.envasado)"
+                :bg-color="(ordenPendienteEncontrada && formAnalisis.envasado) ? 'grey-2' : undefined" />
             </div>
             <div class="col-6">
               <q-select v-model="formAnalisis.producto" :options="['Garbanzo', 'Frijol']"
                 outlined dense label="Producto *"
+                :readonly="!!(ordenPendienteEncontrada && formAnalisis.producto)"
+                :bg-color="(ordenPendienteEncontrada && formAnalisis.producto) ? 'grey-2' : undefined"
                 @update:model-value="(v) => { formAnalisis.granoId = granoIdPorNombre(v) }" />
             </div>
             <div class="col-6">
@@ -1219,12 +1266,16 @@
             <div class="col-6">
               <q-select v-model="formAnalisis.proceso"
                 :options="cats.trenes.map(t => t.nombre)"
-                outlined dense label="Proceso (Tren)" />
+                outlined dense label="Proceso (Tren)"
+                :readonly="!!(ordenPendienteEncontrada && formAnalisis.proceso)"
+                :bg-color="(ordenPendienteEncontrada && formAnalisis.proceso) ? 'grey-2' : undefined" />
             </div>
             <div class="col-6">
               <q-select v-model="formAnalisis.silo"
                 :options="(formAnalisis.producto === 'Frijol' ? cats.bodegas : cats.silos).map((o: { nombre: string }) => o.nombre)"
-                outlined dense label="Silo / Almacén" />
+                outlined dense label="Silo / Almacén"
+                :readonly="!!(ordenPendienteEncontrada && formAnalisis.silo)"
+                :bg-color="(ordenPendienteEncontrada && formAnalisis.silo) ? 'grey-2' : undefined" />
             </div>
             <div class="col-12">
               <q-input v-model="formAnalisis.variedad" outlined dense label="Variedad *"
@@ -1279,12 +1330,19 @@ const isOnline = ref(window.navigator.onLine);
 const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
 const route = useRoute();
 
+const anioActual = new Date().getFullYear();
+
 function fechaHoy(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function horaAhora(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 // ─── VISTAS ────────────────────────────────────────────────────────────────
@@ -1431,7 +1489,9 @@ const panelFiltros = ref(false);
 interface OrdenResumen {
   id: number;
   noOrden: string;
+  folio: string;
   fechaOrden: string;
+  fechaCreacion: string;
   producto: string;
   calibreTipo: string;
   numTrenes: number;
@@ -1594,6 +1654,8 @@ const resumenCalibres = computed(() =>
 );
 const trenes = ref<TrenForm[]>([]);
 const ordenEditandoId = ref<number | null>(null);
+const siguienteFolio  = ref('');
+const trenesEnUso = ref<number[]>([]);
 
 function trenVacio(): TrenForm {
   return {
@@ -1610,12 +1672,9 @@ function trenesDisponibles(idxActual: number) {
   const usados = trenes.value
     .filter((_, i) => i !== idxActual)
     .map(t => t.trenId);
-  return cats.value.trenes.filter(t => !usados.includes(t.id));
+  return cats.value.trenes.filter(t => !usados.includes(t.id) && !trenesEnUso.value.includes(t.id));
 }
 
-function agregarTren() {
-  if (trenes.value.length < 4) trenes.value.push(trenVacio());
-}
 function eliminarTren(idx: number) {
   trenes.value.splice(idx, 1);
 }
@@ -1626,7 +1685,7 @@ function eliminarInsumo(trenIdx: number, insIdx: number) {
   trenes.value[trenIdx]?.insumos.splice(insIdx, 1);
 }
 
-function irNuevaOrden() {
+async function irNuevaOrden() {
   ordenEditandoId.value = null;
   formOrden.value = {
     noOrden: '',
@@ -1637,6 +1696,16 @@ function irNuevaOrden() {
     calibresSeleccionados: {},
   };
   trenes.value = [trenVacio()];
+  siguienteFolio.value = '';
+  const sid = authStore.sedeActivaId ?? 0;
+  await Promise.allSettled([
+    api.get('/api/produccion/trenes-en-uso', { params: { sedeId: sid } })
+      .then(r => { trenesEnUso.value = r.data as number[]; })
+      .catch(() => { trenesEnUso.value = []; }),
+    api.get('/api/produccion/siguiente-folio', { params: { sedeId: sid } })
+      .then(r => { siguienteFolio.value = (r.data as { folio: string }).folio; })
+      .catch(() => {}),
+  ]);
   vista.value = 'registro';
 }
 
@@ -1687,10 +1756,6 @@ const modalJustificacion = ref(false);
 const justificacionEdicion = ref('');
 
 async function guardarOrden() {
-  if (!formOrden.value.noOrden.trim()) {
-    Notify.create({ type: 'warning', message: 'El No. de Orden es requerido' });
-    return;
-  }
   if (!formOrden.value.fechaProduccion) {
     Notify.create({ type: 'warning', message: 'La Fecha de Producción es requerida' });
     return;
@@ -1716,14 +1781,15 @@ async function guardarOrden() {
       Notify.create({ type: 'warning', message: 'Complete el Tren, Maniobra y Origen de cada tren' });
       return;
     }
-    if (t.totalMp > 50) {
-      Notify.create({ type: 'warning', message: 'Total MP Suministrada no puede exceder 50' });
-      return;
-    }
     if (!t.insumos.length) {
       Notify.create({ type: 'warning', message: 'Debe agregar al menos un insumo por tren' });
       return;
     }
+  }
+  const totalMpTon = trenes.value.reduce((s, t) => s + (t.totalMp ?? 0), 0);
+  if (totalMpTon > 50) {
+    Notify.create({ type: 'warning', message: `Total MP Suministrada (${totalMpTon.toFixed(1)} Ton) excede el límite de 50 Ton` });
+    return;
   }
 
   if (ordenEditandoId.value) {
@@ -1839,7 +1905,7 @@ const totalClasificado = computed(() => ({
 function calcularKg(idx: number) {
   const t = resultado.value.trenResultados[idx];
   if (!t) return;
-  t.kgXTren = (t.sacos25 ?? 0) * 25 + (t.sacos50 ?? 0) * 50 + (t.polibolsa ?? 0);
+  t.kgXTren = (t.sacos25 ?? 0) * 25 + (t.sacos50 ?? 0) * 50 + (t.polibolsa ?? 0) * 1000;
 }
 
 interface RendimientoRow {
@@ -1924,6 +1990,7 @@ async function irResultado(row: OrdenResumen) {
     ordenActual.value = row;
     const { data } = await api.get(`/api/produccion/ordenes/${row.id}`);
     const d = data as {
+      orden: { fechaCreacion: string };
       trenes: { trenId: number; trenNombre: string; producto: string; granoId: number | null; totalMpSuministrada?: number }[];
       resultado: {
         fechaInicio: string; horaInicio: string; fechaFin: string; horaFin: string;
@@ -1968,7 +2035,7 @@ async function irResultado(row: OrdenResumen) {
       }
     } else {
       resultado.value = {
-        fechaInicio: '', horaInicio: '', fechaFin: '', horaFin: '',
+        fechaInicio: fechaHoy(), horaInicio: horaAhora(), fechaFin: '', horaFin: '',
         trenResultados: trenesActuales.value,
         subproductos: [{ trenNombre: trenesActuales.value[0]?.trenNombre ?? '', tipo: '', sacos: 0, polibolsa: 0, peso: 0, observaciones: '' }],
         desechos: [{ trenNombre: trenesActuales.value[0]?.trenNombre ?? '', tipo: '', sacos: 0, polibolsa: 0, peso: 0, observaciones: '' }],
@@ -1983,10 +2050,30 @@ async function irResultado(row: OrdenResumen) {
 }
 
 async function guardarResultado() {
-  if (!resultado.value.fechaInicio || !resultado.value.horaInicio ||
-      !resultado.value.fechaFin || !resultado.value.horaFin) {
-    Notify.create({ type: 'warning', message: 'Complete fecha y hora de inicio y fin' });
+  // Auto-llenar fin con el momento exacto del clic
+  resultado.value.fechaFin = fechaHoy();
+  resultado.value.horaFin  = horaAhora();
+
+  if (!resultado.value.fechaInicio || !resultado.value.horaInicio) {
+    Notify.create({ type: 'warning', message: 'Complete la fecha y hora de inicio' });
     return;
+  }
+
+  // Tarea 14.1: validar que el total de salidas sea congruente con Total MP
+  const totalMpKgTotal = trenesActuales.value.reduce((s, t) => s + (t.totalMpKg ?? 0), 0);
+  if (totalMpKgTotal > 0) {
+    const totalSalidas = totalClasificado.value.kg
+      + resultado.value.subproductos.reduce((s, sub) => s + (sub.peso ?? 0), 0)
+      + resultado.value.desechos.reduce((s, d) => s + (d.peso ?? 0), 0);
+    const diferencia = Math.abs(totalSalidas - totalMpKgTotal);
+    if (diferencia > totalMpKgTotal * 0.10) {
+      Notify.create({
+        type: 'warning',
+        message: `Total de salidas (${fmtNum(totalSalidas)} kg) difiere más del 10% del Total MP (${fmtNum(totalMpKgTotal)} kg)`,
+        timeout: 5000,
+      });
+      return;
+    }
   }
 
   const resultadoPayload = {
@@ -2093,12 +2180,45 @@ const formAnalisis = ref({
   cosecha: '', proceso: '', silo: '', variedad: '',
 });
 
+interface OrdenPendiente {
+  id: number; folio: string; fechaOrden: string;
+  producto: string; trenNombre: string; presentacion: string; silo: string;
+}
+const ordenPendienteEncontrada = ref<OrdenPendiente | null>(null);
+
 const analisisActual = ref<AnalisisResumen & { granoId: number | null; detallado: string; parrillas: string }>({
   id: 0, noOrden: '', fecha: '', envasado: '', producto: '',
   granoId: null, cosecha: '', proceso: '', silo: '', finalizado: false,
   detallado: '', parrillas: '',
 });
 const analisisReadonly = computed(() => !!analisisActual.value.finalizado);
+
+// Autoguardado (Tarea 18)
+const autosaveStatus = ref('');
+let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutosave() {
+  if (!analisisActual.value.id || analisisReadonly.value) return;
+  autosaveStatus.value = 'Guardando…';
+  if (autosaveTimeout) clearTimeout(autosaveTimeout);
+  autosaveTimeout = setTimeout(() => {
+    void (async () => {
+      try {
+        await api.patch(`/api/produccion/analisis/${analisisActual.value.id}/autosave`, {
+          detallado: JSON.stringify(parrillasDetallado.value),
+          parrillas: JSON.stringify({
+            completas:   parrillaCompletas.value,
+            incompletas: parrillaIncompletas.value,
+          }),
+        });
+        const hhmm = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        autosaveStatus.value = `Autoguardado a las ${hhmm}`;
+      } catch {
+        autosaveStatus.value = 'Error al autoguardar';
+      }
+    })();
+  }, 2000);
+}
 
 async function cargarAnalisis() {
   loadingAnalisis.value = true;
@@ -2114,12 +2234,28 @@ async function cargarAnalisis() {
   }
 }
 
-function abrirModalNuevoAnalisis() {
+async function abrirModalNuevoAnalisis() {
+  ordenPendienteEncontrada.value = null;
   formAnalisis.value = {
     noOrden: '', fecha: fechaHoy(),
     envasado: '', producto: '', granoId: null,
     cosecha: '', proceso: '', silo: '', variedad: '',
   };
+  try {
+    const { data } = await api.get<OrdenPendiente>('/api/produccion/analisis/orden-pendiente', {
+      params: { sedeId: authStore.sedeActivaId ?? 0 }
+    });
+    ordenPendienteEncontrada.value = data;
+    formAnalisis.value.noOrden  = data.folio ?? '';
+    formAnalisis.value.fecha    = data.fechaOrden?.substring(0, 10) ?? fechaHoy();
+    formAnalisis.value.producto = data.producto ?? '';
+    formAnalisis.value.granoId  = granoIdPorNombre(data.producto ?? '');
+    formAnalisis.value.proceso  = data.trenNombre ?? '';
+    formAnalisis.value.envasado = data.presentacion ?? '';
+    formAnalisis.value.silo     = data.silo ?? '';
+  } catch {
+    // sin orden pendiente — el usuario llena manualmente
+  }
   modalNuevoAnalisis.value = true;
 }
 
@@ -2189,6 +2325,9 @@ const parrillasDetallado = ref<ParrillaRow[]>([]);
 const parrillaCompletas   = ref<ParrillaSimple[]>([]);
 const parrillaIncompletas = ref<ParrillaSimple[]>([]);
 
+// Tarea 18: watch de autoguardado — aquí sí están las refs definidas
+watch([parrillasDetallado, parrillaCompletas, parrillaIncompletas], scheduleAutosave, { deep: true });
+
 function resetearCaptura() {
   parrillasDetallado.value = [];
   parrillaCompletas.value  = [];
@@ -2223,6 +2362,7 @@ async function guardarAnalisis() {
   }
   try {
     $q.loading.show({ message: 'Guardando análisis...' });
+    if (autosaveTimeout) { clearTimeout(autosaveTimeout); autosaveTimeout = null; }
     await api.put(`/api/produccion/analisis/${analisisActual.value.id}`, {
       detallado: JSON.stringify(parrillasDetallado.value),
       parrillas: JSON.stringify({
@@ -2231,6 +2371,7 @@ async function guardarAnalisis() {
       }),
     });
     Notify.create({ type: 'positive', message: 'Análisis guardado correctamente' });
+    autosaveStatus.value = '';
     await cargarAnalisis();
     vista.value = 'analisis-historial';
   } catch {
@@ -2261,6 +2402,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('online', _syncOnline);
   window.removeEventListener('offline', _syncOnline);
+  if (autosaveTimeout) clearTimeout(autosaveTimeout);
 });
 </script>
 

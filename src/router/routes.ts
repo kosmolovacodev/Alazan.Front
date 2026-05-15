@@ -88,6 +88,11 @@ const routes: RouteRecordRaw[] = [
         path: 'leerBascula',
         component: () => import('pages/bascula/LeerBasculaPage.vue'),
       },
+      {
+        path: 'ordenes-compra',
+        meta: { permiso: 'Órdenes de Compra' },
+        component: () => import('pages/compras/OrdenesCompraPage.vue'),
+      },
       // Ruta temporal para prueba de integración MBA3
       {
         path: 'prueba-mba3',

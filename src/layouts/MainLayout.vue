@@ -180,8 +180,18 @@
                 <q-badge v-if="preliqPendientesTotal > 0" color="orange" floating>{{ preliqPendientesTotal }}</q-badge>
               </q-item-section>
             </q-item>
+            <q-item
+              v-if="authStore.tienePermiso('Órdenes de Compra')"
+              clickable
+              to="/ordenes-compra"
+              active-class="menu-item-active"
+              class="text-menu-inactive sub-menu-item"
+            >
+              <q-item-section>Órdenes de Compra</q-item-section>
+            </q-item>
           </q-list>
         </q-expansion-item>
+
         <q-item
           v-if="authStore.tienePermiso('Recepción de Facturas')"
           clickable
@@ -750,30 +760,27 @@ const syncWrapper = () => {
   isOnline.value = window.navigator.onLine;
 };
 
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('online', syncWrapper);
   window.addEventListener('offline', syncWrapper);
 
-  // Al montar, si ya hay usuario pero no hay sedes en el store, cargarlas
-  if (authStore.isLoggedIn && authStore.listaSedes.length === 0) {
-    await authStore.cargarSedes();
-  }
-
-  // Verificar inicio de día (los usuarios con sede_id=0 son admin global y lo omiten siempre)
-  if (authStore.isLoggedIn && isOnline.value && authStore.user?.sede_id !== 0) {
-    try {
-      const sedeId  = authStore.sedeActivaId ?? 0;
-      const seccion = authStore.user?.seccion_inicio_dia ?? null;
-      const { data } = await api.get('/api/inicio-dia/hoy', { params: { sedeId, seccion } });
-      if (!data.completo) {
-        mostrarInicioDia.value = true;
-      }
-    } catch {
-      // Si falla la verificación, no bloqueamos el acceso
-    }
-  }
-
   if (isOnline.value) void updateStatus();
+
+  if (!authStore.isLoggedIn) return;
+
+  // Cargar sedes e inicio-día en paralelo — no bloquean el render
+  const sedesPromise = authStore.listaSedes.length === 0
+    ? authStore.cargarSedes()
+    : Promise.resolve();
+
+  const inicioDiaPromise = (isOnline.value && authStore.user?.sede_id !== 0)
+    ? api.get('/api/inicio-dia/hoy', {
+        params: { sedeId: authStore.sedeActivaId ?? 0, seccion: authStore.user?.seccion_inicio_dia ?? null },
+      }).then(({ data }) => { if (!data.completo) mostrarInicioDia.value = true; })
+      .catch(() => { /* no bloquear acceso si falla */ })
+    : Promise.resolve();
+
+  void Promise.all([sedesPromise, inicioDiaPromise]);
 });
 
 onBeforeUnmount(() => {

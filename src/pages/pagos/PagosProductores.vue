@@ -749,10 +749,11 @@ function getStatusColor(status: string) {
 async function cargarDatos() {
   loading.value = true
   try {
+    const sedeId = authStore.sedeActivaId ?? 0
     const [solicitudesRes, configRes, topeRes] = await Promise.all([
-      api.get('/pagos/solicitudes'),
-      api.get('/pagos/configuracion-completa'),
-      api.get('/pagos/tope-diario'),
+      api.get('/pagos/solicitudes',            { params: { sedeId } }),
+      api.get('/pagos/configuracion-completa', { params: { sedeId } }),
+      api.get('/pagos/tope-diario',            { params: { sedeId } }),
     ])
 
     pagos.value          = Array.isArray(solicitudesRes.data) ? solicitudesRes.data : []

@@ -224,7 +224,7 @@
             <!-- Acciones -->
             <template #body-cell-acciones="{ row }">
               <q-td class="text-right">
-                <q-btn flat round dense icon="edit" size="sm" color="orange-7" @click="abrirAsignacion(row)">
+                <q-btn v-if="row.statusAsignacion !== 'Terminado'" flat round dense icon="edit" size="sm" color="orange-7" @click="abrirAsignacion(row)">
                   <q-tooltip>Asignar ubicación en bodega</q-tooltip>
                 </q-btn>
                 <q-btn flat round dense icon="visibility" size="sm" color="grey-6" @click="abrirDetalle(row)">
@@ -260,6 +260,18 @@
               <div class="text-subtitle1 text-weight-bold text-grey-9">Asignar Ubicación</div>
               <div class="text-body2 q-mt-xs text-grey-7">
                 Producción <span class="text-weight-bold text-orange-8">{{ ordenActual?.folio }}</span>
+              </div>
+              <div class="row q-gutter-md q-mt-xs">
+                <div v-if="totalMpOrden > 0" class="text-caption text-grey-6">
+                  Total MP: <span class="text-weight-bold text-grey-8">{{ (totalMpOrden * 1000).toLocaleString('es-MX') }} kg</span>
+                </div>
+                <div v-if="totalMpOrden > 0" class="text-caption"
+                  :class="tonsDisponibles <= 0 ? 'text-negative text-weight-bold' : 'text-grey-6'">
+                  Disponible: <span class="text-weight-bold">{{ tonsDisponibles.toLocaleString('es-MX') }} kg</span>
+                </div>
+              </div>
+              <div v-if="autosaveStatus" class="text-caption text-grey-5 q-mt-xs">
+                <q-icon name="cloud_done" size="12px" class="q-mr-xs" />{{ autosaveStatus }}
               </div>
             </div>
 
@@ -337,11 +349,6 @@
                 />
 
                 <div style="margin-left:auto; display:flex; align-items:center; gap:6px; flex-shrink:0">
-                  <span class="text-caption text-grey-6">Total:</span>
-                  <q-input v-model.number="item.cantidadTotal"
-                    dense outlined type="number" bg-color="white"
-                    label="Máx"
-                    style="width:80px" input-class="text-center text-weight-bold" />
                   <q-btn v-if="item.tipo === 'subproducto'"
                     flat round dense icon="delete" size="sm" color="red-3"
                     @click="eliminarItem(iIdx)" />
@@ -356,11 +363,11 @@
                     :options="catalogos.bodegas" option-value="id" option-label="clave"
                     emit-value map-options dense outlined label="Bodega" style="width:120px" />
                   <q-select v-model="fila.cuadranteId"
-                    :options="catalogos.cuadrantes" option-value="id" option-label="clave"
+                    :options="cuadrantesDisponibles(iIdx, fIdx)" option-value="id" option-label="clave"
                     emit-value map-options dense outlined label="Cuadrante" style="width:110px" />
                   <q-input v-model.number="fila.cantidad"
                     dense outlined type="number" label="Cantidad" class="col"
-                    :color="sumaFila(item) > (item.cantidadTotal || 0) ? 'negative' : 'primary'" />
+                    :color="sumaFila(item) > efectivoMax(item) ? 'negative' : 'primary'" />
                   <q-btn flat round dense icon="remove_circle_outline" size="sm" color="grey-4"
                     :disable="item.filas.length <= 1" @click="eliminarFila(iIdx, fIdx)" />
                 </div>
@@ -370,17 +377,17 @@
                   <q-btn round unelevated color="positive" icon="add" size="sm" @click="agregarFila(iIdx)" />
                   <span
                     class="text-caption text-weight-bold"
-                    :class="sumaFila(item) > (item.cantidadTotal || 0) ? 'text-negative' : 'text-grey-6'"
+                    :class="sumaFila(item) > efectivoMax(item) ? 'text-negative' : 'text-grey-6'"
                   >
-                    {{ sumaFila(item) }} / {{ item.cantidadTotal || 0 }} asignados
+                    {{ formatNum(sumaFila(item)) }} / {{ formatNum(efectivoMax(item)) }} asignados
                   </span>
                 </div>
               </div>
 
               <!-- Progress bar -->
               <q-linear-progress
-                :value="item.cantidadTotal > 0 ? Math.min(sumaFila(item) / item.cantidadTotal, 1) : 0"
-                :color="sumaFila(item) > (item.cantidadTotal || 0) ? 'negative' : 'positive'"
+                :value="efectivoMax(item) > 0 ? Math.min(sumaFila(item) / efectivoMax(item), 1) : 0"
+                :color="sumaFila(item) > efectivoMax(item) ? 'negative' : 'positive'"
                 track-color="grey-2"
                 style="height:5px"
               />
@@ -391,6 +398,7 @@
           <div class="q-px-lg q-pb-lg">
             <q-btn outline color="blue-grey-4" no-caps label="+ Agregar Subproducto"
               style="border-radius:8px; border-style:dashed; min-width:220px"
+              :disable="tonsDisponibles <= 0"
               @click="agregarSubproducto" />
           </div>
         </div>
@@ -579,9 +587,14 @@
                 <div
                   v-for="c in catalogos.cuadrantes" :key="c.id"
                   class="mapa-cuadrante flex flex-center text-weight-bold"
-                  :class="mapa.cuadrantes.includes(c.clave) ? 'mapa-cuadrante--active' : 'mapa-cuadrante--empty'"
+                  :class="mapa.cuadrantes.some(q => q.clave === c.clave) ? 'mapa-cuadrante--active' : 'mapa-cuadrante--empty'"
+                  style="flex-direction:column; gap:1px"
                 >
-                  {{ c.clave }}
+                  <span>{{ c.clave }}</span>
+                  <span v-if="mapa.cuadrantes.some(q => q.clave === c.clave)"
+                    class="text-caption" style="font-size:9px; font-weight:400; opacity:.85">
+                    {{ (mapa.cuadrantes.find(q => q.clave === c.clave)?.cantidad ?? 0).toLocaleString('es-MX') }} kg
+                  </span>
                 </div>
               </div>
             </div>
@@ -598,7 +611,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth';
@@ -613,7 +626,9 @@ interface HistorialRow {
   statusProduccion: string; calibre: string; producto: string;
   asignacionId: number; fechaAsignacion: string | null;
   statusAsignacion: string; cantidadTons: number; ubicacion: string;
+  totalMpSuministrada: number; presentacionId: number | null;
 }
+interface CuadranteEnUso { bodegaId: number; cuadranteId: number }
 interface CatItem     { id: number; nombre: string }
 interface CatConClave { id: number; clave: string; nombre: string }
 interface Catalogos {
@@ -657,7 +672,14 @@ const popupFechaAsig   = ref(false);
 // Detalle
 const detalleDialog  = ref(false);
 const ordenDetalle   = ref<HistorialRow | null>(null);
-const mapasBodega    = ref<{ bodegaClave: string; cuadrantes: string[] }[]>([]);
+const mapasBodega    = ref<{ bodegaClave: string; cuadrantes: { clave: string; cantidad: number }[] }[]>([]);
+
+// Cuadrantes ocupados por otras órdenes (Tarea 18.2)
+const cuadrantesEnUso = ref<CuadranteEnUso[]>([]);
+
+// Autoguardado bodega (Tarea 18.2)
+const autosaveStatus = ref('');
+let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const localeEs = {
   days: ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],
@@ -734,6 +756,45 @@ function sumaFila(item: ItemForm): number {
   return item.filas.reduce((s, f) => s + (f.cantidad || 0), 0);
 }
 
+function efectivoMax(item: ItemForm): number {
+  if (item.tipo === 'producto') return totalMpOrden.value * 1000;
+  return tonsDisponibles.value;
+}
+
+function formatNum(val: number): string {
+  return val.toLocaleString('es-MX');
+}
+
+// Tarea 18.1: totalMP de la orden actual y tons disponibles
+const totalMpOrden = computed(() => ordenActual.value?.totalMpSuministrada ?? 0);
+const tonsAsignadas = computed(() =>
+  asignacionItems.value
+    .filter(i => i.tipo === 'producto')
+    .reduce((s, i) => s + sumaFila(i), 0)
+);
+const tonsDisponibles = computed(() => Math.max(0, totalMpOrden.value * 1000 - tonsAsignadas.value));
+
+// Tarea 18.2: cuadrantes disponibles para una fila (excluye otras órdenes y otras filas del mismo ítem)
+function cuadrantesDisponibles(iIdx: number, fIdx: number): CatConClave[] {
+  const item = asignacionItems.value[iIdx];
+  const fila = item?.filas[fIdx];
+  if (!item || !fila?.bodegaId) return catalogos.value.cuadrantes;
+
+  const usadosOtrasOrdenes = new Set(
+    cuadrantesEnUso.value
+      .filter(c => c.bodegaId === fila.bodegaId)
+      .map(c => c.cuadranteId)
+  );
+  const usadosEstaOrden = new Set(
+    item.filas
+      .filter((f, fi) => fi !== fIdx && f.bodegaId === fila.bodegaId && f.cuadranteId)
+      .map(f => f.cuadranteId)
+  );
+  return catalogos.value.cuadrantes.filter(
+    c => !usadosOtrasOrdenes.has(c.id) && !usadosEstaOrden.has(c.id)
+  );
+}
+
 /** Quita prefijos "QZ AM ", "QZ ESP ", "OZ AM:", "OZ ESP:" del calibre */
 function formatCalibre(cal: string | undefined | null): string {
   if (!cal) return '—';
@@ -797,13 +858,22 @@ async function abrirAsignacion(row: HistorialRow) {
   ordenActual.value = row;
   asignacionFecha.value = '';
   asignacionItems.value = [];
+  autosaveStatus.value = '';
+
+  // Cargar cuadrantes en uso por otras órdenes (Tarea 18.2)
+  try {
+    const { data } = await api.get<CuadranteEnUso[]>('/api/bodega/cuadrantes-en-uso', {
+      params: { sedeId: sedeId.value, excludeOrdenId: row.ordenId }
+    });
+    cuadrantesEnUso.value = data;
+  } catch { cuadrantesEnUso.value = []; }
 
   // Intentar cargar asignación existente
   try {
     const { data } = await api.get(`/api/bodega/asignacion/${row.ordenId}`);
     if (data) {
       asignacionFecha.value = data.asignacion?.fecha
-        ? data.asignacion.fecha.split('-').reverse().join('/') // YYYY-MM-DD → DD/MM/YYYY
+        ? data.asignacion.fecha.split('-').reverse().join('/')
         : '';
 
       asignacionItems.value = (data.items || []).map((item: Record<string,unknown>) => ({
@@ -820,20 +890,18 @@ async function abrirAsignacion(row: HistorialRow) {
             cantidad:    d.cantidad as number,
           })),
       }));
-
-      // Asegurar al menos una fila por item
       asignacionItems.value.forEach(it => { if (!it.filas.length) it.filas.push({ bodegaId: null, cuadranteId: null, cantidad: null }); });
     }
   } catch { /* sin asignación previa */ }
 
-  // Si no hay items, inicializar con el producto de la orden
+  // Si no hay items, inicializar auto-llenando desde la orden de producción (Tarea 18.1)
   if (!asignacionItems.value.length) {
     asignacionItems.value = [{
       tipo: 'producto',
       nombre: row.producto || 'Garbanzo',
-      presentacionId: null,
+      presentacionId: row.presentacionId ?? null,
       tipoCostalId: null,
-      cantidadTotal: 0,
+      cantidadTotal: row.totalMpSuministrada ?? 0,
       filas: [{ bodegaId: null, cuadranteId: null, cantidad: null }],
     }];
   }
@@ -864,23 +932,60 @@ function eliminarFila(iIdx: number, fIdx: number) {
   asignacionItems.value[iIdx]?.filas.splice(fIdx, 1);
 }
 
+// Tarea 18.2: autoguardado bodega (debounce 2 s)
+function scheduleAutosave() {
+  if (!ordenActual.value) return;
+  autosaveStatus.value = 'Guardando…';
+  if (autosaveTimeout) clearTimeout(autosaveTimeout);
+  autosaveTimeout = setTimeout(() => {
+    void (async () => {
+      try {
+        let fecha: string | undefined;
+        if (asignacionFecha.value) {
+          const p = asignacionFecha.value.split('/');
+          if (p.length === 3) fecha = `${p[2]}-${p[1]}-${p[0]}`;
+        }
+        await api.patch(`/api/bodega/asignacion/${ordenActual.value!.ordenId}/autosave`, {
+          OrdenId: ordenActual.value!.ordenId,
+          SedeId:  sedeId.value,
+          Fecha:   fecha,
+          Items: asignacionItems.value.map(item => ({
+            Tipo: item.tipo, Nombre: item.nombre,
+            PresentacionId: item.presentacionId, TipoCostalId: item.tipoCostalId,
+            CantidadTotal:  item.cantidadTotal || 0,
+            Detalle: item.filas.filter(f => f.bodegaId && f.cuadranteId)
+              .map(f => ({ BodegaId: f.bodegaId, CuadranteId: f.cuadranteId, Cantidad: f.cantidad || 0 })),
+          })),
+        });
+        const hhmm = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        autosaveStatus.value = `Borrador guardado ${hhmm}`;
+      } catch {
+        autosaveStatus.value = 'Error al autoguardar';
+      }
+    })();
+  }, 2000);
+}
+
+watch([asignacionItems, asignacionFecha], scheduleAutosave, { deep: true });
+
 async function guardarAsignacion() {
   if (!ordenActual.value) return;
 
   // Validar que ningún ítem exceda su total
   for (const item of asignacionItems.value) {
     const suma = sumaFila(item);
-    const max  = item.cantidadTotal || 0;
+    const max  = efectivoMax(item);
     if (max > 0 && suma > max) {
       $q.notify({
         type: 'warning',
-        message: `"${item.nombre}" tiene ${suma} asignados pero el máximo es ${max}. Ajusta las cantidades.`,
+        message: `"${item.nombre}" tiene ${formatNum(suma)} kg asignados pero el máximo es ${formatNum(max)} kg. Ajusta las cantidades.`,
         timeout: 4000,
       });
       return;
     }
   }
 
+  if (autosaveTimeout) { clearTimeout(autosaveTimeout); autosaveTimeout = null; }
   guardando.value = true;
   try {
     // Convertir fecha DD/MM/YYYY → YYYY-MM-DD
@@ -926,15 +1031,20 @@ async function abrirDetalle(row: HistorialRow) {
     try {
       const { data } = await api.get(`/api/bodega/asignacion/${row.ordenId}`);
       if (data?.detalle?.length) {
-        // Agrupar por bodegaClave
-        const grupos = new Map<string, string[]>();
+        // Agrupar por bodegaClave, acumulando cantidad por cuadrante
+        const grupos = new Map<string, Map<string, number>>();
         for (const d of data.detalle as Record<string,unknown>[]) {
           const bClave = d.bodegaClave as string;
           const cClave = d.cuadranteClave as string;
-          if (!grupos.has(bClave)) grupos.set(bClave, []);
-          grupos.get(bClave)!.push(cClave);
+          const cant   = Number(d.cantidad ?? 0);
+          if (!grupos.has(bClave)) grupos.set(bClave, new Map());
+          const gMap = grupos.get(bClave)!;
+          gMap.set(cClave, (gMap.get(cClave) ?? 0) + cant);
         }
-        mapasBodega.value = [...grupos.entries()].map(([bodegaClave, cuadrantes]) => ({ bodegaClave, cuadrantes }));
+        mapasBodega.value = [...grupos.entries()].map(([bodegaClave, cMap]) => ({
+          bodegaClave,
+          cuadrantes: [...cMap.entries()].map(([clave, cantidad]) => ({ clave, cantidad })),
+        }));
       }
     } catch { /* ignorar */ }
   }
@@ -943,6 +1053,8 @@ async function abrirDetalle(row: HistorialRow) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────
+onBeforeUnmount(() => { if (autosaveTimeout) clearTimeout(autosaveTimeout); });
+
 onMounted(() => {
   void cargarCatalogos();
   void cargarHistorial();
