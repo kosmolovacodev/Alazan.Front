@@ -414,6 +414,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'seleccionarBoleta', boleta: BoletaPrecio, tab: PrecioTab): void;
   (e: 'exportExcel'): void;
+  (e: 'fecha-change', fechaInicio: string, fechaFin: string): void;
 }>();
 
 const precioTab = ref<PrecioTab>('autorizar');
@@ -424,6 +425,10 @@ watch(precioTab, () => {
 
 const fechaInicio = ref<string>('');
 const fechaFin = ref<string>('');
+
+watch([fechaInicio, fechaFin], () => {
+  emit('fecha-change', fechaInicio.value, fechaFin.value);
+});
 const busqueda = ref<string>('');
 const filtroComprador = ref<string>('');
 const filtroOrigen = ref<string>('');

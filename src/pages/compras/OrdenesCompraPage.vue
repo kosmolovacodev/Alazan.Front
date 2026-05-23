@@ -9,6 +9,17 @@
           Órdenes de Compra / Liquidación
         </div>
         <q-space />
+        <q-btn
+          v-if="puedeVerCierre"
+          unelevated
+          color="orange-8"
+          icon="lock_clock"
+          label="Cierre del Día"
+          :loading="cerrando"
+          :disable="!cierreHabilitado"
+          class="q-mr-sm"
+          @click="dialogCierre = true"
+        />
         <q-btn flat round icon="refresh" color="grey-6" :loading="loading" @click="cargar">
           <q-tooltip>Recargar</q-tooltip>
         </q-btn>
@@ -32,12 +43,12 @@
             <div class="col-6 col-md-2">
               <q-input v-model="filtros.fechaDesde" dense outlined clearable label="Desde"
                 type="date" :disable="!!filtros.fecha"
-                @update:model-value="cargar" />
+                @update:model-value="alCambiarRango" />
             </div>
             <div class="col-6 col-md-2">
               <q-input v-model="filtros.fechaHasta" dense outlined clearable label="Hasta"
                 type="date" :disable="!!filtros.fecha"
-                @update:model-value="cargar" />
+                @update:model-value="alCambiarRango" />
             </div>
             <div class="col-6 col-md-3">
               <q-btn flat color="grey-7" icon="filter_alt_off" label="Hoy" dense
@@ -96,6 +107,15 @@
             </q-td>
           </template>
 
+          <template #body-cell-cierreDia="{ value }">
+            <q-td class="text-center">
+              <q-badge v-if="value === 'finalizado'" color="positive" label="Cerrado" />
+              <q-badge v-else-if="value === 'rechazado'" color="deep-orange" label="Rechazado" />
+              <q-badge v-else-if="value === 'cancelado'" color="grey-6" label="Cancelado por Corte Diario" />
+              <q-badge v-else color="blue-6" label="Activo" />
+            </q-td>
+          </template>
+
           <template #body-cell-acciones="{ row }">
             <q-td class="text-center">
               <q-btn unelevated dense color="deep-orange-8" icon="visibility" label="Ver OC"
@@ -123,6 +143,44 @@
         </div>
       </q-card>
     </div>
+
+    <!-- ══ DIALOG CIERRE DEL DÍA ════════════════════════════════════════ -->
+    <q-dialog v-model="dialogCierre" persistent>
+      <q-card style="min-width: 340px">
+        <q-card-section class="bg-orange-8 text-white row items-center">
+          <q-icon name="lock_clock" size="sm" class="q-mr-sm" />
+          <span class="text-h6">Cierre del Día</span>
+        </q-card-section>
+        <q-card-section class="q-pt-md">
+          <p class="text-body2 text-grey-7 q-mb-md">
+            Se procesarán todos los registros activos del día. Esta acción no se puede deshacer.
+            Ingrese su NIP para confirmar.
+          </p>
+          <q-input
+            v-model="nipCierre"
+            :type="nipVisible ? 'text' : 'password'"
+            label="NIP"
+            outlined
+            dense
+            autofocus
+            @keyup.enter="ejecutarCierre"
+          >
+            <template #append>
+              <q-icon
+                :name="nipVisible ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="nipVisible = !nipVisible"
+              />
+            </template>
+          </q-input>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" v-close-popup @click="nipCierre = ''" />
+          <q-btn unelevated color="orange-8" label="Confirmar Cierre"
+            :disable="nipCierre.length < 4" @click="ejecutarCierre" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- ══ DIALOG DETALLE ════════════════════════════════════════════════ -->
     <q-dialog v-model="dialogDetalle" maximized>
@@ -267,18 +325,66 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'src/stores/auth'
+import { useConfiguracionStore } from 'src/stores/configuracionStore'
 import { jsPDF } from 'jspdf'
 import alazanLogoUrl from 'src/assets/alazanLogo.png'
 
-const $q        = useQuasar()
-const router    = useRouter()
-const authStore = useAuthStore()
-const descargandoPDF = ref(false)
+const $q               = useQuasar()
+const router           = useRouter()
+const authStore        = useAuthStore()
+const configuracionStore = useConfiguracionStore()
+const descargandoPDF   = ref(false)
+
+// ─── Cierre del Día ────────────────────────────────────────────────────────────
+const cerrando     = ref(false)
+const dialogCierre = ref(false)
+const nipCierre    = ref('')
+const nipVisible   = ref(false)
+
+const puedeVerCierre = computed(() => {
+  const rol = authStore.user?.nombre_rol ?? ''
+  return rol === 'ADMIN' || configuracionStore.rolesCierreDia.includes(rol)
+})
+
+// Deshabilitado cuando no hay registros activos que cerrar (tabla vacía o viendo históricos)
+const cierreHabilitado = computed(() =>
+  filas.value.length > 0 && filtros.value.soloActivos
+)
+
+watch(puedeVerCierre, (puede) => {
+  if (!puede) filas.value = []
+})
+
+async function ejecutarCierre() {
+  if (nipCierre.value.length < 4) return
+  cerrando.value = true
+  dialogCierre.value = false
+  try {
+    const sedeId = authStore.sedeActivaId ?? 0
+    const { data } = await api.post('/api/ordenes-compra-granos/cierre-dia', {
+      sedeId,
+      nip: nipCierre.value,
+    })
+    $q.notify({
+      type: 'positive',
+      message: `Cierre completado. Procesados: ${data.finalizados}, Rechazados: ${data.rechazados}, Cancelados: ${data.cancelados}`,
+      timeout: 5000,
+    })
+    void cargar()
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al ejecutar el cierre'
+    $q.notify({ type: 'negative', message: msg })
+  } finally {
+    nipCierre.value  = ''
+    nipVisible.value = false
+    cerrando.value   = false
+  }
+}
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface OrdenCompraGrano {
@@ -292,6 +398,7 @@ interface OrdenCompraGrano {
   importeAPagar:    number | null
   fecha:            string | null
   preliquidacionId: number        // ID numérico para llamadas a la API
+  cierreDia:        string | null
 }
 
 interface DetalleOC {
@@ -322,10 +429,11 @@ const loadingDetalle = ref(false)
 const detalle        = ref<DetalleOC | null>(null)
 
 const filtros = ref({
-  search:     '',
-  fecha:      new Date().toLocaleDateString('en-CA'),  // Hoy por defecto
-  fechaDesde: '',
-  fechaHasta: '',
+  search:      '',
+  fecha:       '',
+  fechaDesde:  '',
+  fechaHasta:  '',
+  soloActivos: true,
 })
 
 // ─── Columnas ─────────────────────────────────────────────────────────────────
@@ -338,6 +446,7 @@ const columnas = [
   { name: 'pesoNeto',      label: 'Peso Neto (kg)',   field: 'pesoNeto',      align: 'right'  as const, sortable: true },
   { name: 'pesoALiquidar', label: 'Peso a Liquidar',  field: 'pesoALiquidar', align: 'right'  as const, sortable: true },
   { name: 'importeAPagar', label: 'Importe a Pagar',  field: 'importeAPagar', align: 'right'  as const, sortable: true },
+  { name: 'cierreDia',     label: 'Estado',           field: 'cierreDia',     align: 'center' as const },
   { name: 'acciones',      label: 'Ver',              field: 'acciones',      align: 'center' as const },
 ]
 
@@ -357,11 +466,12 @@ async function cargar() {
     const { data } = await api.get('/api/ordenes-compra-granos', {
       params: {
         sedeId,
-        fecha:      filtros.value.fecha      || undefined,
-        fechaDesde: !filtros.value.fecha ? (filtros.value.fechaDesde || undefined) : undefined,
-        fechaHasta: !filtros.value.fecha ? (filtros.value.fechaHasta || undefined) : undefined,
-        search:     filtros.value.search     || undefined,
-        _t:         Date.now(),
+        fecha:       filtros.value.fecha      || undefined,
+        fechaDesde:  !filtros.value.fecha ? (filtros.value.fechaDesde || undefined) : undefined,
+        fechaHasta:  !filtros.value.fecha ? (filtros.value.fechaHasta || undefined) : undefined,
+        search:      filtros.value.search     || undefined,
+        soloActivos: filtros.value.soloActivos,
+        _t:          Date.now(),
       },
     })
     filas.value = data ?? []
@@ -377,16 +487,25 @@ function alCambiarFecha() {
   if (filtros.value.fecha) {
     filtros.value.fechaDesde = ''
     filtros.value.fechaHasta = ''
+    filtros.value.soloActivos = false
+  } else {
+    filtros.value.soloActivos = true
   }
+  void cargar()
+}
+
+function alCambiarRango() {
+  filtros.value.soloActivos = !(filtros.value.fechaDesde || filtros.value.fechaHasta)
   void cargar()
 }
 
 function resetearAHoy() {
   filtros.value = {
-    search: '',
-    fecha:  new Date().toLocaleDateString('en-CA'),
-    fechaDesde: '',
-    fechaHasta: '',
+    search:      '',
+    fecha:       new Date().toLocaleDateString('en-CA'),
+    fechaDesde:  '',
+    fechaHasta:  '',
+    soloActivos: true,
   }
   void cargar()
 }

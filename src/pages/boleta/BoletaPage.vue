@@ -876,9 +876,13 @@ const frijolDataInicial = computed(() => {
 async function cargarBoletas() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/boleta', {
-      params: { sedeId: authStore.sedeActivaId || 0 },
-    });
+    const params: Record<string, unknown> = {
+      sedeId: authStore.sedeActivaId || 0,
+      soloActivos: !(filtros.fechaInicio || filtros.fechaFin),
+    };
+    if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+    if (filtros.fechaFin)   params.fechaHasta = filtros.fechaFin;
+    const { data } = await api.get('/api/boleta', { params });
     boletas.value = data;
   } catch (error) {
     console.error('Error al cargar boletas:', error);
@@ -890,9 +894,13 @@ async function cargarBoletas() {
 
 async function cargarResumen() {
   try {
-    const { data } = await api.get('/api/boleta/resumen', {
-      params: { sedeId: authStore.sedeActivaId || 0 },
-    });
+    const params: Record<string, unknown> = {
+      sedeId: authStore.sedeActivaId || 0,
+      soloActivos: !(filtros.fechaInicio || filtros.fechaFin),
+    };
+    if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+    if (filtros.fechaFin)   params.fechaHasta = filtros.fechaFin;
+    const { data } = await api.get('/api/boleta/resumen', { params });
     resumen.value = data;
   } catch (error) {
     console.error('Error al cargar resumen:', error);
@@ -1168,6 +1176,11 @@ watch(
     await Promise.all([cargarBoletas(), cargarResumen(), cargarConfigCampos(), cargarConfigSistema()]);
   },
 );
+
+watch([() => filtros.fechaInicio, () => filtros.fechaFin], () => {
+  void cargarBoletas();
+  void cargarResumen();
+});
 </script>
 
 <style scoped>

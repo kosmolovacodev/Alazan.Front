@@ -29,6 +29,24 @@
           >
             <q-badge v-if="filtrosActivos > 0" color="white" text-color="orange-9" floating>{{ filtrosActivos }}</q-badge>
           </q-btn>
+          <q-btn
+            unelevated
+            :color="viendoHistorial ? 'blue-7' : 'grey-3'"
+            :text-color="viendoHistorial ? 'white' : 'grey-8'"
+            icon="history"
+            :label="viendoHistorial ? 'Ver Activas' : 'Historial'"
+            style="border-radius:8px"
+            @click="viendoHistorial = !viendoHistorial; void cargarHistorial()"
+          />
+          <q-btn
+            v-if="puedeVerCierre && !viendoHistorial"
+            unelevated color="deep-orange-8" icon="lock_clock"
+            label="Corte del Día"
+            :loading="cerrando"
+            :disable="!cierreHabilitado"
+            style="border-radius:8px"
+            @click="dialogCierre = true"
+          />
         </div>
       </div>
 
@@ -413,6 +431,38 @@
     </template>
 
     <!-- ══════════════════════════════════════════════════
+         DIÁLOGO: CORTE DEL DÍA
+    ═══════════════════════════════════════════════════ -->
+    <q-dialog v-model="dialogCierre" persistent>
+      <q-card style="min-width:340px">
+        <q-card-section class="bg-deep-orange-8 text-white row items-center">
+          <q-icon name="lock_clock" size="sm" class="q-mr-sm" />
+          <span class="text-h6">Corte del Día — Bodega</span>
+        </q-card-section>
+        <q-card-section class="q-pt-md">
+          <p class="text-body2 text-grey-7 q-mb-md">
+            Pasarán al historial las órdenes con <strong>Producción Terminada</strong>
+            y <strong>Asignación Terminada</strong>.<br>
+            Las órdenes en proceso o pendientes de asignar permanecerán activas.
+            Ingrese su NIP para confirmar.
+          </p>
+          <q-input v-model="nipCierre" :type="nipVisible ? 'text' : 'password'"
+            label="NIP" outlined dense autofocus @keyup.enter="ejecutarCierreBodega">
+            <template #append>
+              <q-icon :name="nipVisible ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer" @click="nipVisible = !nipVisible" />
+            </template>
+          </q-input>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" v-close-popup @click="nipCierre = ''" />
+          <q-btn unelevated color="deep-orange-8" label="Confirmar Corte"
+            :disable="nipCierre.length < 4" @click="ejecutarCierreBodega" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- ══════════════════════════════════════════════════
          DIÁLOGO: PANEL DE FILTROS
     ═══════════════════════════════════════════════════ -->
     <q-dialog v-model="panelFiltros" position="right" full-height>
@@ -615,9 +665,15 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth';
+import { useConfiguracionStore } from 'src/stores/configuracionStore';
 
 const $q        = useQuasar();
 const authStore = useAuthStore();
+const configuracionStore = useConfiguracionStore();
+const puedeVerCierre = computed(() => {
+  const rol = authStore.user?.nombre_rol ?? '';
+  return rol === 'ADMIN' || configuracionStore.rolesCierreDia.includes(rol);
+});
 const sedeId    = computed(() => authStore.sedeActivaId ?? 0);
 
 // ─── Tipos ────────────────────────────────────────────────────────
@@ -821,12 +877,23 @@ function limpiarFiltros() {
   busqueda.value         = '';
 }
 
+const viendoHistorial  = ref(false)
+const cerrando         = ref(false)
+const dialogCierre     = ref(false)
+const nipCierre        = ref('')
+const nipVisible       = ref(false)
+
+const cierreHabilitado = computed(() =>
+  !viendoHistorial.value &&
+  historial.value.some(r => r.statusProduccion === 'Terminado' && r.statusAsignacion === 'Terminado')
+)
+
 // ─── Carga de datos ───────────────────────────────────────────────
 async function cargarHistorial() {
   loading.value = true;
   try {
     const [hist, stats] = await Promise.all([
-      api.get('/api/bodega/historial', { params: { sedeId: sedeId.value } }),
+      api.get('/api/bodega/historial', { params: { sedeId: sedeId.value, soloActivos: !viendoHistorial.value } }),
       api.get('/api/bodega/stats',     { params: { sedeId: sedeId.value } }),
     ]);
     historial.value    = Array.isArray(hist.data) ? hist.data : [];
@@ -835,6 +902,31 @@ async function cargarHistorial() {
     $q.notify({ type: 'negative', message: 'Error al cargar historial de bodega' });
   } finally {
     loading.value = false;
+  }
+}
+
+async function ejecutarCierreBodega() {
+  if (nipCierre.value.length < 4) return
+  cerrando.value = true
+  dialogCierre.value = false
+  try {
+    const { data } = await api.post('/api/bodega/cierre-dia', {
+      sedeId: sedeId.value,
+      nip: nipCierre.value,
+    })
+    $q.notify({
+      type: 'positive',
+      message: `Corte completado. Historizadas: ${data.historizadas}, Activas: ${data.activas}`,
+      timeout: 5000,
+    })
+    void cargarHistorial()
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al ejecutar el corte'
+    $q.notify({ type: 'negative', message: msg })
+  } finally {
+    nipCierre.value  = ''
+    nipVisible.value = false
+    cerrando.value   = false
   }
 }
 

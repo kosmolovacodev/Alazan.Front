@@ -25,9 +25,26 @@
     <div class="row items-center q-gutter-md q-mb-lg">
       <div class="col">
         <div class="text-h5 text-weight-bold text-grey-8">Recepción de Facturas</div>
-        <div class="text-caption text-grey-6">Historial de recepciones</div>
+        <div class="text-caption text-grey-6">{{ viendoHistorial ? 'Historial cerrado' : 'Registros activos' }}</div>
       </div>
-      <div class="col-auto">
+      <div class="col-auto row q-gutter-sm items-center">
+        <q-btn
+          unelevated
+          :color="viendoHistorial ? 'blue-7' : 'grey-6'"
+          :icon="viendoHistorial ? 'history' : 'list'"
+          :label="viendoHistorial ? 'Ver Activas' : 'Historial'"
+          @click="viendoHistorial = !viendoHistorial; void cargarRecepciones()"
+        />
+        <q-btn
+          v-if="puedeVerCierre && !viendoHistorial"
+          unelevated
+          color="orange-8"
+          icon="lock_clock"
+          label="Corte del Día"
+          :loading="cerrando"
+          :disable="!cierreHabilitado"
+          @click="dialogCierre = true"
+        />
         <q-btn flat round icon="refresh" color="primary" :loading="loading" @click="cargarRecepciones" />
       </div>
     </div>
@@ -131,8 +148,8 @@
       </q-card>
     </div>
 
-    <!-- Acciones sobre selección -->
-    <div class="row items-center justify-between q-mb-md">
+    <!-- Acciones sobre selección (solo en vista activa) -->
+    <div v-if="!viendoHistorial" class="row items-center justify-between q-mb-md">
       <div>
         <q-btn
           v-if="selectedIds.length > 0 && todosListosParaPago"
@@ -150,6 +167,50 @@
         />
       </div>
     </div>
+
+    <!-- Diálogo Corte del Día -->
+    <q-dialog v-model="dialogCierre" persistent>
+      <q-card style="min-width: 340px">
+        <q-card-section class="bg-orange-8 text-white row items-center">
+          <q-icon name="lock_clock" size="sm" class="q-mr-sm"/>
+          <span class="text-h6">Corte del Día — Facturación</span>
+        </q-card-section>
+        <q-card-section class="q-pt-md">
+          <p class="text-body2 text-grey-7 q-mb-md">
+            Los expedientes con estatus <strong>Enviado a Pagos</strong> pasarán al historial.
+            Los expedientes pendientes (sin RFC, sin documentos, sin XML) permanecen activos.
+            Ingrese su NIP para confirmar.
+          </p>
+          <q-input
+            v-model="nipCierre"
+            :type="nipVisible ? 'text' : 'password'"
+            label="NIP"
+            outlined
+            dense
+            autofocus
+            @keyup.enter="ejecutarCierreFacturacion"
+          >
+            <template #append>
+              <q-icon
+                :name="nipVisible ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="nipVisible = !nipVisible"
+              />
+            </template>
+          </q-input>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" v-close-popup @click="nipCierre = ''" />
+          <q-btn
+            unelevated
+            color="orange-8"
+            label="Confirmar Corte"
+            :disable="nipCierre.length < 4"
+            @click="ejecutarCierreFacturacion"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Tabla -->
     <q-card flat bordered class="bg-white">
@@ -212,9 +273,8 @@
 
         <template #body-cell-status="p">
           <q-td :props="p">
-            <span :class="obtenerStatusClase(p.row)">
-              {{ obtenerStatusTexto(p.row) }}
-            </span>
+            <q-badge v-if="viendoHistorial" color="blue-7" label="Cerrado" />
+            <span v-else :class="obtenerStatusClase(p.row)">{{ obtenerStatusTexto(p.row) }}</span>
           </q-td>
         </template>
 
@@ -241,11 +301,17 @@ import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth';
 import { useOfflineStore } from 'src/stores/offlineStore';
+import { useConfiguracionStore } from 'src/stores/configuracionStore';
 import DetalleFacturacion from './DetalleFacturacion.vue';
 import type { QTableColumn } from 'quasar';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const configuracionStore = useConfiguracionStore();
+const puedeVerCierre = computed(() => {
+  const rol = authStore.user?.nombre_rol ?? '';
+  return rol === 'ADMIN' || configuracionStore.rolesCierreDia.includes(rol);
+});
 const offlineStore = useOfflineStore();
 const isOnline = ref(window.navigator.onLine);
 const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
@@ -267,6 +333,7 @@ interface FacturaRecord {
   status: string;
   tieneDocumentos: boolean;
   tieneFacturaXML: boolean;
+  enHistorial?: number;
 }
 
 /* =========================
@@ -278,6 +345,17 @@ const exportando = ref(false);
 const selectedIds = ref<number[]>([]);
 const mostrarDetalle = ref(false);
 const detalleFactura = ref<{ productor: string; rfc: string; tickets: string[] } | null>(null);
+
+const viendoHistorial  = ref(false);
+const cerrando         = ref(false);
+const dialogCierre     = ref(false);
+const nipCierre        = ref('');
+const nipVisible       = ref(false);
+
+const cierreHabilitado = computed(() =>
+  !viendoHistorial.value &&
+  recepciones.value.some(r => r.status === 'ENVIADO_A_PAGOS')
+);
 
 const filtros = ref({
   ticket: '',
@@ -302,7 +380,9 @@ const statusOptions = [
 async function cargarRecepciones() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/facturacion/recepciones');
+    const { data } = await api.get('/api/facturacion/recepciones', {
+      params: { sedeId: authStore.sedeActivaId || 0, soloActivos: !viendoHistorial.value }
+    });
     recepciones.value = (data as FacturaRecord[]).map((r, idx) => ({
       ...r,
       id: r.id || idx + 1,
@@ -314,6 +394,31 @@ async function cargarRecepciones() {
     notifyError('Error al cargar recepciones de facturación');
   } finally {
     loading.value = false;
+  }
+}
+
+async function ejecutarCierreFacturacion() {
+  if (nipCierre.value.length < 4) return;
+  cerrando.value = true;
+  dialogCierre.value = false;
+  try {
+    const { data } = await api.post('/api/facturacion/cierre-dia', {
+      sedeId: authStore.sedeActivaId || 0,
+      nip: nipCierre.value
+    });
+    $q.notify({
+      type: 'positive',
+      message: `Corte completado. Enviados a historial: ${data.enviados}, Pendientes activos: ${data.pendientes}`,
+      timeout: 5000
+    });
+    void cargarRecepciones();
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al ejecutar el corte';
+    $q.notify({ type: 'negative', message: msg });
+  } finally {
+    nipCierre.value = '';
+    nipVisible.value = false;
+    cerrando.value = false;
   }
 }
 

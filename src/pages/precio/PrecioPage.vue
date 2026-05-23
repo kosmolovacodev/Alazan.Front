@@ -10,6 +10,7 @@
       :tiempo-autorizacion-automatica="configuracion.minutosParaAutorizacion"
       @seleccionar-boleta="abrirDialogoDetalle"
       @export-excel="exportarExcel"
+      @fecha-change="onFechaChange"
     />
 
     <!-- Modal de Autorización de Precio -->
@@ -67,6 +68,8 @@ interface DescuentoPrecio {
 // Estado
 const offlineStore = useOfflineStore();
 const authStore    = useAuthStore();
+const fechaInicioPrecio = ref('');
+const fechaFinPrecio    = ref('');
 const isOnline = ref(window.navigator.onLine);
 const boletasPrecios = ref<BoletaPrecio[]>([]);
 const tickTiempo = ref(0);
@@ -130,9 +133,13 @@ const cargarCatalogos = async (granoId?: number) => {
 // Cargar boletas desde el backend
 const cargarBoletas = async () => {
   try {
-    const { data } = await api.get('/api/precio', {
-      params: { sedeId: authStore.sedeActivaId ?? 0 }
-    });
+    const params: Record<string, unknown> = {
+      sedeId: authStore.sedeActivaId ?? 0,
+      soloActivos: !(fechaInicioPrecio.value || fechaFinPrecio.value),
+    };
+    if (fechaInicioPrecio.value) params.fechaDesde = fechaInicioPrecio.value;
+    if (fechaFinPrecio.value)   params.fechaHasta = fechaFinPrecio.value;
+    const { data } = await api.get('/api/precio', { params });
     boletasPrecios.value = data;
   } catch (error) {
     console.error('Error al cargar boletas:', error);
@@ -142,6 +149,12 @@ const cargarBoletas = async () => {
     });
   }
 };
+
+function onFechaChange(fi: string, ff: string) {
+  fechaInicioPrecio.value = fi;
+  fechaFinPrecio.value    = ff;
+  void cargarBoletas();
+}
 
 // Calcular precios disponibles con formula acumulativa:
 // P1 = precio base, P2 = P1 - descuento_P2, P3 = P2 - descuento_P3, etc.

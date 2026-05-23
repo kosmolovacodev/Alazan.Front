@@ -484,19 +484,30 @@ const columns: QTableProps['columns'] = [
 
 // --- MÉTODOS ---
 
+const cargarRegistrosBascula = async () => {
+  if (!isOnline.value) return;
+  const sedeIdActual = authStore.sedeActivaId ?? 0;
+  const params: Record<string, unknown> = {
+    sedeId: sedeIdActual,
+    soloActivos: !(filtros.fechaInicio || filtros.fechaFin),
+  };
+  if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+  if (filtros.fechaFin)   params.fechaHasta = filtros.fechaFin;
+  const res = await api.get('/api/bascula/registros', { params });
+  registrosBascula.value = res.data;
+};
+
 const cargarDatos = async () => {
   if (!isOnline.value) return;
   loading.value = true;
   try {
-    const sedeIdActual = authStore.sedeActivaId ?? 0;
-    const [resRegistros, resGranos, resTicket, resChoferes, resUltimoGrano] = await Promise.all([
-      api.get('/api/bascula/registros', { params: { sedeId: sedeIdActual } }),
+    const [, resGranos, resTicket, resChoferes, resUltimoGrano] = await Promise.all([
+      cargarRegistrosBascula(),
       api.get('/api/catalogos/granos'),
       api.get('/api/bascula/ultimo-ticket'),
       api.get('/api/bascula/choferes'),
       api.get('/api/bascula/ultimo-grano'),
     ]);
-    registrosBascula.value = resRegistros.data;
     catalogoGranos.value = resGranos.data;
     ultimoTicket.value = resTicket.data;
     catalogoChoferes.value = resChoferes.data;
@@ -544,6 +555,10 @@ watch(
     }
   },
 );
+
+watch([() => filtros.fechaInicio, () => filtros.fechaFin], () => {
+  void cargarRegistrosBascula();
+});
 
 async function handleGuardarRegistro(nuevoRegistro: RegistroBascula & { _productor_nombre?: string; _productor_localId?: string }) {
   if (!window.navigator.onLine) {

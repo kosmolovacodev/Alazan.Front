@@ -1820,6 +1820,11 @@ watch(aLiquidar, () => {
   if (plantillaObs.value) observaciones.value = interpolarPlantilla(plantillaObs.value);
 });
 
+watch([() => filtros.fechaInicio, () => filtros.fechaFin], () => {
+  void cargarRegistros();
+  void cargarResumen();
+});
+
 // --- FUNCIONES UTILITARIAS ---
 function fmtNum(val: number | string | undefined | null): string {
   const num = Number(val);
@@ -1843,9 +1848,11 @@ async function cargarRegistros() {
 
     if (filtros.hoy) {
       params.fecha = hoy;
+      params.soloActivos = true;
     } else if (filtros.fechaInicio || filtros.fechaFin) {
       if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
       if (filtros.fechaFin)    params.fechaHasta = filtros.fechaFin;
+      params.soloActivos = false;
     }
 
     const { data } = await api.get('/api/preliquidacion', { params });
@@ -1866,9 +1873,11 @@ async function cargarResumen() {
 
     if (filtros.hoy) {
       params.fecha = hoy;
+      params.soloActivos = true;
     } else if (filtros.fechaInicio || filtros.fechaFin) {
       if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
       if (filtros.fechaFin)    params.fechaHasta = filtros.fechaFin;
+      params.soloActivos = false;
     }
 
     const { data } = await api.get('/api/preliquidacion/resumen', { params });

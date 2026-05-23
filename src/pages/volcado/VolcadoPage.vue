@@ -1171,9 +1171,13 @@ const registrosFiltrados = computed(() => {
 async function cargarRegistros() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/volcado', {
-      params: { sedeId: authStore.sedeActivaId || 0 },
-    });
+    const params: Record<string, unknown> = {
+      sedeId: authStore.sedeActivaId || 0,
+      soloActivos: !(filtros.fechaInicio || filtros.fechaFin),
+    };
+    if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+    if (filtros.fechaFin)   params.fechaHasta = filtros.fechaFin;
+    const { data } = await api.get('/api/volcado', { params });
     registros.value = data;
   } catch (error) {
     console.error('Error al cargar registros:', error);
@@ -1185,9 +1189,13 @@ async function cargarRegistros() {
 
 async function cargarResumen() {
   try {
-    const { data } = await api.get('/api/volcado/resumen', {
-      params: { sedeId: authStore.sedeActivaId || 0 },
-    });
+    const params: Record<string, unknown> = {
+      sedeId: authStore.sedeActivaId || 0,
+      soloActivos: !(filtros.fechaInicio || filtros.fechaFin),
+    };
+    if (filtros.fechaInicio) params.fechaDesde = filtros.fechaInicio;
+    if (filtros.fechaFin)   params.fechaHasta = filtros.fechaFin;
+    const { data } = await api.get('/api/volcado/resumen', { params });
     resumen.value = data;
   } catch (error) {
     console.error('Error al cargar resumen:', error);
@@ -1658,6 +1666,11 @@ watch(
     await Promise.all([cargarSilos(), cargarSilosCalibre(), cargarSilosPulmon(), cargarBodegas(), cargarRegistros(), cargarResumen(), cargarConfigCampos()]);
   },
 );
+
+watch([() => filtros.fechaInicio, () => filtros.fechaFin], () => {
+  void cargarRegistros();
+  void cargarResumen();
+});
 </script>
 
 <style scoped>

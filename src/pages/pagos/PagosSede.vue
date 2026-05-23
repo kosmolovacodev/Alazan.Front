@@ -7,9 +7,28 @@
     <div class="row items-center q-gutter-md q-mb-md">
       <div class="col">
         <div class="text-h5 text-weight-bold text-grey-8">Pagos – Sede Corporativo</div>
-        <div class="text-caption text-grey-6">Autorización y Registro de Pagos</div>
+        <div class="text-caption text-grey-6">
+          {{ viendoHistorial ? 'Historial cerrado' : 'Autorización y Registro de Pagos' }}
+        </div>
       </div>
-      <div class="col-auto">
+      <div class="col-auto row q-gutter-sm items-center">
+        <q-btn
+          unelevated
+          :color="viendoHistorial ? 'blue-7' : 'grey-6'"
+          :icon="viendoHistorial ? 'history' : 'list'"
+          :label="viendoHistorial ? 'Ver Activos' : 'Historial'"
+          @click="viendoHistorial = !viendoHistorial; void cargarDatos()"
+        />
+        <q-btn
+          v-if="puedeVerCierre && !viendoHistorial"
+          unelevated
+          color="orange-8"
+          icon="lock_clock"
+          label="Corte del Día"
+          :loading="cerrando"
+          :disable="!cierreHabilitado"
+          @click="dialogCierre = true"
+        />
         <q-btn flat round icon="refresh" color="primary" :loading="loading" @click="cargarDatos" />
       </div>
     </div>
@@ -233,7 +252,8 @@
       >
         <template v-slot:body-cell-statusPago="props">
           <q-td :props="props">
-            <q-badge :color="getStatusColor(props.row.status_pago)" :label="props.row.status_pago" />
+            <q-badge v-if="viendoHistorial" color="grey-6" label="Cerrado" />
+            <q-badge v-else :color="getStatusColor(props.row.status_pago)" :label="props.row.status_pago" />
           </q-td>
         </template>
 
@@ -446,6 +466,39 @@
       </q-card>
     </q-dialog>
 
+    <!-- Diálogo Corte del Día -->
+    <q-dialog v-model="dialogCierre" persistent>
+      <q-card style="min-width: 340px">
+        <q-card-section class="bg-orange-8 text-white row items-center">
+          <q-icon name="lock_clock" size="sm" class="q-mr-sm"/>
+          <span class="text-h6">Corte del Día — Sede Corporativo</span>
+        </q-card-section>
+        <q-card-section class="q-pt-md">
+          <p class="text-body2 text-grey-7 q-mb-md">
+            Los pagos con estatus <strong>PAGADO</strong> pasarán al historial.
+            Los pagos con estatus <em>Pago Solicitado</em> y <em>Autorizado</em> permanecen activos.
+            Ingrese su NIP para confirmar.
+          </p>
+          <q-input
+            v-model="nipCierre"
+            :type="nipVisible ? 'text' : 'password'"
+            label="NIP" outlined dense autofocus
+            @keyup.enter="ejecutarCierreSede"
+          >
+            <template #append>
+              <q-icon :name="nipVisible ? 'visibility_off' : 'visibility'"
+                      class="cursor-pointer" @click="nipVisible = !nipVisible"/>
+            </template>
+          </q-input>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" v-close-popup @click="nipCierre = ''" />
+          <q-btn unelevated color="orange-8" label="Confirmar Corte"
+                 :disable="nipCierre.length < 4" @click="ejecutarCierreSede"/>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -454,6 +507,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth'
+import { useConfiguracionStore } from 'src/stores/configuracionStore'
 
 // ══════════════════════════════════════════════════════════════════
 //  INTERFACES
@@ -503,6 +557,11 @@ interface FormaPagoOption { id: number; nombre: string; codigo: string }
 // ══════════════════════════════════════════════════════════════════
 const $q = useQuasar()
 const authStore = useAuthStore()
+const configuracionStore = useConfiguracionStore()
+const puedeVerCierre = computed(() => {
+  const rol = authStore.user?.nombre_rol ?? ''
+  return rol === 'ADMIN' || configuracionStore.rolesCierreDia.includes(rol)
+})
 
 const pagos      = ref<PagoSedeRecord[]>([])
 const loading    = ref(false)
@@ -510,6 +569,15 @@ const exportando = ref(false)
 const autorizando = ref(false)
 const guardando  = ref(false)
 const selected   = ref<PagoSedeRecord[]>([])
+
+const viendoHistorial  = ref(false)
+const cerrando         = ref(false)
+const dialogCierre     = ref(false)
+const nipCierre        = ref('')
+const nipVisible       = ref(false)
+const cierreHabilitado = computed(() =>
+  !viendoHistorial.value && pagos.value.some(p => p.status_pago === 'PAGADO')
+)
 
 const topesSedes        = ref<TopeSede[]>([])
 const bancosOptions     = ref<BancoOption[]>([])
@@ -681,7 +749,7 @@ async function cargarDatos() {
   try {
     const sedeId = authStore.esAdminGlobal ? 0 : (authStore.sedeActivaId ?? 0)
     const [solicitudesRes, configRes, topesRes] = await Promise.all([
-      api.get('/pagos/solicitudes-sede', { params: { sedeId } }),
+      api.get('/pagos/solicitudes-sede', { params: { sedeId, soloActivos: !viendoHistorial.value } }),
       api.get('/pagos/configuracion-completa', { params: { sedeId: authStore.sedeActivaId ?? 0 } }),
       api.get('/pagos/topes-sedes'),
     ])
@@ -818,6 +886,28 @@ async function handleExportarExcel() {
     $q.notify({ type: 'negative', message: 'Error al exportar Excel' })
   } finally {
     exportando.value = false
+  }
+}
+
+async function ejecutarCierreSede() {
+  if (nipCierre.value.length < 4) return
+  cerrando.value = true
+  dialogCierre.value = false
+  try {
+    const sedeId = authStore.esAdminGlobal ? 0 : (authStore.sedeActivaId ?? 0)
+    const { data } = await api.post('/pagos/cierre-dia', { sedeId, nip: nipCierre.value })
+    $q.notify({
+      type: 'positive',
+      message: `Corte completado. Pagados cerrados: ${data.pagos}, Pendientes activos: ${data.pendientes}, Monto: $${Number(data.monto_historizado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+      timeout: 5000
+    })
+    void cargarDatos()
+  } catch (err: unknown) {
+    $q.notify({ type: 'negative', message: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al ejecutar el corte' })
+  } finally {
+    nipCierre.value = ''
+    nipVisible.value = false
+    cerrando.value = false
   }
 }
 

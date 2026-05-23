@@ -31,50 +31,10 @@
           />
         </div>
         <div class="col-12 col-md-3">
-          <q-input
-            v-model="filtroFechaInicio"
-            label="Fecha Desde"
-            outlined
-            dense
-            readonly
-            clearable
-            class="cursor-pointer"
-            @click="popupDesde = true"
-          >
-            <template v-slot:append>
-              <q-icon name="event" class="cursor-pointer" @click.stop="popupDesde = true" />
-            </template>
-          </q-input>
-          <q-popup-proxy v-model="popupDesde" cover transition-show="scale" transition-hide="scale">
-            <q-date v-model="filtroFechaInicio" mask="YYYY-MM-DD" :locale="localeEs" @update:model-value="popupDesde = false">
-              <div class="row items-center justify-end">
-                <q-btn v-close-popup label="Cerrar" color="primary" flat />
-              </div>
-            </q-date>
-          </q-popup-proxy>
+          <q-input v-model="filtroFechaInicio" label="Fecha Desde" outlined dense type="date" clearable />
         </div>
         <div class="col-12 col-md-3">
-          <q-input
-            v-model="filtroFechaFin"
-            label="Fecha Hasta"
-            outlined
-            dense
-            readonly
-            clearable
-            class="cursor-pointer"
-            @click="popupHasta = true"
-          >
-            <template v-slot:append>
-              <q-icon name="event" class="cursor-pointer" @click.stop="popupHasta = true" />
-            </template>
-          </q-input>
-          <q-popup-proxy v-model="popupHasta" cover transition-show="scale" transition-hide="scale">
-            <q-date v-model="filtroFechaFin" mask="YYYY-MM-DD" :locale="localeEs" @update:model-value="popupHasta = false">
-              <div class="row items-center justify-end">
-                <q-btn v-close-popup label="Cerrar" color="primary" flat />
-              </div>
-            </q-date>
-          </q-popup-proxy>
+          <q-input v-model="filtroFechaFin" label="Fecha Hasta" outlined dense type="date" clearable />
         </div>
         <div class="col-12 col-md-2">
           <div class="row q-gutter-sm">
@@ -617,15 +577,6 @@ const filtroEstatus = ref('TODOS');
 const filtroFechaInicio = ref('');
 const filtroFechaFin = ref('');
 const filtroGranoId = ref<number | null>(null);
-const popupDesde = ref(false);
-const popupHasta = ref(false);
-
-const localeEs = {
-  days: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
-  daysShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
-  months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
-  monthsShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-};
 
 const opcionesEstatus = [
   { label: 'Pendientes', value: 'PENDIENTE' },
@@ -684,12 +635,17 @@ watch([filtroEstatus, filtroFechaInicio, filtroFechaFin, filtroGranoId], () => {
   currentIndex.value = 0;
 });
 
+// Recargar del servidor cuando cambian las fechas
+watch([filtroFechaInicio, filtroFechaFin], () => {
+  void cargarPendientes();
+});
+
 function limpiarFiltros() {
   filtroEstatus.value = 'TODOS';
   filtroFechaInicio.value = '';
   filtroFechaFin.value = '';
   filtroGranoId.value = null;
-  // No llama al servidor — el computed se recalcula solo
+  void cargarPendientes();
 }
 
 const analisisData = reactive<AnalisisData>({
@@ -735,15 +691,19 @@ async function cargarCalibres(granoId?: number) {
 }
 
 // --- Lógica de Carga API ---
-// Carga TODOS los registros del servidor (sin filtros) — el filtrado es client-side
 async function cargarPendientes() {
   if (!window.navigator.onLine) return; // Sin red, trabajar con lo que hay en memoria
   loading.value = true;
   try {
     const sedeId = authStore.sedeActivaId ?? 0;
-    const response = await api.get('/api/analisis/pendientes-analisis', {
-      params: { sedeId, estatus: 'TODOS' },
-    });
+    const params: Record<string, unknown> = {
+      sedeId,
+      estatus: 'TODOS',
+      soloActivos: !(filtroFechaInicio.value || filtroFechaFin.value),
+    };
+    if (filtroFechaInicio.value) params.fechaInicio = filtroFechaInicio.value;
+    if (filtroFechaFin.value)   params.fechaFin    = filtroFechaFin.value;
+    const response = await api.get('/api/analisis/pendientes-analisis', { params });
     listaTodos.value = response.data;
     currentIndex.value = 0;
   } catch {

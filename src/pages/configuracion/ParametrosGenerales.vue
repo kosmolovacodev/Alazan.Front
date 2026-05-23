@@ -35,6 +35,7 @@
         <q-tab name="embarque" label="Instrucciones de Embarque" icon="local_shipping" />
         <q-tab name="bitacoras" label="Bitácoras" icon="history" />
         <q-tab name="inicio-dia" label="Inicio del Día" icon="wb_sunny" />
+        <q-tab name="cierre-dia" label="Cierre del Día" icon="lock_clock" />
         <q-tab name="consultas" label="Consultas" icon="manage_search" />
       </q-tabs>
       </div>
@@ -169,6 +170,12 @@
           <ConfiguracionInicioDia />
         </q-tab-panel>
 
+        <q-tab-panel name="cierre-dia">
+          <div class="text-h6 q-mb-xs">Configuración — Cierre del Día</div>
+          <div class="text-caption text-grey-6 q-mb-md">Define qué roles pueden ejecutar el cierre del día en Órdenes de Compra</div>
+          <CierreDiaConfig />
+        </q-tab-panel>
+
         <q-tab-panel name="consultas">
           <div class="text-h6">Configuración de Consultas</div>
           Define módulos consultables, tipos de reportes y opciones de exportación.
@@ -220,6 +227,9 @@ import ConfiguracionBitacoras from 'src/components/configuracion/ConfiguracionBi
 
 // Importación de Configuración de Inicio del Día
 import ConfiguracionInicioDia from 'src/components/configuracion/ConfiguracionInicioDia.vue';
+
+// Importación de Configuración de Cierre del Día
+import CierreDiaConfig from 'src/components/configuracion/CierreDiaConfig.vue';
 
 // Estado de la pestaña principal
 const mainTab = ref('general');

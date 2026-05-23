@@ -111,6 +111,24 @@
               @click="panelFiltros = true"
             />
             <q-btn
+              unelevated
+              :color="viendoHistorial ? 'blue-7' : 'grey-7'"
+              :icon="viendoHistorial ? 'history' : 'history'"
+              :label="viendoHistorial ? 'Ver Activas' : 'Historial'"
+              outline
+              style="border-radius:8px"
+              @click="viendoHistorial = !viendoHistorial; void cargarOrdenes()"
+            />
+            <q-btn
+              v-if="puedeVerCierre && !viendoHistorial"
+              unelevated color="deep-orange-8" icon="lock_clock"
+              label="Corte del Día"
+              :loading="cerrando"
+              :disable="!cierreHabilitado"
+              style="border-radius:8px"
+              @click="dialogCierre = true"
+            />
+            <q-btn
               unelevated color="orange-7" icon="add" label="Nueva Orden"
               style="border-radius:8px"
               @click="irNuevaOrden"
@@ -194,7 +212,7 @@
             <q-td align="center">
               <q-btn flat dense round icon="visibility" color="grey-5" size="sm"
                 @click="irResultado(props.row)" />
-              <q-btn v-if="props.row.status !== 'Resultado Registrado'" flat dense round icon="edit_note" color="orange-6" size="sm"
+              <q-btn v-if="props.row.status !== 'Terminado'" flat dense round icon="edit_note" color="orange-6" size="sm"
                 @click="irEditarOrden(props.row)" />
             </q-td>
           </template>
@@ -216,6 +234,35 @@
           <span class="text-caption text-grey-5">{{ ordenesFiltradas.length }} de {{ ordenes.length }} órdenes</span>
         </div>
       </q-card>
+
+      <!-- ── Diálogo Corte del Día ── -->
+      <q-dialog v-model="dialogCierre" persistent>
+        <q-card style="min-width:340px">
+          <q-card-section class="bg-deep-orange-8 text-white row items-center">
+            <q-icon name="lock_clock" size="sm" class="q-mr-sm" />
+            <span class="text-h6">Corte del Día — Producción</span>
+          </q-card-section>
+          <q-card-section class="q-pt-md">
+            <p class="text-body2 text-grey-7 q-mb-md">
+              Las órdenes con estatus <strong>Terminado</strong> pasarán al historial.
+              Las órdenes En Proceso y Pausadas permanecerán activas.
+              Ingrese su NIP para confirmar.
+            </p>
+            <q-input v-model="nipCierre" :type="nipVisible ? 'text' : 'password'"
+              label="NIP" outlined dense autofocus @keyup.enter="ejecutarCierreProduccion">
+              <template #append>
+                <q-icon :name="nipVisible ? 'visibility_off' : 'visibility'"
+                  class="cursor-pointer" @click="nipVisible = !nipVisible" />
+              </template>
+            </q-input>
+          </q-card-section>
+          <q-card-actions align="right" class="q-pa-md">
+            <q-btn flat label="Cancelar" v-close-popup @click="nipCierre = ''" />
+            <q-btn unelevated color="deep-orange-8" label="Confirmar Corte"
+              :disable="nipCierre.length < 4" @click="ejecutarCierreProduccion" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
 
       <!-- ── Panel Filtros ── -->
       <q-dialog v-model="panelFiltros" position="right">
@@ -1322,9 +1369,15 @@ import { Notify, useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import { useOfflineStore } from 'src/stores/offlineStore';
+import { useConfiguracionStore } from 'src/stores/configuracionStore';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const configuracionStore = useConfiguracionStore();
+const puedeVerCierre = computed(() => {
+  const rol = authStore.user?.nombre_rol ?? '';
+  return rol === 'ADMIN' || configuracionStore.rolesCierreDia.includes(rol);
+});
 const offlineStore = useOfflineStore();
 const isOnline = ref(window.navigator.onLine);
 const _syncOnline = () => { isOnline.value = window.navigator.onLine; };
@@ -1500,9 +1553,9 @@ interface OrdenResumen {
 }
 
 const STATUSES = [
-  { value: 'Pendiente',            label: 'En Proceso' },
-  { value: 'Resultado Registrado', label: 'Terminado' },
-  { value: 'Pausado',              label: 'Pausado' },
+  { value: 'Pendiente', label: 'En Proceso' },
+  { value: 'Terminado', label: 'Terminado' },
+  { value: 'Pausado',   label: 'Pausado' },
 ];
 
 const filtros = ref({
@@ -1550,13 +1603,13 @@ function calibresDeOrden(calibreTipo: string): string[] {
 }
 
 function statusColor(status: string): string {
-  if (status === 'Resultado Registrado') return 'positive';
+  if (status === 'Terminado') return 'positive';
   if (status === 'Pausado') return 'grey-5';
   return 'orange-7';
 }
 
 function statusLabel(status: string): string {
-  if (status === 'Resultado Registrado') return 'Terminado';
+  if (status === 'Terminado') return 'Terminado';
   if (status === 'Pausado') return 'Pausado';
   return 'En Proceso';
 }
@@ -1595,23 +1648,58 @@ const ordenesFiltradas = computed(() => {
 const kpis = computed(() => ({
   total:      ordenes.value.length,
   enProceso:  ordenes.value.filter(o => o.status === 'Pendiente').length,
-  terminadas: ordenes.value.filter(o => o.status === 'Resultado Registrado').length,
+  terminadas: ordenes.value.filter(o => o.status === 'Terminado').length,
   totalTons:  ordenes.value.reduce((s, o) => s + (o.kg ?? 0), 0) / 1000,
   garbanzo:   ordenes.value.filter(o => o.producto === 'Garbanzo').length,
   frijol:     ordenes.value.filter(o => o.producto === 'Frijol').length,
 }));
 
+const viendoHistorial  = ref(false)
+const cerrando         = ref(false)
+const dialogCierre     = ref(false)
+const nipCierre        = ref('')
+const nipVisible       = ref(false)
+
+const cierreHabilitado = computed(() =>
+  !viendoHistorial.value && ordenes.value.some(o => o.status === 'Terminado')
+)
+
 async function cargarOrdenes() {
   loading.value = true;
   try {
     const { data } = await api.get('/api/produccion/ordenes', {
-      params: { sedeId: authStore.sedeActivaId ?? 0 }
+      params: { sedeId: authStore.sedeActivaId ?? 0, soloActivos: !viendoHistorial.value }
     });
     ordenes.value = data as OrdenResumen[];
   } catch {
     Notify.create({ type: 'negative', message: 'Error al cargar órdenes' });
   } finally {
     loading.value = false;
+  }
+}
+
+async function ejecutarCierreProduccion() {
+  if (nipCierre.value.length < 4) return
+  cerrando.value = true
+  dialogCierre.value = false
+  try {
+    const { data } = await api.post('/api/produccion/cierre-dia', {
+      sedeId: authStore.sedeActivaId ?? 0,
+      nip: nipCierre.value,
+    })
+    Notify.create({
+      type: 'positive',
+      message: `Corte completado. Terminadas: ${data.terminadas}, Activas: ${data.activas}, Tons: ${Number(data.toneladas).toFixed(1)}`,
+      timeout: 5000,
+    })
+    void cargarOrdenes()
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al ejecutar el corte'
+    Notify.create({ type: 'negative', message: msg })
+  } finally {
+    nipCierre.value  = ''
+    nipVisible.value = false
+    cerrando.value   = false
   }
 }
 
@@ -1885,7 +1973,7 @@ interface LineaSubprod {
 
 const ordenActual = ref<OrdenResumen | null>(null);
 const trenesActuales = ref<TrenResultado[]>([]);
-const resultadoReadonly = computed(() => ordenActual.value?.status === 'Resultado Registrado');
+const resultadoReadonly = computed(() => ordenActual.value?.status === 'Terminado');
 
 const resultado = ref<{
   fechaInicio: string; horaInicio: string;
